@@ -6,7 +6,7 @@ on:
       - master # Changed from 'main' to 'master'
 
 env:
-  DOCKER_IMAGE_NAME: thearpankumar/bajajfinsev-fastapi # IMPORTANT: Replace with your Docker Hub username/repo
+  DOCKER_IMAGE_NAME: arpankumar1119/bajajfinsev-fastapi # IMPORTANT: Replace with your Docker Hub username/repo
   VM_HOST: 74.225.254.124
   VM_USER: azureuser
 

@@ -11,6 +11,9 @@ COPY requirements.txt .
 USER appuser
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Add the user's local bin directory to PATH
+ENV PATH="/home/appuser/.local/bin:$PATH"
+
 COPY . .
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
