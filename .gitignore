@@ -1,28 +1,40 @@
-# Ignore Python virtual environment
-.venv/
-env/
+# Environment variables
+.env
 
-# Ignore compiled Python files
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Ignore IDE files
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
 .idea/
 .vscode/
+*.swp
+*.swo
 
-# Ignore Docker-related files
-.dockerignore
-
-# Ignore sensitive files
-*.pem
-
-# Ignore build artifacts
-build/
-dist/
-
-# Ignore logs
-*.log
-
-BajajFinsevHarckRx_key.pem
-swappy-20250725-150151.png
+# OS
+.DS_Store
+Thumbs.db
 
