@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e # Exit immediately if a command exits with a non-zero status.
+
 if [ ! -f docker-compose.yml ]; then
     echo "docker-compose.yml not found. Please run this script from the root of your project."
     exit 1
@@ -12,6 +14,10 @@ data_path="./data/certbot"
 rsa_key_size=4096
 # --- End Configuration ---
 
+# Ensure data_path exists and has correct permissions
+mkdir -p "$data_path/conf"
+sudo chown -R $(whoami):$(whoami) "$data_path"
+
 if [ -d "$data_path" ]; then
   read -p "Existing data found for $domains. Continue and replace existing certificate? (y/N) " decision
   if [ "$decision" != "Y" ] && [ "$decision" != "y" ]; then
@@ -21,8 +27,7 @@ fi
 
 if [ ! -e "$data_path/conf/options-ssl-nginx.conf" ] || [ ! -e "$data_path/conf/ssl-dhparams.pem" ]; then
   echo "### Downloading recommended TLS parameters ..."
-  mkdir -p "$data_path/conf"
-  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
+  curl https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
   openssl dhparam -out "$data_path/conf/ssl-dhparams.pem" 2048
   echo
 fi
