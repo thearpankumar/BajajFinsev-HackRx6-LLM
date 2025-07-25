@@ -82,12 +82,12 @@ jobs:
           # Let's adjust the script to clone the repo and then run docker compose.
 
           # Clone/Pull the repository on the VM
-          if [ -d "./BajajFinsev" ]; then
-            cd BajajFinsev
+          if [ -d "./BajajFinsev-HackRx6-LLM" ]; then
+            cd BajajFinsev-HackRx6-LLM
             git pull
           else
             git clone https://github.com/thearpankumar/BajajFinsev-HackRx6-LLM.git
-            cd BajajFinsev
+            cd BajajFinsev-HackRx6-LLM
           fi
 
           # Run Docker Compose
