@@ -11,7 +11,7 @@ services:
 
   nginx:
     build:
-      context: ./nginx
+      context: ./config/nginx
       dockerfile: Dockerfile
     image: ${DOCKER_IMAGE_NAME}-nginx:latest
     container_name: nginx-proxy

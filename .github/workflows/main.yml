@@ -47,7 +47,7 @@ jobs:
 
     - name: Build and push Nginx Docker image
       run: |
-        docker build -t ${{ env.DOCKER_IMAGE_NAME }}-nginx:latest ./nginx
+        docker build -t ${{ env.DOCKER_IMAGE_NAME }}-nginx:latest ./config/nginx
         docker push ${{ env.DOCKER_IMAGE_NAME }}-nginx:latest
 
     - name: Deploy to VM via SSH
