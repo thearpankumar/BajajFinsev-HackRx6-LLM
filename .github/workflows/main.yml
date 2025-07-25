@@ -91,4 +91,4 @@ jobs:
           fi
 
           # Run Docker Compose
-          docker compose up -d
+          DOCKER_IMAGE_NAME=${{ env.DOCKER_IMAGE_NAME }} docker compose up -d
