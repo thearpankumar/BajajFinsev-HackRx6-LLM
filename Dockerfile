@@ -7,12 +7,12 @@ WORKDIR /app
 
 COPY requirements.txt .
 
+# Add the user's local bin directory to PATH before installing dependencies
+ENV PATH="/home/appuser/.local/bin:$PATH"
+
 # Install dependencies as the non-root user
 USER appuser
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Add the user's local bin directory to PATH
-ENV PATH="/home/appuser/.local/bin:$PATH"
 
 COPY . .
 
