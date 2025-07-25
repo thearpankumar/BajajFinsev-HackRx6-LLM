@@ -20,18 +20,17 @@
 
 #### Task 2.2: Document Parsers
 
-*   **Objective:** Implement functions to extract text from various document types, with a fallback to OCR for scanned or image-based files.
-*   **File:** `src/utils/document_parsers.py`
-*   **Details:**
-    *    PDF Parsing: Implement `parse_pdf(file_content: bytes) -> str`.   
-        >*   The function will first attempt direct text extraction using PyMuPDF.
-        >*   If it detects a scanned page (i.e., minimal text is extracted), it will automatically fall back to using a cloud OCR service like AWS Textract to ensure text is captured.
-    *   Standard Parsers:
-        *   Implement `parse_docx(file_content: bytes) -> str` using python-docx.
-        *   Implement `parse_email(file_content: bytes) -> str` using Python's email standard library.
-    *   Factory Function: Create a `get_parser(filename: str)` function to return the correct parser based on the file extension.
-*   **Tech Stack:** PyMuPDF, python-docx, Python email, AWS Textract
-
+* **Objective:** Implement functions to extract text from various document types, with a fallback to OCR for scanned or image-based files.
+* **File:** `src/utils/document_parsers.py`
+* **Details:**
+  * PDF Parsing: Implement `parse_pdf(file_content: bytes) -> str`.
+    * The function will first attempt direct text extraction using PyMuPDF.
+    * If it detects a scanned page (i.e., minimal text is extracted), it will automatically fall back to using a cloud OCR service like AWS Textract to ensure text is captured.
+  * Standard Parsers:
+    * Implement `parse_docx(file_content: bytes) -> str` using python-docx.
+    * Implement `parse_email(file_content: bytes) -> str` using Python's email standard library.
+  * Factory Function: Create a `get_parser(filename: str)` function to return the correct parser based on the file extension.
+* **Tech Stack:** PyMuPDF, python-docx, Python email, AWS Textract
 
 #### Task 2.3: Document Upload Endpoint
 
