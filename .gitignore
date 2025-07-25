@@ -1,40 +1,28 @@
-# Environment variables
-.env
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-venv/
+# Ignore Python virtual environment
+.venv/
 env/
-ENV/
 
-# IDE
+# Ignore compiled Python files
+__pycache__/
+*.pyc
+
+# Ignore IDE files
 .idea/
 .vscode/
-*.swp
-*.swo
 
-# OS
-.DS_Store
-Thumbs.db
+# Ignore Docker-related files
+.dockerignore
+
+# Ignore sensitive files
+*.pem
+
+# Ignore build artifacts
+build/
+dist/
+
+# Ignore logs
+*.log
+
+BajajFinsevHarckRx_key.pem
+swappy-20250725-150151.png
 
