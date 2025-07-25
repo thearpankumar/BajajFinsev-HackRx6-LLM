@@ -3,10 +3,10 @@ name: CI/CD Pipeline (Docker Compose)
 on:
   push:
     branches:
-      - master # Changed from 'main' to 'master'
+      - master
 
 env:
-  DOCKER_IMAGE_NAME: arpankumar1119/bajajfinsev-fastapi # IMPORTANT: Replace with your Docker Hub username/repo
+  DOCKER_IMAGE_NAME: arpankumar1119/bajajfinsev-fastapi
   VM_HOST: 74.225.254.124
   VM_USER: azureuser
 
@@ -59,38 +59,36 @@ jobs:
         username: ${{ env.VM_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Create project directory if it doesn't exist
-          mkdir -p ~/bajajfinsev-app
-          cd ~/bajajfinsev-app
+          # Navigate to the project directory
+          cd ~/BajajFinsev-HackRx6-LLM
 
-          # Pull latest images
-          docker pull ${{ env.DOCKER_IMAGE_NAME }}:latest
-          docker pull ${{ env.DOCKER_IMAGE_NAME }}-nginx:latest
+          # Pull the latest code from the repository
+          git pull origin master
 
-          # Stop and remove old containers
-          docker compose down || true
-
-          # Copy docker-compose.yml and nginx folder
-          # Note: This is a simplified copy. For production, consider git pull on VM or rsync.
-          # For now, we'll assume the docker-compose.yml and nginx folder are copied.
-          # In a real scenario, you'd typically git clone/pull the repo on the VM.
-          # For this automated step, we'll simulate copying the files.
-          # This part needs manual intervention or a more robust file transfer method.
-          # For now, I'll add a placeholder for copying the files.
-          echo "Copying docker-compose.yml and nginx folder to VM..."
-          # This part cannot be automated by the agent directly. You would need to scp these files.
-          # For the purpose of this CI/CD, we'll assume they are present or handled by a prior step.
-          # A better approach for CI/CD is to git clone the repo on the VM and then docker compose up.
-          # Let's adjust the script to clone the repo and then run docker compose.
-
-          # Clone/Pull the repository on the VM
-          if [ -d "./BajajFinsev-HackRx6-LLM" ]; then
-            cd BajajFinsev-HackRx6-LLM
-            git pull
-          else
-            git clone https://github.com/thearpankumar/BajajFinsev-HackRx6-LLM.git
-            cd BajajFinsev-HackRx6-LLM
+          # Create dummy certificate and directories if they don't exist
+          if [ ! -f "./data/certbot/conf/live/llmnow.dev/privkey.pem" ]; then
+            mkdir -p ./data/certbot/conf/live/llmnow.dev
+            openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+              -keyout ./data/certbot/conf/live/llmnow.dev/privkey.pem \
+              -out ./data/certbot/conf/live/llmnow.dev/fullchain.pem \
+              -subj "/CN=localhost"
           fi
 
-          # Run Docker Compose
-          DOCKER_IMAGE_NAME=${{ env.DOCKER_IMAGE_NAME }} docker compose up -d
+          # Create the directory for the ACME challenge if it doesn't exist
+          mkdir -p ./data/certbot/www/.well-known/acme-challenge
+
+          # Start Nginx temporarily for the Let's Encrypt challenge
+          docker compose up -d nginx
+
+          # Obtain the real SSL certificate if it doesn't exist
+          if [ ! -f "./data/certbot/conf/live/llmnow.dev/fullchain.pem" ]; then
+            docker compose run --rm certbot certonly --webroot --webroot-path=/var/www/certbot \
+              --email your-email@example.com --agree-tos --no-eff-email \
+              -d llmnow.dev
+          fi
+
+          # Reload Nginx to use the new certificate
+          docker compose exec nginx nginx -s reload
+
+          # Start all services
+          docker compose up -d --build
