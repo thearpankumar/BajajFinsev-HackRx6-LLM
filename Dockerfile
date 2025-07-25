@@ -10,10 +10,13 @@ COPY requirements.txt .
 # Add the user's local bin directory to PATH before installing dependencies
 ENV PATH="/home/appuser/.local/bin:$PATH"
 
+# Set PYTHONPATH to include the src directory
+ENV PYTHONPATH="/app/src"
+
 # Install dependencies as the non-root user
 USER appuser
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/. .
+COPY src/. src/
 
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
