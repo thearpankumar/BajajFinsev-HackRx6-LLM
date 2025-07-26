@@ -8,15 +8,7 @@ from openai import AsyncOpenAI
 
 from ..db.base import get_db
 from ..db.models import Document, Clause
-
-try:
-    from ..utils.document_parsers import get_parser
-except ImportError:
-    def get_parser(url):
-        # Placeholder parser for when document_parsers is not available
-        def parse_content(content):
-            return content.decode('utf-8') if isinstance(content, bytes) else content
-        return parse_content
+from ..utils.document_parsers import get_parser
 
 
 class IngestionService:
