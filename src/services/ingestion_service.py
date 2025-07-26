@@ -1,16 +1,22 @@
 import os
-import asyncio
 from typing import List, Dict, Any, Optional
 import aiohttp
 import spacy
 from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone
 from openai import AsyncOpenAI
-from sqlalchemy.orm import Session
 
 from ..db.base import get_db
 from ..db.models import Document, Clause
-from ..utils.document_parsers import get_parser
+
+try:
+    from ..utils.document_parsers import get_parser
+except ImportError:
+    def get_parser(url):
+        # Placeholder parser for when document_parsers is not available
+        def parse_content(content):
+            return content.decode('utf-8') if isinstance(content, bytes) else content
+        return parse_content
 
 
 class IngestionService:
