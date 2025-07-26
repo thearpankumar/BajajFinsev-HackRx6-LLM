@@ -26,9 +26,7 @@
     * The required token is the static string: `589a89f8010526700b24d76902776ce49372734b564ea3324b495c4cec6f2b68`.
     * Raise an `HTTPException` with `status.HTTP_401_UNAUTHORIZED` for invalid tokens.
   * HTTPS Encryption :
-    * This is a deployment-level concern
-    * For production on AWS, the application will be deployed behind an Application Load Balancer (ALB) configured with an AWS Certificate Manager (ACM) certificate to handle HTTPS termination. No action is needed for local development.
-* **Tech Stack:** FastAPI, AWS Application Load Balancer (ALB), AWS Certificate Manager (ACM).
+    * Own Server Authorization
 
 #### Task 1.3: Create Core API Endpoint
 
