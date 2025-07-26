@@ -6,8 +6,10 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Get API key from environment variable, fallback to default
+# Get API key from environment variable, with fallback for testing
 VALID_API_KEY = os.getenv("API_KEY", "12345678901")
+if VALID_API_KEY == "12345678901":
+    logger.warning("Using default API key. Set API_KEY environment variable for production.")
 
 # Create HTTPBearer instance with proper OpenAPI integration
 security = HTTPBearer(
@@ -41,9 +43,9 @@ async def validate_bearer_token(
     
     token = credentials.credentials.strip()  # Remove any whitespace
     
-    logger.info(f"🔍 Validating token: '{token}' (length: {len(token)})")
-    logger.info(f"🔍 Expected token: '{VALID_API_KEY}' (length: {len(VALID_API_KEY)})")
-    logger.info(f"🔍 Token comparison: {token == VALID_API_KEY}")
+    # Remove sensitive logging in production
+    logger.info(f"🔍 Validating token (length: {len(token)})")
+    # Don't log actual token values in production
     
     if not token:
         logger.error("❌ Authentication FAILED - Empty token")

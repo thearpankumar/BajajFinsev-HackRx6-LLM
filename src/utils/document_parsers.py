@@ -34,13 +34,22 @@ def parse_pdf(file_content: bytes) -> str:
             pdf_text += page_text
             
         # If minimal text is extracted (indicating possibly scanned document)
-        if len(pdf_text.strip()) < 100:  # Arbitrary threshold
+        MIN_EXTRACTABLE_TEXT_LENGTH = 100  # Make threshold configurable
+        if len(pdf_text.strip()) < MIN_EXTRACTABLE_TEXT_LENGTH:
             logger.info("Minimal text extracted, falling back to AWS Textract")
             # Fall back to AWS Textract
+            aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+            aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+            aws_region = os.getenv('AWS_REGION', 'us-east-1')
+            
+            if not all([aws_access_key, aws_secret_key]):
+                logger.warning("AWS credentials not configured, skipping OCR fallback")
+                return pdf_text.strip()
+                
             textract = boto3.client('textract',
-                                  aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                                  aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-                                  region_name=os.getenv('AWS_REGION'))
+                                  aws_access_key_id=aws_access_key,
+                                  aws_secret_access_key=aws_secret_key,
+                                  region_name=aws_region)
             
             response = textract.detect_document_text(
                 Document={'Bytes': file_content}
