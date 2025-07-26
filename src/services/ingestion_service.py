@@ -13,22 +13,43 @@ from ..utils.document_parsers import get_parser
 
 class IngestionService:
     def __init__(self):
-        self.openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.embedding_model = SentenceTransformer("nlpaueb/legal-bert-base-uncased")
-        self.nlp = spacy.load("en_core_web_sm")
+        # Validate required environment variables
+        openai_key = os.getenv("OPENAI_API_KEY")
+        pinecone_key = os.getenv("PINECONE_API_KEY")
         
-        # Initialize Pinecone
-        pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-        self.pinecone_index = pc.Index(os.getenv("PINECONE_INDEX_NAME", "bajaj-legal-docs"))
+        if not openai_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+        if not pinecone_key:
+            raise ValueError("PINECONE_API_KEY environment variable is required")
+            
+        self.openai_client = AsyncOpenAI(api_key=openai_key)
+        self.embedding_model = SentenceTransformer("nlpaueb/legal-bert-base-uncased")
+        
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+        except OSError:
+            raise RuntimeError("spaCy model 'en_core_web_sm' not found. Run: python -m spacy download en_core_web_sm")
+        
+        # Initialize Pinecone with error handling
+        try:
+            pc = Pinecone(api_key=pinecone_key)
+            self.pinecone_index = pc.Index(os.getenv("PINECONE_INDEX_NAME", "bajaj-legal-docs"))
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize Pinecone: {str(e)}")
 
     async def download_document(self, url: str) -> bytes:
         """Download document content from URL asynchronously."""
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    return await response.read()
-                else:
-                    raise Exception(f"Failed to download document: HTTP {response.status}")
+        timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+        
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            try:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        return await response.read()
+                    else:
+                        raise Exception(f"Failed to download document: HTTP {response.status}")
+            except aiohttp.ClientError as e:
+                raise Exception(f"Network error downloading document: {str(e)}")
 
     def extract_clauses_with_spacy(self, text: str) -> List[Dict[str, Any]]:
         """Extract clauses from text using spaCy for semantic segmentation."""
@@ -135,6 +156,7 @@ class IngestionService:
     async def process_document(self, document_url: str, file_content: Optional[bytes] = None) -> int:
         """Main orchestration method for document processing."""
         db = next(get_db())
+        document = None
         
         try:
             # Create document record
