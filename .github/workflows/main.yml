@@ -90,5 +90,8 @@ jobs:
           # Reload Nginx to use the new certificate
           docker compose exec nginx nginx -s reload
 
+          # Pull the latest Docker images
+          docker compose pull fastapi-app nginx
+
           # Start all services
           docker compose up -d --build
