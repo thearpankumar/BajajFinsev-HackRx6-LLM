@@ -3,6 +3,11 @@ services:
     image: arpankumar1119/bajajfinsev-fastapi:latest
     container_name: fastapi-app-container
     command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - API_KEY=${API_KEY}
 
   nginx:
     image: arpankumar1119/bajajfinsev-fastapi-nginx:latest
