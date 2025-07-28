@@ -1,4 +1,4 @@
-name: CI/CD Pipeline (Docker Compose)
+name: CI/CD Pipeline
 
 on:
   push:
@@ -6,35 +6,47 @@ on:
       - master
 
 env:
-  DOCKER_IMAGE_NAME: arpankumar1119/bajajfinsev-fastapi
+  DOCKER_IMAGE_NAME: arpankumar1119/hackrx-bajaj
   VM_HOST: 74.225.254.124
   VM_USER: azureuser
+  PROJECT_DIR: ~/BajajFinsev # The project directory on your server
 
 jobs:
-  build-and-deploy:
+  # ==================================
+  #      CI Job: Validate Code
+  # ==================================
+  CI:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
 
-    - name: Install dependencies
+    - name: Install pip-tools
+      run: pip install pip-tools
+
+    - name: Compile and install dependencies
       run: |
-        python -m pip install --upgrade pip
+        pip-compile requirements.in --output-file=requirements.txt
         pip install -r requirements.txt
 
     - name: Run Ruff Linter
       run: ruff check .
 
-    - name: Run Pytest
-      run: |
-        export PYTHONPATH=$GITHUB_WORKSPACE/src
-        pytest src/tests/
+  # =====================================================
+  #   Deploy Job: Build, Push to Registry, and Deploy
+  # =====================================================
+  Deploy:
+    needs: CI
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
@@ -47,11 +59,6 @@ jobs:
         docker build -t ${{ env.DOCKER_IMAGE_NAME }}:latest .
         docker push ${{ env.DOCKER_IMAGE_NAME }}:latest
 
-    - name: Build and push Nginx Docker image
-      run: |
-        docker build -t ${{ env.DOCKER_IMAGE_NAME }}-nginx:latest ./config/nginx
-        docker push ${{ env.DOCKER_IMAGE_NAME }}-nginx:latest
-
     - name: Deploy to VM via SSH
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -59,39 +66,23 @@ jobs:
         username: ${{ env.VM_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Navigate to the project directory
-          cd ~/BajajFinsev-HackRx6-LLM
+          # Navigate to the project directory on the server
+          cd ${{ env.PROJECT_DIR }}
 
-          # Pull the latest code from the repository
+          # Pull the latest code to get the latest docker-compose.yml
+          echo ">>> Pulling latest code from Git..."
           git pull origin master
 
-          # Create dummy certificate and directories if they don't exist
-          if [ ! -f "./data/certbot/conf/live/llmnow.dev/privkey.pem" ]; then
-            mkdir -p ./data/certbot/conf/live/llmnow.dev
-            openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
-              -keyout ./data/certbot/conf/live/llmnow.dev/privkey.pem \
-              -out ./data/certbot/conf/live/llmnow.dev/fullchain.pem \
-              -subj "/CN=localhost"
-          fi
+          # Use the production .env file
+          echo ">>> Sourcing environment variables..."
+          export $(cat .env | xargs)
 
-          # Create the directory for the ACME challenge if it doesn't exist
-          mkdir -p ./data/certbot/www/.well-known/acme-challenge
+          # Pull the new application image from Docker Hub
+          echo ">>> Pulling latest Docker image..."
+          docker compose pull fastapi-app
 
-          # Start Nginx temporarily for the Let's Encrypt challenge
-          docker compose up -d nginx
-
-          # Obtain the real SSL certificate if it doesn't exist
-          if [ ! -f "./data/certbot/conf/live/llmnow.dev/fullchain.pem" ]; then
-            docker compose run --rm certbot certonly --webroot --webroot-path=/var/www/certbot \
-              --email your-email@example.com --agree-tos --no-eff-email \
-              -d llmnow.dev
-          fi
-
-          # Reload Nginx to use the new certificate
-          docker compose exec nginx nginx -s reload
-
-          # Pull the latest Docker images
-          docker compose pull fastapi-app nginx
-
-          # Start all services
-          docker compose up -d --build
+          # Restart the services with the new image
+          echo ">>> Restarting services..."
+          docker compose up -d
+          
+          echo ">>> Deployment complete!"
