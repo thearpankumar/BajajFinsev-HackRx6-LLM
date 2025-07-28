@@ -1,22 +1,34 @@
-FROM python:3.9-slim-buster
-
-# Create a non-root user
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+FROM python:3.11-slim as builder
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Add the user's local bin directory to PATH before installing dependencies
-ENV PATH="/home/appuser/.local/bin:$PATH"
+FROM python:3.11-slim
 
-# Set PYTHONPATH to include the src directory
-ENV PYTHONPATH="/app/src"
+WORKDIR /app
 
-# Install dependencies as the non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+COPY --from=builder /root/.local /home/appuser/.local
+
+COPY src/ ./src/
+COPY . .
+
+RUN chown -R appuser:appuser /app
+
 USER appuser
-RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/. src/
+ENV PATH=/home/appuser/.local/bin:$PATH
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8000/health')"
+
+CMD ["gunicorn", "src.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
