@@ -65,7 +65,9 @@ jobs:
         host: ${{ env.VM_HOST }}
         username: ${{ env.VM_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
+        passphrase: ${{ secrets.SSH_PASSPHRASE }}
         script: |
+          set -e
           # Navigate to the project directory on the server
           cd ${{ env.PROJECT_DIR }}
 
@@ -73,16 +75,12 @@ jobs:
           echo ">>> Pulling latest code from Git..."
           git pull origin master
 
-          # Use the production .env file
-          echo ">>> Sourcing environment variables..."
-          export $(cat .env | xargs)
-
           # Pull the new application image from Docker Hub
           echo ">>> Pulling latest Docker image..."
           docker compose pull fastapi-app
 
-          # Restart the services with the new image
+          # Restart the services with the new image and .env file
           echo ">>> Restarting services..."
-          docker compose up -d
+          docker compose up -d --force-recreate
           
           echo ">>> Deployment complete!"
