@@ -4,12 +4,15 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
 
 env:
   DOCKER_IMAGE_NAME: arpankumar1119/hackrx-bajaj
   VM_HOST: 139.59.11.174
   VM_USER: root
-  PROJECT_DIR: ~/BajajFinsev-HackRx6-LLM # The project directory on your server
+  PROJECT_DIR: ~/BajajFinsev-HackRx6-LLM 
 
 jobs:
   # ==================================
