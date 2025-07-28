@@ -57,7 +57,12 @@ __pypackages__/
 celerybeat-schedule
 celerybeat.pid
 *.sage.py
+# Environments
+.venv
+venv
+env
 .env
+
 .venv
 env/
 venv/

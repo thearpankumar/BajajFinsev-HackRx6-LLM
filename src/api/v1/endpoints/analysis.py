@@ -1,25 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 import logging
-from src.api.v1.schemas import AnalysisRequest, AnalysisResponse
+import asyncio
+
+from src.schemas.analysis import AnalysisRequest, AnalysisResponse
 from src.core.security import validate_bearer_token
+from src.services.ingestion_service import ingestion_service
+from src.services.rag_workflow import rag_workflow_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    tags=["analysis"],
-    responses={
-        401: {"description": "Unauthorized - Invalid bearer token"},
-        422: {"description": "Validation Error"},
-        500: {"description": "Internal Server Error"},
-    }
-)
+router = APIRouter()
 
 @router.post(
     "/hackrx/run",
     response_model=AnalysisResponse,
     summary="Run Document Analysis",
-    description="Analyze documents and answer questions using RAG workflow. Requires bearer token authentication.",
+    description="Analyze documents and answer questions using a unified RAG workflow.",
     response_description="Analysis results with answers to the provided questions"
 )
 async def run_analysis(
@@ -27,33 +24,31 @@ async def run_analysis(
     token: str = Depends(validate_bearer_token)
 ) -> AnalysisResponse:
     """
-    Main endpoint for document analysis using RAG workflow.
-    
-    - **documents**: List of HTTP URLs pointing to documents to analyze (1-10 items)
-    - **questions**: List of questions to ask about the documents (1-20 items)
-    
-    Returns a list of answers corresponding to the input questions.
+    This endpoint orchestrates the entire process:
+    1.  **On-the-fly Ingestion**: Downloads, parses, and embeds the provided documents.
+    2.  **RAG Workflow**: Answers the questions based on the ingested documents.
     """
-    logger.info(f"🎯 Processing {len(request.documents)} documents with {len(request.questions)} questions")
+    logger.info(f"🎯 Starting analysis for {len(request.documents)} documents and {len(request.questions)} questions.")
     
     try:
-        placeholder_answers = []
+        # --- On-the-fly Ingestion ---
+        ingestion_tasks = [
+            ingestion_service.process_document(str(doc_url)) for doc_url in request.documents
+        ]
+        document_ids = await asyncio.gather(*ingestion_tasks)
+        logger.info(f"✅ Successfully ingested {len(document_ids)} documents. IDs: {document_ids}")
+
+        # --- RAG Workflow ---
+        answers = await rag_workflow_service.run_workflow(request.questions, document_ids)
+        logger.info(f"✅ Generated {len(answers)} answers.")
         
-        for i, question in enumerate(request.questions):
-            placeholder_answer = (
-                f"Placeholder answer for question {i+1}: '{question}'. "
-                f"This will be replaced with actual RAG processing in Task 3."
-            )
-            placeholder_answers.append(placeholder_answer)
-        
-        logger.info(f"✅ Generated {len(placeholder_answers)} answers")
-        return AnalysisResponse(answers=placeholder_answers)
+        return AnalysisResponse(answers=answers)
         
     except Exception as e:
         logger.error(f"❌ Error during analysis: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error during analysis: {str(e)}"
+            detail=f"An internal server error occurred during analysis: {str(e)}"
         )
 
 @router.get(
@@ -67,6 +62,6 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "RAG Analysis API",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "message": "Service is running properly"
     }

@@ -4,25 +4,23 @@ import aiohttp
 import spacy
 from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone
-from openai import AsyncOpenAI
 
-from ..db.base import get_db
-from ..db.models import Document, Clause
-from ..utils.document_parsers import get_parser
+from src.core.config import settings
+from src.db.session import get_db
+from src.crud import crud_document
+from src.schemas.document import DocumentCreate, DocumentUpdate, ClauseCreate
+from src.utils.document_parsers import get_parser
+from src.services.llm_clients import groq_client, GROQ_MODEL_NAME
 
 
 class IngestionService:
     def __init__(self):
         # Validate required environment variables
-        openai_key = os.getenv("OPENAI_API_KEY")
-        pinecone_key = os.getenv("PINECONE_API_KEY")
-        
-        if not openai_key:
-            raise ValueError("OPENAI_API_KEY environment variable is required")
-        if not pinecone_key:
+        if not settings.GROQ_API_KEY:
+            raise ValueError("GROQ_API_KEY environment variable is required")
+        if not settings.PINECONE_API_KEY:
             raise ValueError("PINECONE_API_KEY environment variable is required")
             
-        self.openai_client = AsyncOpenAI(api_key=openai_key)
         self.embedding_model = SentenceTransformer("nlpaueb/legal-bert-base-uncased")
         
         try:
@@ -32,8 +30,8 @@ class IngestionService:
         
         # Initialize Pinecone with error handling
         try:
-            pc = Pinecone(api_key=pinecone_key)
-            self.pinecone_index = pc.Index(os.getenv("PINECONE_INDEX_NAME", "bajaj-legal-docs"))
+            pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+            self.pinecone_index = pc.Index(settings.PINECONE_INDEX_NAME)
         except Exception as e:
             raise RuntimeError(f"Failed to initialize Pinecone: {str(e)}")
 
@@ -70,7 +68,7 @@ class IngestionService:
                     clauses.append({
                         "text": current_clause.strip(),
                         "clause_number": clause_number - 1,
-                        "metadata": {
+                        "clause_metadata": {
                             "clause_number": clause_number - 1,
                             "word_count": len(current_clause.split())
                         }
@@ -88,7 +86,7 @@ class IngestionService:
             clauses.append({
                 "text": current_clause.strip(),
                 "clause_number": clause_number - 1,
-                "metadata": {
+                "clause_metadata": {
                     "clause_number": clause_number - 1,
                     "word_count": len(current_clause.split())
                 }
@@ -97,10 +95,10 @@ class IngestionService:
         return clauses
 
     async def generate_summary(self, document_text: str) -> str:
-        """Generate document summary using OpenAI GPT-4."""
+        """Generate document summary using Kimi."""
         try:
-            response = await self.openai_client.chat.completions.create(
-                model="gpt-4o",
+            response = await groq_client.chat.completions.create(
+                model=GROQ_MODEL_NAME,
                 messages=[
                     {
                         "role": "system",
@@ -108,7 +106,7 @@ class IngestionService:
                     },
                     {
                         "role": "user",
-                        "content": f"Please summarize this legal document:\n\n{document_text[:4000]}"  # Limit text to avoid token limits
+                        "content": f"Please summarize this legal document:\n\n{document_text[:120000]}"
                     }
                 ],
                 max_tokens=500,
@@ -134,11 +132,11 @@ class IngestionService:
             
             metadata = {
                 "document_id": document_id,
-                "clause_text": clause["text"][:1000],  # Limit text length for metadata
+                "clause_text": clause["text"][:1000],
                 "source_document_url": document_url,
                 "clause_index": i,
                 "clause_number": clause.get("clause_number", i),
-                "word_count": clause["metadata"].get("word_count", 0)
+                "word_count": clause["clause_metadata"].get("word_count", 0)
             }
             
             vectors.append({
@@ -147,7 +145,6 @@ class IngestionService:
                 "metadata": metadata
             })
         
-        # Upsert to Pinecone in batches
         batch_size = 100
         for i in range(0, len(vectors), batch_size):
             batch = vectors[i:i + batch_size]
@@ -159,69 +156,42 @@ class IngestionService:
         document = None
         
         try:
-            # Create document record
-            document = Document(url=document_url, status="processing")
-            db.add(document)
-            db.commit()
-            db.refresh(document)
+            document = crud_document.create_document(db, document_in=DocumentCreate(url=document_url, status="processing"))
             
-            # Download or use provided content
             if file_content is None:
                 file_content = await self.download_document(document_url)
             
-            # Parse document
             parser = get_parser(document_url)
             if parser is None:
                 raise Exception(f"No parser available for document: {document_url}")
             
             document_text = parser(file_content)
             
-            # Generate summary
             summary = await self.generate_summary(document_text)
             
-            # Update document with summary
-            document.summary = summary
-            document.status = "summarized"
-            db.commit()
+            crud_document.update_document(db, db_obj=document, obj_in=DocumentUpdate(summary=summary, status="summarized"))
             
-            # Extract clauses
             clauses_data = self.extract_clauses_with_spacy(document_text)
             
-            # Save clauses to database and prepare for embedding
-            clause_objects = []
-            for i, clause_data in enumerate(clauses_data):
-                clause = Clause(
-                    document_id=document.id,
-                    text=clause_data["text"],
-                    metadata=clause_data["metadata"]
-                )
-                clause_objects.append(clause)
-                db.add(clause)
+            clauses_to_create = [
+                ClauseCreate(document_id=document.id, text=c["text"], clause_metadata=c["clause_metadata"]) for c in clauses_data
+            ]
+            clause_objects = crud_document.create_clauses(db, clauses_in=clauses_to_create)
             
-            db.commit()
-            
-            # Generate embeddings and upsert to Pinecone
             await self.upsert_to_pinecone(clauses_data, document.id, document_url)
             
-            # Update embedding IDs in database
             for i, clause in enumerate(clause_objects):
-                clause.embedding_id = f"doc_{document.id}_clause_{i}"
+                crud_document.update_clause_embedding_id(db, clause=clause, embedding_id=f"doc_{document.id}_clause_{i}")
             
-            # Mark document as completed
-            document.status = "completed"
-            db.commit()
+            crud_document.update_document(db, db_obj=document, obj_in=DocumentUpdate(status="completed"))
             
             return document.id
             
         except Exception as e:
-            # Mark document as failed
-            if 'document' in locals() and document:
-                document.status = "failed"
-                db.commit()
+            if document:
+                crud_document.update_document(db, db_obj=document, obj_in=DocumentUpdate(status="failed"))
             raise e
         finally:
             db.close()
 
-
-# Singleton instance
 ingestion_service = IngestionService()

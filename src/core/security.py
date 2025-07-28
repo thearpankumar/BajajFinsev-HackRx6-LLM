@@ -1,13 +1,13 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
-import os
+from src.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Get API key from environment variable, with fallback for testing
-VALID_API_KEY = os.getenv("API_KEY", "12345678901")
+VALID_API_KEY = settings.API_KEY
 if VALID_API_KEY == "12345678901":
     logger.warning("Using default API key. Set API_KEY environment variable for production.")
 
