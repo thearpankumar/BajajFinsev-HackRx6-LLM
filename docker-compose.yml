@@ -1,25 +1,32 @@
+version: '3.8'
+
 services:
-  fastapi-app:
-    image: arpankumar1119/bajajfinsev-fastapi:latest
-    container_name: fastapi-app-container
-    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "80"]
+  rag-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./src:/app/src
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   nginx:
-    image: arpankumar1119/bajajfinsev-fastapi-nginx:latest
-    container_name: nginx-container
+    image: nginx:alpine
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/sites-available:/etc/nginx/sites-available
+      - ./ssl:/etc/nginx/ssl
+      - /etc/letsencrypt:/etc/letsencrypt
     depends_on:
-      - fastapi-app
-
-  certbot:
-    image: certbot/certbot
-    container_name: certbot-container
-    volumes:
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-    entrypoint: certbot
+      - rag-api
+    restart: unless-stopped
