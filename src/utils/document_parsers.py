@@ -5,7 +5,6 @@ import boto3
 from typing import Callable, Dict
 import io
 import logging
-import os
 from urllib.parse import urlparse
 from src.core.config import settings
 

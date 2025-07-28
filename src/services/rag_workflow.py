@@ -1,7 +1,5 @@
 import logging
 from src.services.llm_clients import gemini_flash_model, groq_client, GROQ_MODEL_NAME
-from src.db.session import get_db
-from src.crud import crud_document
 from pinecone import Pinecone
 from src.core.config import settings
 from sentence_transformers import SentenceTransformer

@@ -6,11 +6,11 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.openapi.utils import get_openapi
 import uvicorn
 
-# Suppress the specific FutureWarning from torch
-warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.modules.module")
-
 from src.api.v1.router import api_router
 from src.core.config import settings
+
+# Suppress the specific FutureWarning from torch
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.modules.module")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
