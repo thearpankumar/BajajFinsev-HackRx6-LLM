@@ -6,18 +6,20 @@ import uvicorn
 import logging
 
 from src.api.v1.endpoints.analysis import router as analysis_router
+from src.api.v1.endpoints.documents import router as documents_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="RAG Document Analysis API",
+    title="Document Analysis and Processing API",
     version="1.0.0",
-    description="",
+    description="API for processing documents, running analysis, and answering questions using a RAG workflow.",
     openapi_tags=[
-        {"name": "analysis", "description": ""},
-        {"name": "monitoring", "description": ""},
-        {"name": "info", "description": ""}
+        {"name": "analysis", "description": "Endpoints for running analysis on documents."},
+        {"name": "documents", "description": "Endpoints for uploading and processing documents."},
+        {"name": "monitoring", "description": "Endpoints for health checks and monitoring."},
+        {"name": "info", "description": "General API information."}
     ]
 )
 
@@ -37,18 +39,18 @@ def custom_openapi():
             "type": "http",
             "scheme": "bearer",
             "bearerFormat": "JWT",
-            "description": ""
+            "description": "Enter your bearer token (e.g., 12345678901)"
         }
     }
 
     openapi_schema["security"] = [{"BearerAuth": []}]
 
-    for path in openapi_schema["paths"].values():
-        for operation in path.values():
-            if isinstance(operation, dict) and "operationId" in operation:
-                if "/hackrx/run" in operation.get("operationId", "") or "run_analysis" in operation.get("operationId", ""):
-                    operation["security"] = [{"BearerAuth": []}]
-                elif "/health" in operation.get("operationId", "") or "/info" in operation.get("operationId", ""):
+    # Make health and info endpoints public in docs
+    for path_item in openapi_schema.get("paths", {}).values():
+        for operation in path_item.values():
+            if isinstance(operation, dict):
+                tags = operation.get("tags", [])
+                if "monitoring" in tags or "info" in tags:
                     operation["security"] = []
 
     app.openapi_schema = openapi_schema
@@ -69,21 +71,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(analysis_router)
+app.include_router(analysis_router, prefix="/api/v1")
+app.include_router(documents_router, prefix="/api/v1")
 
 @app.get("/", tags=["info"])
-async def api_info():
+async def root():
     return {
-        "name": "RAG Document Analysis API",
+        "name": "Document Analysis and Processing API",
         "version": "1.0.0",
         "status": "running",
-        "endpoints": {
-            "documentation": "/docs",
-            "health_check": "/hackrx/health",
-            "main_analysis": "/hackrx/run"
-        },
-        "authentication": "Bearer token required",
-        "valid_token": "12345678901"
+        "docs": "/docs"
     }
 
 @app.get("/health", tags=["monitoring"])
