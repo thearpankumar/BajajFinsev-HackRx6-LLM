@@ -52,7 +52,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/sites-available:/etc/nginx/sites-available
+      - ./nginx/sites-available/llmnew.dev.conf:/etc/nginx/conf.d/llmnew.dev.conf
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     depends_on:
