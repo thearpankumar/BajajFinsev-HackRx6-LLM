@@ -165,3 +165,9 @@ curl -X POST "http://127.0.0.1:8000/api/v1/hackrx/run" \
 *(Note: This uses the default API key. If you changed it in your `.env` file, update the `Bearer` token here.)*
 
 You will see the processing logs in your Uvicorn terminal, and the final JSON response with the answers will be printed by the `curl` command.
+
+
+echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+      sudo tee /etc/apt/sources.list.d/docker.list > /dev/null

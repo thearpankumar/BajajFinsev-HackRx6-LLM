@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+Makefile
+
+# Python
+.venv
+venv
+env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Documentation & Tasks
+README.md
+tasks/
+
+# Local development files
+.env
+payload.json
+alembic.ini
+alembic/
+scripts/
+nginx/
+ssl/
+LICENSE
+*.md

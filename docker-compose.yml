@@ -1,12 +1,19 @@
 services:
   fastapi-app:
-    build: .
+    image: arpankumar1119/hackrx-bajaj:latest
     container_name: fastapi-app-container
-    command: ["sh", "-c", "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000"]
-    ports:
-      - "8000:8000"
+    command: |
+      sh -c "
+        while ! pg_isready -h postgres -p 5432 -q -U user; do
+          echo 'Waiting for database to be ready...'
+          sleep 2
+        done
+        echo 'Database is ready. Running migrations...'
+        alembic upgrade head
+        echo 'Migrations complete. Starting application...'
+        uvicorn src.main:app --host 0.0.0.0 --port 8000
+      "
     environment:
-      # This DATABASE_URL is for container-to-container communication
       - DATABASE_URL=postgresql://user:password@postgres:5432/bajaj_finsev_db
       - API_KEY=${API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -16,10 +23,9 @@ services:
       - AWS_REGION=${AWS_REGION}
       - PINECONE_API_KEY=${PINECONE_API_KEY}
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
-    volumes:
-      - ./src:/app/src
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres:
@@ -32,8 +38,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      # Maps the container's port 5432 to your local machine's port 5432
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d bajaj_finsev_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   nginx:
@@ -42,13 +52,20 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/sites-available:/etc/nginx/sites-available
-      - ./ssl:/etc/nginx/ssl
-      - /etc/letsencrypt:/etc/letsencrypt
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
     depends_on:
       - fastapi-app
     restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    # This service is only for running one-off commands via the init-letsencrypt.sh script.
+    # It does not need to be running continuously.
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
 
 volumes:
   postgres_data:

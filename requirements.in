@@ -1,3 +1,6 @@
+# Use the official PyTorch index for CPU-only packages
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 # High-level dependencies
 fastapi
 uvicorn[standard]

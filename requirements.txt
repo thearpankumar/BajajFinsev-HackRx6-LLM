@@ -4,6 +4,8 @@
 #
 #    pip-compile --output-file=requirements.txt requirements.in
 #
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.12.14
@@ -189,43 +191,6 @@ numpy==2.3.2
     #   spacy
     #   thinc
     #   transformers
-nvidia-cublas-cu12==12.6.4.1
-    # via
-    #   nvidia-cudnn-cu12
-    #   nvidia-cusolver-cu12
-    #   torch
-nvidia-cuda-cupti-cu12==12.6.80
-    # via torch
-nvidia-cuda-nvrtc-cu12==12.6.77
-    # via torch
-nvidia-cuda-runtime-cu12==12.6.77
-    # via torch
-nvidia-cudnn-cu12==9.5.1.17
-    # via torch
-nvidia-cufft-cu12==11.3.0.4
-    # via torch
-nvidia-cufile-cu12==1.11.1.6
-    # via torch
-nvidia-curand-cu12==10.3.7.77
-    # via torch
-nvidia-cusolver-cu12==11.7.1.2
-    # via torch
-nvidia-cusparse-cu12==12.5.4.2
-    # via
-    #   nvidia-cusolver-cu12
-    #   torch
-nvidia-cusparselt-cu12==0.6.3
-    # via torch
-nvidia-nccl-cu12==2.26.2
-    # via torch
-nvidia-nvjitlink-cu12==12.6.85
-    # via
-    #   nvidia-cufft-cu12
-    #   nvidia-cusolver-cu12
-    #   nvidia-cusparse-cu12
-    #   torch
-nvidia-nvtx-cu12==12.6.77
-    # via torch
 packaging==25.0
     # via
     #   gunicorn
@@ -371,7 +336,7 @@ threadpoolctl==3.6.0
     # via scikit-learn
 tokenizers==0.21.4
     # via transformers
-torch==2.7.1
+torch==2.7.1+cpu
     # via
     #   -r requirements.in
     #   sentence-transformers
@@ -384,8 +349,6 @@ tqdm==4.67.1
     #   transformers
 transformers==4.54.0
     # via sentence-transformers
-triton==3.3.1
-    # via torch
 typer==0.16.0
     # via
     #   spacy
