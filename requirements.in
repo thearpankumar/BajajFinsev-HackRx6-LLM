@@ -1,0 +1,23 @@
+# High-level dependencies
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+gunicorn
+requests
+python-dotenv
+ruff
+PyMuPDF
+python-docx
+boto3
+aiohttp
+sqlalchemy
+psycopg2-binary
+spacy
+sentence-transformers
+pinecone
+google-generativeai
+groq
+alembic
+torch>=2.6

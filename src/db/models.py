@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .base import Base
+from .base_class import Base
 
 
 class Document(Base):
@@ -23,6 +23,6 @@ class Clause(Base):
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
     text = Column(Text, nullable=False)
     embedding_id = Column(String, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    clause_metadata = Column(JSON, nullable=True)
 
     document = relationship("Document", back_populates="clauses")

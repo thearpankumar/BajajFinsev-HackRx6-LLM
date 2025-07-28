@@ -6,6 +6,8 @@ from typing import Callable, Dict
 import io
 import logging
 import os
+from urllib.parse import urlparse
+from src.core.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -38,18 +40,14 @@ def parse_pdf(file_content: bytes) -> str:
         if len(pdf_text.strip()) < MIN_EXTRACTABLE_TEXT_LENGTH:
             logger.info("Minimal text extracted, falling back to AWS Textract")
             # Fall back to AWS Textract
-            aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-            aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-            aws_region = os.getenv('AWS_REGION', 'us-east-1')
-            
-            if not all([aws_access_key, aws_secret_key]):
+            if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
                 logger.warning("AWS credentials not configured, skipping OCR fallback")
                 return pdf_text.strip()
                 
             textract = boto3.client('textract',
-                                  aws_access_key_id=aws_access_key,
-                                  aws_secret_access_key=aws_secret_key,
-                                  region_name=aws_region)
+                                  aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                                  aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                                  region_name=settings.AWS_REGION)
             
             response = textract.detect_document_text(
                 Document={'Bytes': file_content}
@@ -122,15 +120,21 @@ def parse_email(file_content: bytes) -> str:
 
 def get_parser(filename: str) -> Callable[[bytes], str]:
     """
-    Factory function to return the correct parser based on file extension.
+    Factory function to return the correct parser based on file extension,
+    correctly handling URLs with query parameters.
     
     Args:
-        filename (str): Name of the file including extension
+        filename (str): Name of the file or URL
     
     Returns:
         Callable[[bytes], str]: Appropriate parser function for the file type
     """
-    extension = filename.lower().split('.')[-1]
+    # Parse the URL to isolate the path and handle query strings
+    parsed_url = urlparse(filename)
+    path = parsed_url.path
+    
+    # Extract the extension from the path component of the URL
+    extension = path.lower().split('.')[-1]
     
     parsers: Dict[str, Callable[[bytes], str]] = {
         'pdf': parse_pdf,
@@ -140,8 +144,8 @@ def get_parser(filename: str) -> Callable[[bytes], str]:
     }
     
     if extension not in parsers:
-        logger.error(f"Unsupported file type: {extension}")
+        logger.error(f"Unsupported file type: {extension} (from path: {path})")
         raise ValueError(f"Unsupported file type: {extension}")
     
     logger.info(f"Selected parser for file type: {extension}")
-    return parsers[extension] 
+    return parsers[extension]

@@ -1,12 +1,16 @@
+import logging
+import warnings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.openapi.utils import get_openapi
 import uvicorn
-import logging
 
-from src.api.v1.endpoints.analysis import router as analysis_router
-from src.api.v1.endpoints.documents import router as documents_router
+# Suppress the specific FutureWarning from torch
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.modules.module")
+
+from src.api.v1.router import api_router
+from src.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,7 +43,7 @@ def custom_openapi():
             "type": "http",
             "scheme": "bearer",
             "bearerFormat": "JWT",
-            "description": "Enter your bearer token (e.g., 12345678901)"
+            "description": f"Enter your bearer token (e.g., {settings.API_KEY})"
         }
     }
 
@@ -71,8 +75,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(analysis_router, prefix="/api/v1")
-app.include_router(documents_router, prefix="/api/v1")
+app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/", tags=["info"])
 async def root():
