@@ -1,4 +1,3 @@
-import os
 from typing import List, Dict, Any, Optional
 import aiohttp
 import spacy
