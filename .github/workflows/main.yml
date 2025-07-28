@@ -7,9 +7,9 @@ on:
 
 env:
   DOCKER_IMAGE_NAME: arpankumar1119/hackrx-bajaj
-  VM_HOST: 74.225.254.124
-  VM_USER: azureuser
-  PROJECT_DIR: ~/BajajFinsev # The project directory on your server
+  VM_HOST: 139.59.11.174
+  VM_USER: root
+  PROJECT_DIR: ~/BajajFinsev-HackRx6-LLM # The project directory on your server
 
 jobs:
   # ==================================
