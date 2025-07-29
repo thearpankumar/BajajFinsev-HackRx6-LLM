@@ -64,12 +64,12 @@ app.openapi = custom_openapi
 
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["llmnew.dev", "www.llmnew.dev", "localhost", "127.0.0.1"]
+    allowed_hosts=["llmnow.dev", "www.llmnow.dev", "localhost", "127.0.0.1"]
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://llmnew.dev", "https://www.llmnew.dev"],
+    allow_origins=["https://llmnow.dev", "https://www.llmnow.dev"],
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
