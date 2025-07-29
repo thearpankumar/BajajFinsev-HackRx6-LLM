@@ -53,30 +53,21 @@ services:
       - app-network
 
   nginx:
-    image: nginx:alpine
-    container_name: nginx-proxy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/sites-available/llmnew.dev.conf:/etc/nginx/conf.d/default.conf
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-    depends_on:
-      - fastapi-app
-    restart: unless-stopped
-    networks:
-      - app-network
-
-  certbot:
-    image: certbot/certbot
-    # This service is only for running one-off commands via the init-letsencrypt.sh script.
-    # It does not need to be running continuously.
-    volumes:
-      - ./data/certbot/conf:/etc/letsencrypt
-      - ./data/certbot/www:/var/www/certbot
-    networks:
-      - app-network
+  image: nginx:alpine
+  container_name: nginx-proxy
+  ports:
+    - "80:80"
+    - "443:443"
+  volumes:
+    - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    - ./nginx/sites-available/llmnew.dev.conf:/etc/nginx/conf.d/default.conf
+    - ./data/certbot/conf:/etc/letsencrypt
+    - ./data/certbot/www:/var/www/certbot
+  depends_on:
+    - fastapi-app
+  restart: unless-stopped
+  networks:
+    - app-network
 
 volumes:
   postgres_data:
