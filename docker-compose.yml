@@ -23,10 +23,14 @@ services:
       - AWS_REGION=${AWS_REGION}
       - PINECONE_API_KEY=${PINECONE_API_KEY}
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
+    expose:
+      - "8000"
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - app-network
 
   postgres:
     image: postgres:15-alpine
@@ -45,19 +49,24 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - app-network
 
   nginx:
     image: nginx:alpine
+    container_name: nginx-proxy
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/sites-available/llmnew.dev.conf:/etc/nginx/conf.d/llmnew.dev.conf
+      - ./nginx/sites-available/llmnew.dev.conf:/etc/nginx/conf.d/default.conf
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     depends_on:
       - fastapi-app
     restart: unless-stopped
+    networks:
+      - app-network
 
   certbot:
     image: certbot/certbot
@@ -66,6 +75,12 @@ services:
     volumes:
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
