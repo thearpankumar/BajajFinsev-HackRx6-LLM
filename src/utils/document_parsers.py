@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 def parse_pdf(file_content: bytes) -> str:
     """
-    Parse PDF content with fallback to AWS Textract for scanned documents.
+    Parse PDF content using AWS Textract with enhanced pre-processing,
+    fallback to PyMuPDF text extraction if Textract fails.
     
     Args:
         file_content (bytes): The PDF file content in bytes
@@ -22,49 +23,125 @@ def parse_pdf(file_content: bytes) -> str:
     Returns:
         str: Extracted text from the PDF
     """
-    logger.info("Starting PDF parsing")
+    logger.info("Starting PDF parsing with enhanced pre-processing and AWS Textract")
+    
+    # First, try PyMuPDF fallback in case Textract fails
+    def pymupdf_fallback(pdf_bytes: bytes) -> str:
+        """Fallback text extraction using PyMuPDF"""
+        logger.info("Using PyMuPDF fallback for text extraction")
+        try:
+            pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            text = ""
+            for page_num in range(pdf_doc.page_count):
+                page = pdf_doc[page_num]
+                text += page.get_text() + "\n"
+            pdf_doc.close()
+            return text.strip()
+        except Exception as e:
+            logger.error(f"PyMuPDF fallback failed: {str(e)}")
+            raise ValueError(f"Failed to extract text using PyMuPDF: {str(e)}")
+
+    # --- Step 1: Enhanced PDF pre-processing and sanitization ---
+    sanitized_pdf_bytes = b''
     try:
-        # First attempt: Direct text extraction using PyMuPDF
-        pdf_text = ""
-        pdf_document = fitz.open(stream=file_content, filetype="pdf")
+        # Open the original PDF
+        source_pdf = fitz.open(stream=file_content, filetype="pdf")
         
-        logger.info(f"Processing PDF with {pdf_document.page_count} pages")
-        for page_num in range(pdf_document.page_count):
-            page = pdf_document[page_num]
-            page_text = page.get_text()
-            pdf_text += page_text
+        # Create a new, empty PDF document
+        sanitized_pdf = fitz.open()
+        
+        # Process each page individually for better compatibility
+        for page_num in range(source_pdf.page_count):
+            source_page = source_pdf[page_num]
             
-        # If minimal text is extracted (indicating possibly scanned document)
-        MIN_EXTRACTABLE_TEXT_LENGTH = 100  # Make threshold configurable
-        if len(pdf_text.strip()) < MIN_EXTRACTABLE_TEXT_LENGTH:
-            logger.info("Minimal text extracted, falling back to AWS Textract")
-            # Fall back to AWS Textract
-            if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
-                logger.warning("AWS credentials not configured, skipping OCR fallback")
+            # Create a new page in the sanitized PDF
+            new_page = sanitized_pdf.new_page(width=source_page.rect.width, 
+                                            height=source_page.rect.height)
+            
+            # Get the page as a pixmap and then insert as image
+            # This flattens all content including forms, annotations, etc.
+            mat = fitz.Matrix(1.0, 1.0)  # No scaling
+            pix = source_page.get_pixmap(matrix=mat, alpha=False)
+            
+            # Insert the flattened page as an image
+            img_bytes = pix.tobytes("png")
+            new_page.insert_image(new_page.rect, stream=img_bytes)
+            
+            pix = None  # Free memory
+        
+        # Generate PDF bytes with optimization for Textract
+        sanitized_pdf_bytes = sanitized_pdf.tobytes(garbage=4,  # Clean up
+                                                   deflate=True)  # Compress
+        
+        source_pdf.close()
+        sanitized_pdf.close()
+        logger.info("Enhanced PDF pre-processing completed successfully")
+        
+    except Exception as e:
+        logger.info(f"PDF pre-processing encountered issue: {str(e)}")
+        # If preprocessing fails, try with original bytes
+        logger.info("Using original PDF bytes for Textract")
+        sanitized_pdf_bytes = file_content
+
+    # --- Step 2: Check for AWS credentials ---
+    if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
+        logger.warning("AWS credentials not configured. Using PyMuPDF fallback.")
+        return pymupdf_fallback(file_content)
+
+    # --- Step 3: Try AWS Textract with sanitized PDF ---
+    try:
+        textract = boto3.client('textract',
+                              aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                              aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                              region_name=settings.AWS_REGION)
+        
+        # Verify PDF size is within Textract limits (10MB for synchronous)
+        pdf_size_mb = len(sanitized_pdf_bytes) / (1024 * 1024)
+        logger.info(f"Sanitized PDF size: {pdf_size_mb:.2f} MB")
+        
+        if pdf_size_mb > 10:
+            logger.warning("PDF too large for synchronous Textract. Using PyMuPDF fallback.")
+            return pymupdf_fallback(file_content)
+        
+        # Try Textract with sanitized PDF
+        response = textract.detect_document_text(
+            Document={'Bytes': sanitized_pdf_bytes}
+        )
+        
+        pdf_text = ""
+        for item in response['Blocks']:
+            if item['BlockType'] == 'LINE':
+                pdf_text += item['Text'] + "\n"
+        
+        logger.info("AWS Textract processing completed successfully")
+        return pdf_text.strip()
+        
+    except Exception as textract_error:
+        logger.info(f"Textract processing failed, using PyMuPDF fallback: {str(textract_error)}")
+        
+        # If Textract fails, use PyMuPDF as fallback
+        try:
+            return pymupdf_fallback(file_content)
+        except Exception as fallback_error:
+            # If both methods fail, try with original PDF using Textract one more time
+            logger.info("Attempting Textract with original PDF as last resort")
+            try:
+                response = textract.detect_document_text(
+                    Document={'Bytes': file_content}
+                )
+                
+                pdf_text = ""
+                for item in response['Blocks']:
+                    if item['BlockType'] == 'LINE':
+                        pdf_text += item['Text'] + "\n"
+                
+                logger.info("AWS Textract with original PDF succeeded")
                 return pdf_text.strip()
                 
-            textract = boto3.client('textract',
-                                  aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                                  aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                                  region_name=settings.AWS_REGION)
-            
-            response = textract.detect_document_text(
-                Document={'Bytes': file_content}
-            )
-            
-            pdf_text = ""
-            for item in response['Blocks']:
-                if item['BlockType'] == 'LINE':
-                    pdf_text += item['Text'] + "\n"
-            
-            logger.info("AWS Textract processing completed")
-        else:
-            logger.info("Successfully extracted text using PyMuPDF")
-        
-        return pdf_text.strip()
-    except Exception as e:
-        logger.error(f"Error processing PDF: {str(e)}")
-        raise
+            except Exception as final_error:
+                error_msg = f"All PDF parsing methods failed. Textract error: {str(textract_error)}. PyMuPDF error: {str(fallback_error)}. Final attempt error: {str(final_error)}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
 def parse_docx(file_content: bytes) -> str:
     """
@@ -79,12 +156,28 @@ def parse_docx(file_content: bytes) -> str:
     logger.info("Starting DOCX parsing")
     try:
         doc = Document(io.BytesIO(file_content))
-        text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        
+        # Extract text from paragraphs
+        paragraphs_text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+        
+        # Also extract text from tables if present
+        tables_text = ""
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = "\t".join([cell.text for cell in row.cells])
+                tables_text += row_text + "\n"
+        
+        # Combine paragraph and table text
+        full_text = paragraphs_text
+        if tables_text.strip():
+            full_text += "\n\nTables:\n" + tables_text
+        
         logger.info("Successfully parsed DOCX file")
-        return text
+        return full_text.strip()
+        
     except Exception as e:
         logger.error(f"Error processing DOCX: {str(e)}")
-        raise
+        raise ValueError(f"Failed to parse DOCX file: {str(e)}")
 
 def parse_email(file_content: bytes) -> str:
     """
@@ -100,22 +193,46 @@ def parse_email(file_content: bytes) -> str:
     try:
         email_message = email.message_from_bytes(file_content)
         
+        # Extract headers
+        headers = []
+        for key in ['From', 'To', 'Subject', 'Date']:
+            value = email_message.get(key)
+            if value:
+                headers.append(f"{key}: {value}")
+        
+        header_text = "\n".join(headers) + "\n\n"
+        
         # Extract email body
         body = ""
         if email_message.is_multipart():
             logger.info("Processing multipart email")
             for part in email_message.walk():
-                if part.get_content_type() == "text/plain":
-                    body += part.get_payload(decode=True).decode() + "\n"
+                content_type = part.get_content_type()
+                if content_type == "text/plain":
+                    try:
+                        payload = part.get_payload(decode=True)
+                        if payload:
+                            body += payload.decode('utf-8', errors='ignore') + "\n"
+                    except Exception as decode_error:
+                        logger.warning(f"Failed to decode email part: {decode_error}")
+                        continue
         else:
             logger.info("Processing single-part email")
-            body = email_message.get_payload(decode=True).decode()
+            try:
+                payload = email_message.get_payload(decode=True)
+                if payload:
+                    body = payload.decode('utf-8', errors='ignore')
+            except Exception as decode_error:
+                logger.warning(f"Failed to decode email: {decode_error}")
+                body = ""
         
+        full_email = header_text + body.strip()
         logger.info("Successfully parsed email")
-        return body.strip()
+        return full_email
+        
     except Exception as e:
         logger.error(f"Error processing email: {str(e)}")
-        raise
+        raise ValueError(f"Failed to parse email file: {str(e)}")
 
 def get_parser(filename: str) -> Callable[[bytes], str]:
     """
@@ -133,18 +250,24 @@ def get_parser(filename: str) -> Callable[[bytes], str]:
     path = parsed_url.path
     
     # Extract the extension from the path component of the URL
+    if '.' not in path:
+        logger.error(f"No file extension found in path: {path}")
+        raise ValueError(f"Cannot determine file type from: {filename}")
+    
     extension = path.lower().split('.')[-1]
     
     parsers: Dict[str, Callable[[bytes], str]] = {
         'pdf': parse_pdf,
         'docx': parse_docx,
+        'doc': parse_docx,  # Also handle .doc files (though may need separate handling)
         'eml': parse_email,
         'msg': parse_email
     }
     
     if extension not in parsers:
+        supported_types = ', '.join(parsers.keys())
         logger.error(f"Unsupported file type: {extension} (from path: {path})")
-        raise ValueError(f"Unsupported file type: {extension}")
+        raise ValueError(f"Unsupported file type: {extension}. Supported types: {supported_types}")
     
     logger.info(f"Selected parser for file type: {extension}")
     return parsers[extension]
