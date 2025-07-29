@@ -7,6 +7,7 @@ import io
 import logging
 from urllib.parse import urlparse
 from src.core.config import settings
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -14,8 +15,7 @@ logger = logging.getLogger(__name__)
 
 def parse_pdf(file_content: bytes) -> str:
     """
-    Parse PDF content using AWS Textract with enhanced pre-processing,
-    fallback to PyMuPDF text extraction if Textract fails.
+    Parse PDF content using AWS Textract with improved error handling and fallbacks.
     
     Args:
         file_content (bytes): The PDF file content in bytes
@@ -23,9 +23,9 @@ def parse_pdf(file_content: bytes) -> str:
     Returns:
         str: Extracted text from the PDF
     """
-    logger.info("Starting PDF parsing with enhanced pre-processing and AWS Textract")
+    logger.info("Starting PDF parsing with AWS Textract")
     
-    # First, try PyMuPDF fallback in case Textract fails
+    # PyMuPDF fallback function
     def pymupdf_fallback(pdf_bytes: bytes) -> str:
         """Fallback text extraction using PyMuPDF"""
         logger.info("Using PyMuPDF fallback for text extraction")
@@ -41,71 +41,34 @@ def parse_pdf(file_content: bytes) -> str:
             logger.error(f"PyMuPDF fallback failed: {str(e)}")
             raise ValueError(f"Failed to extract text using PyMuPDF: {str(e)}")
 
-    # --- Step 1: Enhanced PDF pre-processing and sanitization ---
-    sanitized_pdf_bytes = b''
-    try:
-        # Open the original PDF
-        source_pdf = fitz.open(stream=file_content, filetype="pdf")
-        
-        # Create a new, empty PDF document
-        sanitized_pdf = fitz.open()
-        
-        # Process each page individually for better compatibility
-        for page_num in range(source_pdf.page_count):
-            source_page = source_pdf[page_num]
-            
-            # Create a new page in the sanitized PDF
-            new_page = sanitized_pdf.new_page(width=source_page.rect.width, 
-                                            height=source_page.rect.height)
-            
-            # Get the page as a pixmap and then insert as image
-            # This flattens all content including forms, annotations, etc.
-            mat = fitz.Matrix(1.0, 1.0)  # No scaling
-            pix = source_page.get_pixmap(matrix=mat, alpha=False)
-            
-            # Insert the flattened page as an image
-            img_bytes = pix.tobytes("png")
-            new_page.insert_image(new_page.rect, stream=img_bytes)
-            
-            pix = None  # Free memory
-        
-        # Generate PDF bytes with optimization for Textract
-        sanitized_pdf_bytes = sanitized_pdf.tobytes(garbage=4,  # Clean up
-                                                   deflate=True)  # Compress
-        
-        source_pdf.close()
-        sanitized_pdf.close()
-        logger.info("Enhanced PDF pre-processing completed successfully")
-        
-    except Exception as e:
-        logger.info(f"PDF pre-processing encountered issue: {str(e)}")
-        # If preprocessing fails, try with original bytes
-        logger.info("Using original PDF bytes for Textract")
-        sanitized_pdf_bytes = file_content
-
-    # --- Step 2: Check for AWS credentials ---
+    # Check for AWS credentials first
     if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
         logger.warning("AWS credentials not configured. Using PyMuPDF fallback.")
         return pymupdf_fallback(file_content)
 
-    # --- Step 3: Try AWS Textract with sanitized PDF ---
+    # Check PDF size (Textract limit: 10MB for synchronous calls)
+    pdf_size_mb = len(file_content) / (1024 * 1024)
+    logger.info(f"PDF size: {pdf_size_mb:.2f} MB")
+    
+    if pdf_size_mb > 10:
+        logger.warning("PDF too large for synchronous Textract. Using PyMuPDF fallback.")
+        return pymupdf_fallback(file_content)
+
+    # Initialize Textract client
     try:
         textract = boto3.client('textract',
                               aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
                               aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
                               region_name=settings.AWS_REGION)
-        
-        # Verify PDF size is within Textract limits (10MB for synchronous)
-        pdf_size_mb = len(sanitized_pdf_bytes) / (1024 * 1024)
-        logger.info(f"Sanitized PDF size: {pdf_size_mb:.2f} MB")
-        
-        if pdf_size_mb > 10:
-            logger.warning("PDF too large for synchronous Textract. Using PyMuPDF fallback.")
-            return pymupdf_fallback(file_content)
-        
-        # Try Textract with sanitized PDF
+    except Exception as client_error:
+        logger.error(f"Failed to initialize Textract client: {client_error}")
+        return pymupdf_fallback(file_content)
+
+    # Strategy 1: Try DetectDocumentText first (simpler, often works better for PDFs)
+    try:
+        logger.info("Attempting Textract with DetectDocumentText API")
         response = textract.detect_document_text(
-            Document={'Bytes': sanitized_pdf_bytes}
+            Document={'Bytes': file_content}
         )
         
         pdf_text = ""
@@ -113,35 +76,295 @@ def parse_pdf(file_content: bytes) -> str:
             if item['BlockType'] == 'LINE':
                 pdf_text += item['Text'] + "\n"
         
-        logger.info("AWS Textract processing completed successfully")
-        return pdf_text.strip()
+        if pdf_text.strip():  # Only return if we got meaningful text
+            logger.info("AWS Textract DetectDocumentText succeeded")
+            return pdf_text.strip()
+        else:
+            logger.warning("DetectDocumentText returned empty text")
+            
+    except Exception as detect_error:
+        logger.info(f"DetectDocumentText failed: {str(detect_error)}")
+
+    # Strategy 2: Try AnalyzeDocument as original approach
+    try:
+        logger.info("Attempting Textract with AnalyzeDocument API")
+        response = textract.analyze_document(
+            Document={'Bytes': file_content},
+            FeatureTypes=['TABLES', 'FORMS']
+        )
         
-    except Exception as textract_error:
-        logger.info(f"Textract processing failed, using PyMuPDF fallback: {str(textract_error)}")
+        pdf_text = ""
+        for item in response['Blocks']:
+            if item['BlockType'] == 'LINE':
+                pdf_text += item['Text'] + "\n"
         
-        # If Textract fails, use PyMuPDF as fallback
-        try:
-            return pymupdf_fallback(file_content)
-        except Exception as fallback_error:
-            # If both methods fail, try with original PDF using Textract one more time
-            logger.info("Attempting Textract with original PDF as last resort")
+        if pdf_text.strip():
+            logger.info("AWS Textract AnalyzeDocument succeeded")
+            return pdf_text.strip()
+            
+    except Exception as analyze_error:
+        logger.info(f"AnalyzeDocument failed: {str(analyze_error)}")
+        
+        # Strategy 3: If UnsupportedDocumentException, try page-by-page processing
+        if "UnsupportedDocumentException" in str(analyze_error):
+            logger.info("Attempting page-by-page PDF processing")
             try:
-                response = textract.detect_document_text(
-                    Document={'Bytes': file_content}
+                page_text = process_pdf_pages_individually(file_content, textract)
+                if page_text.strip():
+                    logger.info("Page-by-page processing succeeded")
+                    return page_text.strip()
+            except Exception as page_error:
+                logger.info(f"Page-by-page processing failed: {page_error}")
+            
+            # Strategy 4: Try PDF repair and conversion
+            logger.info("Attempting PDF repair for Textract")
+            try:
+                repaired_pdf_bytes = repair_pdf_for_textract(file_content)
+                
+                if (repaired_pdf_bytes and 
+                    repaired_pdf_bytes != file_content and 
+                    len(repaired_pdf_bytes) > 1000):
+                    
+                    # Try DetectDocumentText with repaired PDF first
+                    try:
+                        response = textract.detect_document_text(
+                            Document={'Bytes': repaired_pdf_bytes}
+                        )
+                        
+                        pdf_text = ""
+                        for item in response['Blocks']:
+                            if item['BlockType'] == 'LINE':
+                                pdf_text += item['Text'] + "\n"
+                        
+                        if pdf_text.strip():
+                            logger.info("Textract with repaired PDF (DetectDocumentText) succeeded")
+                            return pdf_text.strip()
+                            
+                    except Exception:
+                        # Try AnalyzeDocument with repaired PDF
+                        response = textract.analyze_document(
+                            Document={'Bytes': repaired_pdf_bytes},
+                            FeatureTypes=['TABLES', 'FORMS']
+                        )
+                        
+                        pdf_text = ""
+                        for item in response['Blocks']:
+                            if item['BlockType'] == 'LINE':
+                                pdf_text += item['Text'] + "\n"
+                        
+                        if pdf_text.strip():
+                            logger.info("Textract with repaired PDF (AnalyzeDocument) succeeded")
+                            return pdf_text.strip()
+                        
+            except Exception as repair_error:
+                logger.info(f"PDF repair attempt failed: {str(repair_error)}")
+            
+            # Strategy 5: Convert to image as last resort
+            logger.info("Attempting PDF to image conversion for Textract")
+            try:
+                success_text = process_pdf_as_images(file_content, textract)
+                if success_text.strip():
+                    logger.info("PDF to image conversion succeeded")
+                    return success_text.strip()
+                    
+            except Exception as image_error:
+                logger.info(f"PDF to image conversion failed: {str(image_error)}")
+
+    # Final fallback to PyMuPDF
+    logger.info("All Textract strategies failed, falling back to PyMuPDF")
+    return pymupdf_fallback(file_content)
+
+def process_pdf_pages_individually(file_content: bytes, textract_client) -> str:
+    """
+    Process PDF page by page, converting each to image for Textract.
+    This helps with PDFs that have compatibility issues.
+    """
+    try:
+        pdf_doc = fitz.open(stream=file_content, filetype="pdf")
+        all_text = []
+        
+        # Limit to first 5 pages to avoid timeout/size issues
+        max_pages = min(5, pdf_doc.page_count)
+        logger.info(f"Processing first {max_pages} pages individually")
+        
+        for page_num in range(max_pages):
+            try:
+                page = pdf_doc[page_num]
+                
+                # Convert page to high-quality image
+                mat = fitz.Matrix(200/72, 200/72)  # 200 DPI (balance quality/size)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                img_bytes = pix.tobytes("png")
+                pix = None  # Free memory
+                
+                # Check image size
+                img_size_mb = len(img_bytes) / (1024 * 1024)
+                if img_size_mb > 9:  # Skip if too large
+                    logger.warning(f"Page {page_num + 1} image too large ({img_size_mb:.2f}MB), skipping")
+                    continue
+                
+                # Process with Textract
+                response = textract_client.detect_document_text(
+                    Document={'Bytes': img_bytes}
                 )
                 
-                pdf_text = ""
+                page_text = ""
                 for item in response['Blocks']:
                     if item['BlockType'] == 'LINE':
-                        pdf_text += item['Text'] + "\n"
+                        page_text += item['Text'] + "\n"
                 
-                logger.info("AWS Textract with original PDF succeeded")
-                return pdf_text.strip()
+                if page_text.strip():
+                    all_text.append(f"--- Page {page_num + 1} ---\n{page_text.strip()}")
                 
-            except Exception as final_error:
-                error_msg = f"All PDF parsing methods failed. Textract error: {str(textract_error)}. PyMuPDF error: {str(fallback_error)}. Final attempt error: {str(final_error)}"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
+                # Small delay to avoid rate limiting
+                time.sleep(0.1)
+                
+            except Exception as page_error:
+                logger.warning(f"Failed to process page {page_num + 1}: {page_error}")
+                continue
+        
+        pdf_doc.close()
+        
+        if all_text:
+            return "\n\n".join(all_text)
+        else:
+            raise ValueError("No pages processed successfully")
+            
+    except Exception as e:
+        logger.error(f"Page-by-page processing failed: {e}")
+        raise
+
+def process_pdf_as_images(file_content: bytes, textract_client) -> str:
+    """
+    Convert entire PDF to images and process with Textract.
+    """
+    try:
+        pdf_doc = fitz.open(stream=file_content, filetype="pdf")
+        all_text = []
+        
+        # Limit pages to avoid size/timeout issues
+        max_pages = min(3, pdf_doc.page_count)
+        logger.info(f"Converting first {max_pages} pages to images")
+        
+        for page_num in range(max_pages):
+            try:
+                page = pdf_doc[page_num]
+                
+                # Create medium quality image (balance between quality and size)
+                mat = fitz.Matrix(150/72, 150/72)  # 150 DPI
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+                img_bytes = pix.tobytes("png")
+                pix = None
+                
+                # Size check
+                img_size_mb = len(img_bytes) / (1024 * 1024)
+                if img_size_mb > 8:  # Conservative limit
+                    logger.warning(f"Page {page_num + 1} image too large, skipping")
+                    continue
+                
+                # Process with Textract
+                response = textract_client.detect_document_text(
+                    Document={'Bytes': img_bytes}
+                )
+                
+                page_text = ""
+                for item in response['Blocks']:
+                    if item['BlockType'] == 'LINE':
+                        page_text += item['Text'] + "\n"
+                
+                if page_text.strip():
+                    all_text.append(page_text.strip())
+                
+                time.sleep(0.1)  # Rate limiting
+                
+            except Exception as page_error:
+                logger.warning(f"Image processing failed for page {page_num + 1}: {page_error}")
+                continue
+        
+        pdf_doc.close()
+        return "\n\n".join(all_text) if all_text else ""
+        
+    except Exception as e:
+        logger.error(f"PDF to image processing failed: {e}")
+        raise
+
+def repair_pdf_for_textract(file_content: bytes) -> bytes:
+    """
+    Attempt to repair/sanitize PDF for Textract compatibility.
+    Focus on creating the most basic, compatible PDF structure.
+    """
+    try:
+        logger.info("Attempting minimal PDF repair for Textract compatibility")
+        
+        source_pdf = fitz.open(stream=file_content, filetype="pdf")
+        
+        if source_pdf.needs_pass:
+            logger.warning("PDF is password protected, cannot repair")
+            source_pdf.close()
+            return file_content
+        
+        # Create minimal PDF with basic text only
+        repaired_pdf = fitz.open()
+        
+        # Process only first few pages to avoid issues
+        max_pages = min(10, source_pdf.page_count)
+        
+        for page_num in range(max_pages):
+            try:
+                source_page = source_pdf[page_num]
+                new_page = repaired_pdf.new_page(
+                    width=source_page.rect.width, 
+                    height=source_page.rect.height
+                )
+                
+                # Extract text in simplest possible way
+                simple_text = source_page.get_text()
+                
+                if simple_text.strip():
+                    # Insert as plain text with minimal formatting
+                    text_rect = fitz.Rect(
+                        50, 50, 
+                        source_page.rect.width - 50, 
+                        source_page.rect.height - 50
+                    )
+                    new_page.insert_textbox(
+                        text_rect, 
+                        simple_text, 
+                        fontsize=10,
+                        color=(0, 0, 0),
+                        fontname="helv"  # Use standard font
+                    )
+                
+            except Exception as page_error:
+                logger.warning(f"Failed to repair page {page_num + 1}: {page_error}")
+                continue
+        
+        # Generate minimal PDF
+        repaired_pdf_bytes = repaired_pdf.tobytes(
+            garbage=4,
+            deflate=True,
+            clean=True,
+            ascii=False,
+            expand=0,
+            linear=False,
+            pretty=False,
+            encryption=fitz.PDF_ENCRYPT_NONE
+        )
+        
+        source_pdf.close()
+        repaired_pdf.close()
+        
+        # Basic validation
+        if len(repaired_pdf_bytes) > 1000:
+            logger.info("PDF repair completed")
+            return repaired_pdf_bytes
+        else:
+            logger.warning("Repaired PDF too small, using original")
+            return file_content
+        
+    except Exception as e:
+        logger.warning(f"PDF repair failed: {str(e)}")
+        return file_content
 
 def parse_docx(file_content: bytes) -> str:
     """
