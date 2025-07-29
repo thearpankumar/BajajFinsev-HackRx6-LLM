@@ -136,7 +136,9 @@ Your API is now running at `http://127.0.0.1:8000`.
 
 ## Testing the API
 
-### 1. Create the Payload File
+### Testing Locally
+
+#### 1. Create the Payload File
 
 Create a file named `payload.json` and add the following content. This makes sending the complex URL easy and reliable.
 
@@ -152,7 +154,7 @@ Create a file named `payload.json` and add the following content. This makes sen
 }
 ```
 
-### 2. Send the Request
+#### 2. Send the Request
 
 Run the following `curl` command from your terminal (make sure you are in the same directory as `payload.json`).
 
@@ -165,4 +167,15 @@ curl -X POST "http://127.0.0.1:8000/api/v1/hackrx/run" \
 *(Note: This uses the default API key. If you changed it in your `.env` file, update the `Bearer` token here.)*
 
 You will see the processing logs in your Uvicorn terminal, and the final JSON response with the answers will be printed by the `curl` command.
+
+### Testing the Deployed Application
+
+To test the live application running on your server with a valid SSL certificate, use the following command. Note the use of `https` and the domain name.
+
+```bash
+time curl -X POST "https://llmnow.dev/api/v1/hackrx/run" \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer 123456" \
+-d @payload.json
+```
 
