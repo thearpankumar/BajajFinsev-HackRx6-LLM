@@ -24,8 +24,6 @@ tasks/
 # Local development files
 .env
 payload.json
-alembic.ini
-alembic/
 scripts/
 nginx/
 ssl/
