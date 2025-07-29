@@ -3,17 +3,8 @@ services:
   fastapi-app:
     image: arpankumar1119/hackrx-bajaj:latest
     container_name: fastapi-app-container
-    command: |
-      sh -c "
-        while ! pg_isready -h postgres -p 5432 -q -U user; do
-          echo 'Waiting for database to be ready...'
-          sleep 2
-        done
-        echo 'Database is ready. Running migrations...'
-        alembic upgrade head
-        echo 'Migrations complete. Starting application...'
-        uvicorn src.main:app --host 0.0.0.0 --port 8000
-      "
+    # The command is simplified to just run the application
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000
     environment:
       - DATABASE_URL=postgresql://user:password@postgres:5432/bajaj_finsev_db
       - API_KEY=${API_KEY}
@@ -26,10 +17,33 @@ services:
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
     expose:
       - "8000"
+    # This service now depends on the migrate service completing successfully
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  migrate:
+    # This is a new, one-off service to handle database migrations
+    image: arpankumar1119/hackrx-bajaj:latest
+    container_name: migrate-container
+    # The command waits for the DB, runs alembic, and then exits
+    command: |
+      sh -c "
+        echo 'Waiting for database to be ready...'
+        while ! pg_isready -h postgres -p 5432 -q -U user; do
+          sleep 2
+        done
+        echo 'Database is ready. Running migrations...'
+        alembic -c alembic.ini upgrade head
+      "
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/bajaj_finsev_db
     depends_on:
       postgres:
         condition: service_healthy
-    restart: unless-stopped
     networks:
       - app-network
 
