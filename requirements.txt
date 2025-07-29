@@ -71,6 +71,8 @@ filelock==3.18.0
     #   huggingface-hub
     #   torch
     #   transformers
+filetype==1.2.0
+    # via -r requirements.in
 frozenlist==1.7.0
     # via
     #   aiohttp

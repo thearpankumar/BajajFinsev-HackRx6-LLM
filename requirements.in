@@ -24,3 +24,4 @@ google-generativeai
 groq
 alembic
 torch>=2.6
+filetype
