@@ -27,15 +27,14 @@ async def run_analysis(
     1.  **On-the-fly Ingestion**: Downloads, parses, and embeds the provided documents.
     2.  **RAG Workflow**: Answers the questions based on the ingested documents.
     """
-    logger.info(f"🎯 Starting analysis for {len(request.documents)} documents and {len(request.questions)} questions.")
+    logger.info(f"🎯 Starting analysis for 1 document and {len(request.questions)} questions.")
+    logger.debug(f"Received AnalysisRequest: document={request.documents}, questions={request.questions}")
     
     try:
         # --- On-the-fly Ingestion ---
-        ingestion_tasks = [
-            ingestion_service.process_document(str(doc_url)) for doc_url in request.documents
-        ]
-        document_ids = await asyncio.gather(*ingestion_tasks)
-        logger.info(f"✅ Successfully ingested {len(document_ids)} documents. IDs: {document_ids}")
+        document_id = await ingestion_service.process_document(str(request.documents))
+        document_ids = [document_id]
+        logger.info(f"✅ Successfully ingested 1 document. ID: {document_id}")
 
         # --- RAG Workflow ---
         answers = await rag_workflow_service.run_workflow(request.questions, document_ids)
