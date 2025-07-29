@@ -5,10 +5,7 @@ class AnalysisRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "documents": [
-                    "https://example.com/document1.pdf",
-                    "https://example.com/document2.docx"
-                ],
+                "documents": "https://example.com/document1.pdf",
                 "questions": [
                     "What are the key terms and conditions?",
                     "What is the cancellation policy?"
@@ -17,11 +14,9 @@ class AnalysisRequest(BaseModel):
         }
     )
     
-    documents: List[HttpUrl] = Field(
+    documents: HttpUrl = Field(
         ...,
-        description="List of HTTP URLs pointing to documents to analyze",
-        min_length=1,
-        max_length=10
+        description="HTTP URL pointing to a document to analyze"
     )
     
     questions: List[str] = Field(
