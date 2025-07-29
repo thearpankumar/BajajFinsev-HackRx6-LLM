@@ -1,10 +1,4 @@
-# Fix Certbot Service Issue
 
-## Solution 1: Add Certbot Service to Docker Compose
-
-### Update your docker-compose.yml to include certbot service:
-
-```yaml
 services:
   fastapi-app:
     image: arpankumar1119/hackrx-bajaj:latest
