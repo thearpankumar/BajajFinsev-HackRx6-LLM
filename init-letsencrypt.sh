@@ -27,7 +27,7 @@ fi
 
 if [ ! -e "$data_path/conf/options-ssl-nginx.conf" ] || [ ! -e "$data_path/conf/ssl-dhparams.pem" ]; then
   echo "### Downloading recommended TLS parameters ..."
-  curl https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
+  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
   openssl dhparam -out "$data_path/conf/ssl-dhparams.pem" 2048
   echo
 fi
@@ -73,6 +73,21 @@ docker compose run --rm --entrypoint "\
     --agree-tos \
     --force-renewal" certbot
 echo
+
+# --- Robustness Check ---
+# Add a check to ensure the certificate was actually created before reloading nginx.
+if [ ! -f "$data_path/conf/live/$domains/fullchain.pem" ]; then
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "ERROR: Certificate generation FAILED."
+    echo "The certbot command finished, but the certificate file was not found."
+    echo "Check the logs above for errors from Let's Encrypt."
+    echo "Common causes:"
+    echo "  - The domain name ($domains) does not point to this server's IP."
+    echo "  - A firewall is blocking port 80."
+    echo "  - Let's Encrypt rate limits have been exceeded."
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    exit 1
+fi
 
 echo "### Reloading Nginx ..."
 docker compose exec nginx nginx -s reload
