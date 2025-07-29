@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import logging
-import asyncio
 
 from src.schemas.analysis import AnalysisRequest, AnalysisResponse
 from src.core.security import validate_bearer_token
