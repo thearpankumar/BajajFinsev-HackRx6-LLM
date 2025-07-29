@@ -1,3 +1,10 @@
+# Fix Certbot Service Issue
+
+## Solution 1: Add Certbot Service to Docker Compose
+
+### Update your docker-compose.yml to include certbot service:
+
+```yaml
 services:
   fastapi-app:
     image: arpankumar1119/hackrx-bajaj:latest
@@ -60,7 +67,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/sites-available/llmnow.dev.conf:/etc/nginx/conf.d/default.conf  # Updated filename
+      - ./nginx/sites-available/llmnow.dev.conf:/etc/nginx/conf.d/default.conf
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     depends_on:
@@ -68,6 +75,18 @@ services:
     restart: unless-stopped
     networks:
       - app-network
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot-container
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    networks:
+      - app-network
+    # This service runs on-demand, not continuously
+    profiles:
+      - tools
 
 volumes:
   postgres_data:
