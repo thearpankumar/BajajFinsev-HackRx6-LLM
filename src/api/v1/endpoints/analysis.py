@@ -1,31 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import logging
-import subprocess
-import sys
 
 from src.schemas.analysis import AnalysisRequest, AnalysisResponse
 from src.core.security import validate_bearer_token
 from src.services import ingestion_service, rag_workflow_service
+from src.worker import cleanup_queue
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-def run_cleanup_process(file_name: str):
-    """
-    Launches the cleanup script in a new, completely detached process
-    to ensure it does not block the main application.
-    """
-    logger.info(f"Launching fully detached fire-and-forget cleanup for: {file_name}")
-    
-    # Using Popen with these arguments ensures the subprocess is fully detached
-    # from the parent process, preventing any blocking.
-    subprocess.Popen(
-        [sys.executable, "src/utils/cleanup_task.py", file_name],
-        stdout=subprocess.DEVNULL,  # Do not connect to stdout
-        stderr=subprocess.DEVNULL,  # Do not connect to stderr
-        start_new_session=True      # Run in a new session, fully independent
-    )
 
 @router.post(
     "/hackrx/run",
@@ -43,7 +26,7 @@ async def run_analysis(
     1.  Downloads the document from the provided URL.
     2.  Uploads the document directly to the Gemini API.
     3.  Runs a parallel RAG workflow for each question using Gemini 2.5 Pro.
-    4.  Launches a non-blocking background process for file cleanup.
+    4.  Adds the file name to a queue for background cleanup.
     """
     logger.info(f"🎯 Starting analysis for document and {len(request.questions)} questions.")
     
@@ -68,9 +51,10 @@ async def run_analysis(
             detail=f"An internal server error occurred: {e}"
         )
     finally:
-        # Step 4: Launch the fire-and-forget cleanup process
+        # Step 4: Add the file to the cleanup queue (non-blocking)
         if gemini_file:
-            run_cleanup_process(gemini_file.name)
+            logger.info(f"Adding file to cleanup queue: {gemini_file.name}")
+            cleanup_queue.put_nowait(gemini_file.name)
 
 @router.get(
     "/hackrx/health",
