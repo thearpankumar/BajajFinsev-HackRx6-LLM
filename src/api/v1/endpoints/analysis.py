@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 import logging
 import asyncio
 import google.generativeai as genai
 import mimetypes
 from urllib.parse import urlparse
+import subprocess
+import sys
 
 from src.schemas.analysis import AnalysisRequest, AnalysisResponse
 from src.core.security import validate_bearer_token
@@ -12,6 +14,22 @@ from src.services import ingestion_service, rag_workflow_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+def run_cleanup_process(file_name: str):
+    """
+    Launches the cleanup script in a new, completely detached process
+    to ensure it does not block the main application.
+    """
+    logger.info(f"Launching fully detached fire-and-forget cleanup for: {file_name}")
+    
+    # Using Popen with these arguments ensures the subprocess is fully detached
+    # from the parent process, preventing any blocking.
+    subprocess.Popen(
+        [sys.executable, "src/utils/cleanup_task.py", file_name],
+        stdout=subprocess.DEVNULL,  # Do not connect to stdout
+        stderr=subprocess.DEVNULL,  # Do not connect to stderr
+        start_new_session=True      # Run in a new session, fully independent
+    )
 
 @router.post(
     "/hackrx/run",
@@ -29,29 +47,14 @@ async def run_analysis(
     1.  Downloads the document from the provided URL.
     2.  Uploads the document directly to the Gemini API.
     3.  Runs a parallel RAG workflow for each question using Gemini 2.5 Pro.
-    4.  Cleans up the uploaded file.
+    4.  Launches a non-blocking background process for file cleanup.
     """
     logger.info(f"🎯 Starting analysis for document and {len(request.questions)} questions.")
     
     gemini_file = None
     try:
-        # Step 1: Download the document content
-        document_url = str(request.documents)
-        document_content = await ingestion_service.download_document(document_url)
-        
-        # Determine the MIME type from the URL path
-        path = urlparse(document_url).path
-        mime_type, _ = mimetypes.guess_type(path)
-        if mime_type is None:
-            # Fallback for URLs without a clear extension
-            mime_type = "application/octet-stream"
-        
-        # Step 2: Upload the document to the Gemini API
-        gemini_file = await ingestion_service.upload_to_gemini(
-            file_content=document_content,
-            display_name=document_url,
-            mime_type=mime_type
-        )
+        # Step 1 & 2: Process the document based on its type and upload to Gemini
+        gemini_file = await ingestion_service.process_and_upload(url=str(request.documents))
 
         # Step 3: Run the parallel RAG workflow
         answers = await rag_workflow_service.run_parallel_workflow(
@@ -69,11 +72,9 @@ async def run_analysis(
             detail=f"An internal server error occurred: {e}"
         )
     finally:
-        # Step 4: Clean up the uploaded file from Gemini
+        # Step 4: Launch the fire-and-forget cleanup process
         if gemini_file:
-            logger.info(f"Cleaning up Gemini file: {gemini_file.name}")
-            await asyncio.to_thread(genai.delete_file, name=gemini_file.name)
-            logger.info("File cleanup successful.")
+            run_cleanup_process(gemini_file.name)
 
 @router.get(
     "/hackrx/health",

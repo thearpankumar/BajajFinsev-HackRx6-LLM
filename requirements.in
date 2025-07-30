@@ -13,3 +13,4 @@ python-dotenv
 ruff
 aiohttp
 google-generativeai
+python-docx
