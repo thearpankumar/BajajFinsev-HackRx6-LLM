@@ -53,7 +53,7 @@ class IngestionService:
             )
             pathlib.Path(temp_file_path).unlink() # Clean up the temp file
             return gemini_file
-        except Exception as e:
+        except Exception:
             if 'temp_file_path' in locals() and pathlib.Path(temp_file_path).exists():
                 pathlib.Path(temp_file_path).unlink()
             raise
@@ -75,7 +75,7 @@ class IngestionService:
             )
             pathlib.Path(temp_file_path).unlink() # Clean up the temp file
             return gemini_file
-        except Exception as e:
+        except Exception:
             if 'temp_file_path' in locals() and pathlib.Path(temp_file_path).exists():
                 pathlib.Path(temp_file_path).unlink()
             raise
