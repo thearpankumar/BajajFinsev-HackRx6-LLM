@@ -1,4 +1,3 @@
-from . import analysis, document
+from . import analysis
 
-__all__ = ["analysis", "document"]
-
+__all__ = ["analysis"]

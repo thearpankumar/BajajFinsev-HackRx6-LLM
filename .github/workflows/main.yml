@@ -29,13 +29,8 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install pip-tools
-      run: pip install pip-tools
-
-    - name: Compile and install dependencies
-      run: |
-        pip-compile requirements.in --output-file=requirements.txt
-        pip install -r requirements.txt
+    - name: Install dependencies
+      run: pip install -r requirements.txt
 
     - name: Run Ruff Linter
       run: ruff check .
@@ -82,7 +77,7 @@ jobs:
           echo ">>> Pulling latest Docker image..."
           docker compose pull fastapi-app
 
-          # Restart the services with the new image and .env file
+          # Restart the services with the new image
           echo ">>> Restarting services..."
           docker compose up -d --force-recreate
           

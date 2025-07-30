@@ -1,5 +1,4 @@
 import logging
-import warnings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -9,19 +8,15 @@ import uvicorn
 from src.api.v1.router import api_router
 from src.core.config import settings
 
-# Suppress the specific FutureWarning from torch
-warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.modules.module")
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Document Analysis and Processing API",
-    version="1.0.0",
-    description="API for processing documents, running analysis, and answering questions using a RAG workflow.",
+    title="Document Analysis API with Gemini 2.5 Pro",
+    version="3.0.0",
+    description="An API that uses Google's Gemini 2.5 Pro to analyze documents and answer user questions directly.",
     openapi_tags=[
         {"name": "analysis", "description": "Endpoints for running analysis on documents."},
-        {"name": "documents", "description": "Endpoints for uploading and processing documents."},
         {"name": "monitoring", "description": "Endpoints for health checks and monitoring."},
         {"name": "info", "description": "General API information."}
     ]
@@ -80,8 +75,8 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/", tags=["info"])
 async def root():
     return {
-        "name": "Document Analysis and Processing API",
-        "version": "1.0.0",
+        "name": "Document Analysis API with Gemini 2.5 Pro",
+        "version": "3.0.0",
         "status": "running",
         "docs": "/docs"
     }
@@ -91,7 +86,7 @@ async def global_health():
     return {
         "status": "healthy",
         "message": "API is running",
-        "version": "1.0.0"
+        "version": "3.0.0"
     }
 
 if __name__ == "__main__":
