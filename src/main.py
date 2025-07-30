@@ -7,6 +7,7 @@ import uvicorn
 
 from src.api.v1.router import api_router
 from src.core.config import settings
+from src.worker import start_worker, stop_worker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,6 +22,16 @@ app = FastAPI(
         {"name": "info", "description": "General API information."}
     ]
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """Actions to run on application startup."""
+    start_worker()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Actions to run on application shutdown."""
+    stop_worker()
 
 def custom_openapi():
     if app.openapi_schema:
