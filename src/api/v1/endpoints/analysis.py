@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import logging
+import asyncio
+import google.generativeai as genai
+import mimetypes
+from urllib.parse import urlparse
 
 from src.schemas.analysis import AnalysisRequest, AnalysisResponse
 from src.core.security import validate_bearer_token
-from src.services.ingestion_service import ingestion_service
-from src.services.rag_workflow import rag_workflow_service
+from src.services import ingestion_service, rag_workflow_service
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +16,8 @@ router = APIRouter()
 @router.post(
     "/hackrx/run",
     response_model=AnalysisResponse,
-    summary="Run Document Analysis",
-    description="Analyze documents and answer questions using a unified RAG workflow.",
+    summary="Run Document Analysis with Gemini 2.5 Pro",
+    description="Directly analyzes a document with Gemini 2.5 Pro to answer questions.",
     response_description="Analysis results with answers to the provided questions"
 )
 async def run_analysis(
@@ -22,31 +25,55 @@ async def run_analysis(
     token: str = Depends(validate_bearer_token)
 ) -> AnalysisResponse:
     """
-    This endpoint orchestrates the entire process:
-    1.  **On-the-fly Ingestion**: Downloads, parses, and embeds the provided documents.
-    2.  **RAG Workflow**: Answers the questions based on the ingested documents.
+    This endpoint orchestrates the new, simplified workflow:
+    1.  Downloads the document from the provided URL.
+    2.  Uploads the document directly to the Gemini API.
+    3.  Runs a parallel RAG workflow for each question using Gemini 2.5 Pro.
+    4.  Cleans up the uploaded file.
     """
-    logger.info(f"🎯 Starting analysis for 1 document and {len(request.questions)} questions.")
-    logger.debug(f"Received AnalysisRequest: document={request.documents}, questions={request.questions}")
+    logger.info(f"🎯 Starting analysis for document and {len(request.questions)} questions.")
     
+    gemini_file = None
     try:
-        # --- On-the-fly Ingestion ---
-        document_id = await ingestion_service.process_document(str(request.documents))
-        document_ids = [document_id]
-        logger.info(f"✅ Successfully ingested 1 document. ID: {document_id}")
-
-        # --- RAG Workflow ---
-        answers = await rag_workflow_service.run_workflow(request.questions, document_ids)
-        logger.info(f"✅ Generated {len(answers)} answers.")
+        # Step 1: Download the document content
+        document_url = str(request.documents)
+        document_content = await ingestion_service.download_document(document_url)
         
+        # Determine the MIME type from the URL path
+        path = urlparse(document_url).path
+        mime_type, _ = mimetypes.guess_type(path)
+        if mime_type is None:
+            # Fallback for URLs without a clear extension
+            mime_type = "application/octet-stream"
+        
+        # Step 2: Upload the document to the Gemini API
+        gemini_file = await ingestion_service.upload_to_gemini(
+            file_content=document_content,
+            display_name=document_url,
+            mime_type=mime_type
+        )
+
+        # Step 3: Run the parallel RAG workflow
+        answers = await rag_workflow_service.run_parallel_workflow(
+            questions=request.questions,
+            document_file=gemini_file
+        )
+        
+        logger.info(f"✅ Generated {len(answers)} answers successfully.")
         return AnalysisResponse(answers=answers)
         
     except Exception as e:
-        logger.error(f"❌ Error during analysis: {str(e)}")
+        logger.error(f"❌ Error during analysis: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An internal server error occurred during analysis: {str(e)}"
+            detail=f"An internal server error occurred: {e}"
         )
+    finally:
+        # Step 4: Clean up the uploaded file from Gemini
+        if gemini_file:
+            logger.info(f"Cleaning up Gemini file: {gemini_file.name}")
+            await asyncio.to_thread(genai.delete_file, name=gemini_file.name)
+            logger.info("File cleanup successful.")
 
 @router.get(
     "/hackrx/health",
@@ -59,6 +86,6 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "RAG Analysis API",
-        "version": "2.0.0",
-        "message": "Service is running properly"
+        "version": "3.0.0", # Version bump for new architecture
+        "message": "Service is running properly with Gemini 2.5 Pro"
     }

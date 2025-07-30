@@ -179,3 +179,7 @@ time curl -X POST "https://llmnow.dev/api/v1/hackrx/run" \
 -d @payload.json
 ```
 
+ curl -X POST "http://127.0.0.1:8000/api/v1/hackrx/run" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer 12345678901" \
+    -d @payload.json
