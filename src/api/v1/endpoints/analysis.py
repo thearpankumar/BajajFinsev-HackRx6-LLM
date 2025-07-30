@@ -1,9 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status
 import logging
-import asyncio
-import google.generativeai as genai
-import mimetypes
-from urllib.parse import urlparse
 import subprocess
 import sys
 
