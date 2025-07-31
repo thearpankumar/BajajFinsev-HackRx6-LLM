@@ -23,12 +23,12 @@ RUN apt-get update && \
     apt-get purge -y --auto-remove build-essential swig && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy only the application source code
-COPY --chown=appuser:appgroup src/ .
+# Copy the application source code into a src directory
+COPY --chown=appuser:appgroup src/ ./src
 
 # Switch to the non-root user
 USER appuser
 
-# Correct the command to run the application
+# The command to run the application
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
