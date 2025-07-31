@@ -1,31 +1,36 @@
-# Git
+# Git and environment files
 .git
 .gitignore
+.gitattributes
+.env
+.env.example
+.venv/
 
-# Docker
-.dockerignore
+# Docker files
 Dockerfile
 docker-compose.yml
-Makefile
+.dockerignore
 
-# Python
-.venv
-venv
-env
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.ruff_cache/
 
-# Documentation & Tasks
-README.md
-tasks/
+# Large data and test files
+test_structure/
+sample_docs/
+pdf_images/
+*.pdf
 
-# Local development files
-.env
-payload.json
-scripts/
-nginx/
-ssl/
-LICENSE
+# Development and OS files
 *.md
+LICENSE
+Makefile
+payload.json
+init-letsencrypt.sh
+.DS_Store
+.vscode/
+README.md
+requirements.in
