@@ -13,15 +13,22 @@ RUN addgroup --system appuser &&     adduser --system --ingroup appuser --home /
 # Copy requirements first to leverage Docker layer caching
 COPY --chown=appuser:appgroup requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install system dependencies required for PyMuPDF and then Python packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    libmupdf-dev \
+    swig && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get purge -y --auto-remove build-essential swig && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy only the application source code
-COPY --chown=appuser:appgroup src/ .
+# Copy the application source code into a src directory
+COPY --chown=appuser:appgroup src/ ./src
 
 # Switch to the non-root user
 USER appuser
 
-# The command is a fallback, as it's typically overridden by docker-compose.yml
+# The command to run the application
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 

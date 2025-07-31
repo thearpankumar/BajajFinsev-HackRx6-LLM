@@ -119,6 +119,8 @@ pydantic-core==2.33.2
     # via pydantic
 pydantic-settings==2.10.1
     # via -r requirements.in
+pymupdf==1.26.3
+    # via -r requirements.in
 pyparsing==3.2.3
     # via httplib2
 python-docx==1.2.0
