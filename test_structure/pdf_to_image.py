@@ -63,11 +63,8 @@ def main():
     # Use a ThreadPoolExecutor to render pages in parallel
     # The number of workers will default to a reasonable number for your system
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        results = list(executor.map(render_page, tasks))
-
-    # You can uncomment the following lines to see the status of each page
-    # for res in results:
-    #     print(res)
+        # The list() call ensures that we wait for all futures to complete.
+        list(executor.map(render_page, tasks))
 
     end_time = time.time()
     
