@@ -40,6 +40,7 @@ jobs:
   # =====================================================
   Deploy:
     needs: CI
+    if: github.event_name == 'push' # Only run on push events to master
     runs-on: ubuntu-latest
 
     steps:
