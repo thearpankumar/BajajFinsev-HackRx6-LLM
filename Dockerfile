@@ -16,8 +16,8 @@ COPY --chown=appuser:appgroup requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
-COPY --chown=appuser:appgroup . .
+# Copy only the application source code
+COPY --chown=appuser:appgroup src/ .
 
 # Switch to the non-root user
 USER appuser

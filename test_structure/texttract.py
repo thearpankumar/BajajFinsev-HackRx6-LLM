@@ -28,7 +28,7 @@ def download_file(url, download_dir="."):
         filename = "temp_document.pdf"
         local_path = os.path.join(download_dir, filename)
 
-        print(f"--- Downloading document from URL... ---")
+        print("--- Downloading document from URL... ---")
         with requests.get(url, stream=True) as r:
             r.raise_for_status()
             with open(local_path, 'wb') as f:
