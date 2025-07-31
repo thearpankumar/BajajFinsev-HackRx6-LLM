@@ -14,3 +14,4 @@ ruff
 aiohttp
 google-generativeai
 python-docx
+PyMuPDF
