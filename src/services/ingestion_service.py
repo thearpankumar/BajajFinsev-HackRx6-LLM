@@ -1,11 +1,12 @@
 import logging
 import asyncio
 import google.generativeai as genai
-from typing import Any, Tuple
+from typing import Any, Tuple, List
 import tempfile
 import pathlib
 from urllib.parse import urlparse
 import aiohttp
+import fitz  # PyMuPDF
 
 from src.utils.document_parsers import parse_docx, parse_eml
 
@@ -13,14 +14,16 @@ logger = logging.getLogger(__name__)
 
 class IngestionService:
     """
-    A service to download, process, and upload documents to the Gemini API
-    based on their file type.
+    A service to download, process, and upload documents to the Gemini API.
+    Large PDFs (>30MB) are split into chunks of pages, each under 25MB.
     """
+    MB_30 = 30 * 1024 * 1024
+    MB_25 = 25 * 1024 * 1024
 
     async def download_document(self, url: str) -> bytes:
         """Downloads document content from a URL asynchronously."""
         logger.info(f"Downloading document from: {url}")
-        timeout = aiohttp.ClientTimeout(total=60)
+        timeout = aiohttp.ClientTimeout(total=180) # Increased timeout for very large files
         async with aiohttp.ClientSession(timeout=timeout) as session:
             try:
                 async with session.get(url) as response:
@@ -37,72 +40,129 @@ class IngestionService:
         file_name = pathlib.Path(path).name
         return extension, file_name
 
-    async def _upload_raw_file(self, file_content: bytes, display_name: str) -> Any:
-        """Uploads a raw file (like a PDF) directly to Gemini."""
-        logger.info(f"Performing direct upload for: {display_name}")
-        # This flow uses a temporary file to satisfy the API's path requirement
+    async def _upload_pdf_in_chunks(self, file_content: bytes, display_name: str) -> List[Any]:
+        """
+        Splits a large PDF into chunks of pages, each aiming to be under 25MB,
+        and uploads each chunk as a separate file.
+        """
+        logger.info(f"PDF is large. Splitting and uploading in chunks: {display_name}")
+        all_uploaded_files = []
+        
         try:
+            pdf_document = fitz.open(stream=file_content, filetype="pdf")
+            
+            current_chunk_pages = []
+            current_chunk_size = 0
+            chunk_num = 1
+
+            for page_num in range(len(pdf_document)):
+                # Create a new single-page PDF for accurate size measurement
+                single_page_pdf = fitz.open()
+                single_page_pdf.insert_pdf(pdf_document, from_page=page_num, to_page=page_num)
+                page_bytes = single_page_pdf.tobytes()
+                single_page_pdf.close()
+
+                # If adding this page exceeds the chunk size, process the current chunk first
+                if current_chunk_pages and current_chunk_size + len(page_bytes) > self.MB_25:
+                    logger.info(f"Finalizing chunk {chunk_num} with size {current_chunk_size / (1024*1024):.2f}MB...")
+                    # Combine pages in the current chunk into a single PDF
+                    chunk_pdf = fitz.open()
+                    for p_num in current_chunk_pages:
+                        chunk_pdf.insert_pdf(pdf_document, from_page=p_num, to_page=p_num)
+                    
+                    chunk_bytes = chunk_pdf.tobytes()
+                    chunk_pdf.close()
+                    
+                    chunk_display_name = f"{display_name}_chunk_{chunk_num}"
+                    gemini_file = await self._upload_raw_file(chunk_bytes, chunk_display_name, "application/pdf")
+                    all_uploaded_files.append(gemini_file)
+                    
+                    # Reset for the next chunk
+                    current_chunk_pages = []
+                    current_chunk_size = 0
+                    chunk_num += 1
+
+                # Add the current page to the new chunk
+                current_chunk_pages.append(page_num)
+                current_chunk_size += len(page_bytes)
+
+            # Process the last remaining chunk
+            if current_chunk_pages:
+                logger.info(f"Finalizing final chunk {chunk_num} with size {current_chunk_size / (1024*1024):.2f}MB...")
+                chunk_pdf = fitz.open()
+                for p_num in current_chunk_pages:
+                    chunk_pdf.insert_pdf(pdf_document, from_page=p_num, to_page=p_num)
+                
+                chunk_bytes = chunk_pdf.tobytes()
+                chunk_pdf.close()
+
+                chunk_display_name = f"{display_name}_chunk_{chunk_num}"
+                gemini_file = await self._upload_raw_file(chunk_bytes, chunk_display_name, "application/pdf")
+                all_uploaded_files.append(gemini_file)
+
+            logger.info(f"Successfully uploaded {len(all_uploaded_files)} chunks for the PDF.")
+            return all_uploaded_files
+
+        except Exception as e:
+            logger.error(f"Failed to split and upload PDF chunks: {e}", exc_info=True)
+            # Attempt to clean up any files that were uploaded before the error
+            for f in all_uploaded_files:
+                await asyncio.to_thread(genai.delete_file, f.name)
+            raise
+
+    async def _upload_raw_file(self, file_content: bytes, display_name: str, mime_type: str = None) -> Any:
+        """Uploads raw file content by writing it to a temporary file first."""
+        logger.info(f"Uploading: {display_name} ({len(file_content) / (1024*1024):.2f}MB)")
+        temp_file_path = None
+        try:
+            # Create a temporary file to hold the in-memory bytes
             with tempfile.NamedTemporaryFile(delete=False, suffix=pathlib.Path(display_name).suffix) as temp_file:
                 temp_file.write(file_content)
                 temp_file_path = temp_file.name
             
+            # Upload the file using its path
             gemini_file = await asyncio.to_thread(
                 genai.upload_file,
                 path=temp_file_path,
-                display_name=display_name
+                display_name=display_name,
+                mime_type=mime_type
             )
-            pathlib.Path(temp_file_path).unlink() # Clean up the temp file
             return gemini_file
-        except Exception:
-            if 'temp_file_path' in locals() and pathlib.Path(temp_file_path).exists():
-                pathlib.Path(temp_file_path).unlink()
+        except Exception as e:
+            logger.error(f"Error during file upload for {display_name}: {e}", exc_info=True)
             raise
+        finally:
+            # Ensure the temporary file is always cleaned up
+            if temp_file_path and pathlib.Path(temp_file_path).exists():
+                pathlib.Path(temp_file_path).unlink()
+                logger.info(f"Cleaned up temporary file: {temp_file_path}")
 
-    async def _upload_text_as_file(self, text_content: str, display_name: str) -> Any:
+    async def _upload_text_as_file(self, text_content: str, display_name: str) -> List[Any]:
         """Uploads extracted text to Gemini as a new .txt file."""
         logger.info(f"Performing text-based upload for: {display_name}")
-        # This flow also uses a temporary file to upload the extracted text
-        try:
-            with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".txt", encoding='utf-8') as temp_file:
-                temp_file.write(text_content)
-                temp_file_path = temp_file.name
+        file_bytes = text_content.encode('utf-8')
+        gemini_file = await self._upload_raw_file(
+            file_bytes, f"{display_name}.txt", "text/plain"
+        )
+        return [gemini_file]
 
-            gemini_file = await asyncio.to_thread(
-                genai.upload_file,
-                path=temp_file_path,
-                display_name=f"{display_name}.txt",
-                mime_type="text/plain"
-            )
-            pathlib.Path(temp_file_path).unlink() # Clean up the temp file
-            return gemini_file
-        except Exception:
-            if 'temp_file_path' in locals() and pathlib.Path(temp_file_path).exists():
-                pathlib.Path(temp_file_path).unlink()
-            raise
-
-    async def process_and_upload(self, url: str) -> Any:
+    async def process_and_upload(self, url: str) -> List[Any]:
         """
-        Main orchestration method. Downloads a document, processes it based on
-        its type, and uploads it to Gemini.
+        Main orchestration method. Downloads a document, processes it, and uploads it.
+        Large PDFs are split into chunks. Returns a list of Gemini file objects.
         """
         extension, file_name = self._get_file_info(url)
         file_content = await self.download_document(url)
 
-        if extension == ".pdf":
-            # For PDFs, upload the original file directly
-            return await self._upload_raw_file(file_content, file_name)
+        if extension == ".pdf" and len(file_content) > self.MB_30:
+            return await self._upload_pdf_in_chunks(file_content, file_name)
         
-        elif extension == ".docx":
-            # For DOCX, extract text and upload as a .txt file
-            text = parse_docx(file_content)
-            return await self._upload_text_as_file(text, file_name)
-
-        elif extension == ".eml":
-            # For EML, extract text and upload as a .txt file
-            text = parse_eml(file_content)
+        elif extension in [".docx", ".eml"]:
+            text_parser = parse_docx if extension == ".docx" else parse_eml
+            text = text_parser(file_content)
             return await self._upload_text_as_file(text, file_name)
             
         else:
-            # Fallback for other file types: attempt a direct upload
-            logger.warning(f"Unsupported file type '{extension}'. Attempting direct upload.")
-            return await self._upload_raw_file(file_content, file_name)
+            # For small PDFs and other file types, upload directly
+            file = await self._upload_raw_file(file_content, file_name)
+            return [file]
