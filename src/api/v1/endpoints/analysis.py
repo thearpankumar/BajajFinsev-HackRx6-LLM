@@ -30,15 +30,15 @@ async def run_analysis(
     """
     logger.info(f"🎯 Starting analysis for document and {len(request.questions)} questions.")
     
-    gemini_file = None
+    gemini_files = None
     try:
-        # Step 1 & 2: Process the document based on its type and upload to Gemini
-        gemini_file = await ingestion_service.process_and_upload(url=str(request.documents))
+        # Step 1 & 2: Process the document and get a list of file chunks
+        gemini_files = await ingestion_service.process_and_upload(url=str(request.documents))
 
         # Step 3: Run the parallel RAG workflow
         answers = await rag_workflow_service.run_parallel_workflow(
             questions=request.questions,
-            document_file=gemini_file
+            document_files=gemini_files
         )
         
         logger.info(f"✅ Generated {len(answers)} answers successfully.")
@@ -51,10 +51,11 @@ async def run_analysis(
             detail=f"An internal server error occurred: {e}"
         )
     finally:
-        # Step 4: Add the file to the cleanup queue (non-blocking)
-        if gemini_file:
-            logger.info(f"Adding file to cleanup queue: {gemini_file.name}")
-            cleanup_queue.put_nowait(gemini_file.name)
+        # Step 4: Add all file chunks to the cleanup queue
+        if gemini_files:
+            for f in gemini_files:
+                logger.info(f"Adding file to cleanup queue: {f.name}")
+                cleanup_queue.put_nowait(f.name)
 
 @router.get(
     "/hackrx/health",

@@ -12,31 +12,24 @@ class RAGWorkflowService:
         Clarifies and enhances a user's query using the fast Gemini Flash model.
         """
         logger.info(f"Clarifying query: '{query}'")
-        prompt = f"""You are an insurance domain expert specializing in query interpretation and enhancement. Your role is to transform user queries into detailed, comprehensive prompts for document analysis.
+        prompt = f"""You are a query enhancement specialist. Transform vague user queries into specific, detailed prompts for document analysis.
 Your Task:
-
-Receive user queries that may be vague, incomplete, or in plain English
-Transform them into detailed, specific queries that capture the user's intent
-Focus on insurance-related contexts including policies, claims, coverage, premiums, underwriting, regulations, and compliance
-Enhance queries with relevant insurance terminology and specific details needed for accurate document retrieval
-
-Output Format:
-Provide ONLY an enhanced, detailed query prompt. Do not include explanations, introductions, or additional text.
+Convert user queries into comprehensive prompts that extract information exclusively from uploaded documents.
+Output Format: Provide ONLY an enhanced query prompt. No explanations or additional text.
 Enhancement Guidelines:
 
-Add specific insurance terms and contexts
-Include relevant policy types (life, health, auto, property, liability, etc.)
-Specify document types if applicable (policy documents, claim forms, regulatory filings, etc.)
-Clarify time periods, coverage amounts, or geographical regions when relevant
+Add specific terminology and concepts relevant to the query topic
+Target specific document sections and references
+Focus on extracting information only from provided documents
 Include related concepts that might be in the documents
 
 Examples:
-
 Input: "What about car insurance claims?"
-Output: "Provide detailed information about automobile insurance claims procedures, including filing requirements, documentation needed, claim processing timelines, coverage limitations, deductible applications, and approval criteria from the relevant policy documents and claims processing guidelines."
-Input: "Premium changes"
-Output: "Explain the factors that influence insurance premium adjustments, including risk assessment changes, policy modifications, regulatory updates, claims history impact, and renewal terms, with specific details on calculation methods and notification requirements from underwriting and policy administration documents."
-
+Output: "Extract from uploaded documents: automobile insurance claims procedures, filing requirements, documentation needed, processing timelines, coverage limits, deductibles, approval criteria, and related processes."
+Input: "Employee termination process"
+Output: "Identify from uploaded documents: employee termination procedures, documentation requirements, compliance steps, final pay processes, benefits termination, notifications required, and related policies."
+Input: "Research methodology"
+Output: "Locate from uploaded documents: research methodology procedures, validation requirements, review processes, data validation methods, analysis frameworks, and quality assurance measures."
 ---
 User Query: '{query}'"""
         
@@ -49,45 +42,51 @@ User Query: '{query}'"""
             logger.error(f"Error during query clarification: {e}")
             return query # Fallback to original query
 
-    async def generate_answer_from_document(self, original_query: str, clarified_query: str, document_file: Any) -> str:
+    async def generate_answer_from_document(self, original_query: str, clarified_query: str, document_files: List[Any]) -> str:
         """
-        Generates a final answer using Gemini Pro, based on the uploaded document.
+        Generates a final answer using Gemini Pro, based on the uploaded document chunks.
         """
         logger.info(f"Generating answer for: '{original_query}'")
         
-        # The system prompt is the first part of the conversation history
-        prompt_parts = [
-            """You are an insurance document analysis specialist. Your role is to process detailed queries and extract precise, relevant information from insurance sector documents.
-                                                    Your Task:
+        system_prompt = """You are a document analysis specialist.
+Your Task:
 
-                                                    Receive detailed, enhanced queries from Agent 1
-                                                    Analyze insurance documents to find specific, accurate information
-                                                    Provide concise, actionable responses
-                                                    Focus on factual information from the documents
+Analyze uploaded documents to extract specific information
+Provide concise responses based exclusively on document content
+Reference only information found in the provided documents
 
-                                                    Response Requirements:
+Response Requirements:
 
-                                                    Maximum 1-2 sentences only
-                                                    Be precise and factual
-                                                    Include specific details (amounts, percentages, timeframes) when available
-                                                    Reference the source document type if relevant
-                                                    No explanations or elaborations beyond the core answer
+Maximum 1-2 sentences only
+Include specific details from documents (amounts, percentages, timeframes, section references)
+State "Information not found in provided documents" if unavailable
+Only use information explicitly stated in the uploaded documents
 
-                                                    Response Format:
-                                                    Provide direct answers based on document content. If information spans multiple aspects, prioritize the most critical points within the sentence limit.
-                                                    Examples:
-
-                                                    Query: "Provide detailed information about automobile insurance claims procedures..."
-                                                    Response: "Auto insurance claims must be filed within 30 days of the incident with police report, photos, and repair estimates, and are processed within 15 business days with a $500 standard deductible."
-                                                    Query: "Explain the factors that influence insurance premium adjustments..."
-                                                    Response: "Premium adjustments are based on claims history (up to 25% increase), credit score changes, and annual risk reassessment, with 30-day advance notice required for any changes exceeding 10%.""",
-            clarified_query,
-            document_file
-        ]
+Examples:
+Query: "Extract automobile insurance claims procedures..."
+Response: "According to Policy Section 4.2, claims must be filed within 30 days with police report and are processed within 15 business days with $500 standard deductible."
+Query: "Identify employee termination procedures..."
+Response: "HR Policy 8.1 requires 72-hour advance notice to payroll, completion of Form HR-205, and IT access revocation within 24 hours of separation."
+Query: "Locate research methodology validation..."
+Response: "Protocol Section 3.4 requires peer review by three qualified reviewers and statistical analysis with α=0.05 significance level as outlined in the methodology guidelines."
+"""
         
         try:
+            # The system prompt is the first turn, and the user's query and files are the second.
+            contents = [
+                {
+                    "role": "model",
+                    "parts": [system_prompt]
+                },
+                {
+                    "role": "user",
+                    "parts": [clarified_query] + document_files
+                }
+            ]
+            
+            # Use the centrally defined GEMINI_PRO_MODEL
             response = await GEMINI_PRO_MODEL.generate_content_async(
-                prompt_parts,
+                contents,
                 generation_config={"temperature": 0.2}
             )
             return response.text.strip()
@@ -95,22 +94,22 @@ User Query: '{query}'"""
             logger.error(f"Error generating answer from document: {e}")
             return "Error: Could not generate an answer for this question."
 
-    async def run_workflow_for_question(self, question: str, document_file: Any) -> str:
+    async def run_workflow_for_question(self, question: str, document_files: List[Any]) -> str:
         """
-        Runs the full workflow for a single question.
+        Runs the full workflow for a single question against a list of document chunks.
         """
         clarified_query = await self.clarify_query(question)
-        answer = await self.generate_answer_from_document(question, clarified_query, document_file)
+        answer = await self.generate_answer_from_document(question, clarified_query, document_files)
         return answer
 
-    async def run_parallel_workflow(self, questions: List[str], document_file: Any) -> List[str]:
+    async def run_parallel_workflow(self, questions: List[str], document_files: List[Any]) -> List[str]:
         """
         Runs the entire RAG workflow in parallel for a list of questions.
         """
         logger.info(f"Starting parallel workflow for {len(questions)} questions.")
         
-        # Create a task for each question
-        tasks = [self.run_workflow_for_question(q, document_file) for q in questions]
+        # Create a task for each question to run fully in parallel
+        tasks = [self.run_workflow_for_question(q, document_files) for q in questions]
         
         # Run all tasks concurrently
         answers = await asyncio.gather(*tasks)
