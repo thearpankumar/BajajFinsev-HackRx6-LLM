@@ -47,13 +47,33 @@ class HierarchicalChunkingService:
         
         sections = []
         
-        # Patterns for identifying section boundaries in insurance documents
+        # Patterns for identifying section boundaries in business documents (insurance, legal, HR, compliance)
         section_patterns = [
-            r'\n\s*(?:SECTION|Section|PART|Part|CHAPTER|Chapter)\s+[IVXLC\d]+',  # Roman/numeric sections
+            # Document structure patterns
+            r'\n\s*(?:SECTION|Section|PART|Part|CHAPTER|Chapter|ARTICLE|Article)\s+[IVXLC\d]+',  # Roman/numeric sections
             r'\n\s*\d+\.\s+[A-Z][A-Za-z\s]{10,}',  # Numbered sections with titles
             r'\n\s*[A-Z\s]{5,}:\s*\n',  # ALL CAPS headers with colons
-            r'\n\s*(?:DEFINITIONS|COVERAGE|EXCLUSIONS|CONDITIONS|CLAIMS|BENEFITS)',  # Insurance keywords
-            r'\n\s*(?:TABLE|SCHEDULE|APPENDIX|ANNEXURE)',  # Document structure keywords
+            r'\n\s*(?:TABLE|SCHEDULE|APPENDIX|ANNEXURE|EXHIBIT|ATTACHMENT)',  # Document structure keywords
+            
+            # Insurance domain patterns
+            r'\n\s*(?:DEFINITIONS|COVERAGE|EXCLUSIONS|CONDITIONS|CLAIMS|BENEFITS|DEDUCTIBLE|PREMIUM|POLICY)',
+            r'\n\s*(?:WAITING PERIOD|PRE-EXISTING|COPAYMENT|COINSURANCE|OUT-OF-POCKET|NETWORK)',
+            
+            # Legal domain patterns  
+            r'\n\s*(?:TERMS AND CONDITIONS|AGREEMENT|CONTRACT|LIABILITY|WARRANTY|INDEMNIFICATION)',
+            r'\n\s*(?:GOVERNING LAW|JURISDICTION|ARBITRATION|TERMINATION|BREACH|REMEDY)',
+            
+            # HR domain patterns
+            r'\n\s*(?:EMPLOYMENT|COMPENSATION|BENEFITS|LEAVE|VACATION|SICK LEAVE|TERMINATION)',
+            r'\n\s*(?:PERFORMANCE|DISCIPLINE|GRIEVANCE|HARASSMENT|EQUAL OPPORTUNITY)',
+            
+            # Compliance domain patterns
+            r'\n\s*(?:COMPLIANCE|REGULATORY|AUDIT|REPORTING|DOCUMENTATION|RECORD KEEPING)',
+            r'\n\s*(?:PRIVACY|CONFIDENTIAL|DATA PROTECTION|SECURITY|DISCLOSURE)',
+            
+            # Common business patterns
+            r'\n\s*(?:PROCEDURES|PROCESS|REQUIREMENTS|OBLIGATIONS|RESPONSIBILITIES|DUTIES)',
+            r'\n\s*(?:EFFECTIVE DATE|AMENDMENT|MODIFICATION|NOTICE|COMMUNICATION)',
         ]
         
         # Find all potential section breaks
@@ -134,22 +154,46 @@ class HierarchicalChunkingService:
         return sections
     
     def _identify_section_type(self, content: str) -> str:
-        """Identify the type of section based on content patterns"""
+        """Identify the type of business document section based on content patterns"""
         content_lower = content.lower()
         
-        # Check for specific section types
-        if any(word in content_lower for word in ['table', 'schedule', 'premium', 'rate']):
-            return 'table'
-        elif any(word in content_lower for word in ['definition', 'meaning', 'term']):
+        # Insurance-specific sections
+        if any(word in content_lower for word in ['definition', 'meaning', 'term', 'means', 'shall mean', 'defined as']):
             return 'definitions'
-        elif any(word in content_lower for word in ['coverage', 'benefit', 'cover']):
+        elif any(word in content_lower for word in ['coverage', 'benefit', 'cover', 'insured', 'policy limit']):
             return 'coverage'
-        elif any(word in content_lower for word in ['exclusion', 'not covered', 'except']):
+        elif any(word in content_lower for word in ['exclusion', 'not covered', 'except', 'limitation', 'excluded']):
             return 'exclusions'
-        elif any(word in content_lower for word in ['claim', 'procedure', 'process']):
+        elif any(word in content_lower for word in ['claim', 'procedure', 'process', 'filing', 'settlement']):
             return 'claims'
-        elif any(word in content_lower for word in ['condition', 'requirement', 'must']):
+        elif any(word in content_lower for word in ['premium', 'deductible', 'copay', 'coinsurance', 'payment']):
+            return 'financial_terms'
+        elif any(word in content_lower for word in ['condition', 'requirement', 'must', 'obligation']):
             return 'conditions'
+            
+        # Legal sections
+        elif any(word in content_lower for word in ['terms and conditions', 'agreement', 'contract', 'liability']):
+            return 'legal_terms'
+        elif any(word in content_lower for word in ['termination', 'breach', 'default', 'remedy', 'arbitration']):
+            return 'legal_procedures'
+            
+        # HR sections
+        elif any(word in content_lower for word in ['employment', 'employee', 'compensation', 'salary', 'wages']):
+            return 'employment'
+        elif any(word in content_lower for word in ['vacation', 'leave', 'sick', 'pto', 'time off']):
+            return 'benefits'
+        elif any(word in content_lower for word in ['performance', 'review', 'evaluation', 'discipline']):
+            return 'performance'
+            
+        # Compliance sections
+        elif any(word in content_lower for word in ['compliance', 'regulatory', 'regulation', 'audit']):
+            return 'compliance'
+        elif any(word in content_lower for word in ['privacy', 'confidential', 'data protection', 'security']):
+            return 'privacy'
+            
+        # Document structure
+        elif any(word in content_lower for word in ['table', 'schedule', 'rate', 'appendix', 'exhibit']):
+            return 'table'
         else:
             return 'content'
     

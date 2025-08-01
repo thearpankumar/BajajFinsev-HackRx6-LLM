@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSIONS: int = 1536
     CHUNK_SIZE: int = 2000  # Characters per chunk (optimized for large docs)
     CHUNK_OVERLAP: int = 400  # Overlap between chunks (better context preservation)
-    MAX_CHUNKS_PER_QUERY: int = 20  # Number of top chunks to retrieve (increased for large docs)
+    MAX_CHUNKS_PER_QUERY: int = 30  # Number of top chunks to retrieve (increased for OpenAI context)
     
     # Large Document Processing Configuration
     EMBEDDING_BATCH_SIZE: int = 100  # Texts per parallel batch (reduced to avoid gRPC issues)
