@@ -76,6 +76,9 @@ async def run_analysis(
             elif extension == ".eml":
                 from src.utils.document_parsers import parse_eml
                 document_text = parse_eml(file_content)
+            elif extension == ".txt":
+                from src.utils.document_parsers import parse_txt
+                document_text = parse_txt(file_content)
             else:
                 document_text = await text_extraction_service.extract_text_from_pdf(file_content)
             
@@ -99,7 +102,7 @@ async def run_analysis(
             # Use original chunking approach - much faster!
             if extension == ".pdf":
                 document_chunks = await ingestion_service._process_pdf(file_content, file_name)
-            elif extension in [".docx", ".eml"]:
+            elif extension in [".docx", ".eml", ".txt"]:
                 document_chunks = await ingestion_service._process_text_document(file_content, extension, file_name)
             else:
                 document_chunks = await ingestion_service._process_pdf(file_content, file_name)
