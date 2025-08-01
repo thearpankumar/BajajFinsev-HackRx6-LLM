@@ -4,7 +4,7 @@ import pathlib
 from urllib.parse import urlparse
 import aiohttp
 
-from src.utils.document_parsers import parse_docx, parse_eml
+from src.utils.document_parsers import parse_docx, parse_eml, parse_txt
 from src.services.text_extraction_service import text_extraction_service
 from src.core.config import settings
 
@@ -59,13 +59,21 @@ class IngestionService:
 
     async def _process_text_document(self, file_content: bytes, extension: str, file_name: str) -> List[str]:
         """
-        Process DOCX or EML documents by extracting text and chunking.
+        Process DOCX, EML, or TXT documents by extracting text and chunking.
         """
         logger.info(f"Processing {extension} document: {file_name}")
         
         try:
             # Extract text using appropriate parser
-            text_parser = parse_docx if extension == ".docx" else parse_eml
+            if extension == ".docx":
+                text_parser = parse_docx
+            elif extension == ".eml":
+                text_parser = parse_eml
+            elif extension == ".txt":
+                text_parser = parse_txt
+            else:
+                raise ValueError(f"Unsupported text document extension: {extension}")
+            
             text = text_parser(file_content)
             
             if not text.strip():
@@ -104,6 +112,8 @@ class IngestionService:
                 full_text = parse_docx(file_content)
             elif extension == ".eml":
                 full_text = parse_eml(file_content)
+            elif extension == ".txt":
+                full_text = parse_txt(file_content)
             else:
                 # Try PDF extraction as fallback
                 logger.warning(f"Unknown extension {extension}, trying PDF extraction")
@@ -141,7 +151,7 @@ class IngestionService:
         if extension == ".pdf":
             return await self._process_pdf(file_content, file_name)
         
-        elif extension in [".docx", ".eml"]:
+        elif extension in [".docx", ".eml", ".txt"]:
             return await self._process_text_document(file_content, extension, file_name)
             
         else:
