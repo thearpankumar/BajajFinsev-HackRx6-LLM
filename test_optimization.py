@@ -6,12 +6,10 @@ This script tests the hierarchical chunking and performance improvements.
 
 import asyncio
 import time
-import json
 from src.services.hierarchical_chunking_service import hierarchical_chunking_service
 from src.services.embedding_service import embedding_service
 from src.services.rag_workflow import RAGWorkflowService
 from src.utils.performance_monitor import performance_monitor
-from src.core.config import settings
 
 # Sample large document content (simulating a 600K token document)
 LARGE_DOCUMENT_SAMPLE = """
@@ -280,7 +278,7 @@ async def test_hierarchical_processing():
         
         processing_time = time.time() - start_time
         
-        print(f"\n✅ Hierarchical Processing Results:")
+        print("\n✅ Hierarchical Processing Results:")
         print(f"   ⏱️  Processing time: {processing_time:.2f} seconds")
         print(f"   📊 Sections identified: {metrics.sections_identified}")
         print(f"   🎯 Relevant sections: {metrics.relevant_sections}")
@@ -288,7 +286,7 @@ async def test_hierarchical_processing():
         print(f"   📉 Reduction: {((metrics.total_chunks - metrics.processed_chunks) / metrics.total_chunks * 100):.1f}%")
         
         # Show sample chunks
-        print(f"\n📋 Sample relevant chunks:")
+        print("\n📋 Sample relevant chunks:")
         for i, chunk in enumerate(relevant_chunks[:3]):
             print(f"   Chunk {i+1}: {chunk[:100]}...")
         
@@ -309,7 +307,7 @@ async def test_embedding_performance():
     # Test standard processing
     start_time = time.time()
     try:
-        embeddings_standard = await embedding_service.generate_embeddings_batch(sample_chunks)
+        await embedding_service.generate_embeddings_batch(sample_chunks)
         standard_time = time.time() - start_time
         print(f"🐌 Standard processing: {standard_time:.2f} seconds")
     except Exception as e:
@@ -319,7 +317,7 @@ async def test_embedding_performance():
     # Test parallel processing
     start_time = time.time()
     try:
-        embeddings_parallel = await embedding_service.generate_embeddings_parallel(
+        await embedding_service.generate_embeddings_parallel(
             sample_chunks, 
             batch_size=20, 
             max_concurrent=5
@@ -352,7 +350,7 @@ async def test_full_workflow():
         
         total_time = time.time() - start_time
         
-        print(f"\n✅ Complete Workflow Results:")
+        print("\n✅ Complete Workflow Results:")
         print(f"   ⏱️  Total time: {total_time:.2f} seconds")
         print(f"   ❓ Questions processed: {len(SAMPLE_QUESTIONS)}")
         print(f"   ✅ Successful answers: {metrics['successful_questions']}")
@@ -360,7 +358,7 @@ async def test_full_workflow():
         print(f"   ⚡ Avg time per question: {metrics['average_time_per_question']:.2f}s")
         
         # Show sample answers
-        print(f"\n📋 Sample Answers:")
+        print("\n📋 Sample Answers:")
         for i, (question, answer) in enumerate(zip(SAMPLE_QUESTIONS[:2], answers[:2])):
             print(f"   Q{i+1}: {question}")
             print(f"   A{i+1}: {answer[:150]}...")
@@ -396,7 +394,7 @@ async def test_performance_monitoring():
         # Get summary
         summary = performance_monitor.get_performance_summary()
         
-        print(f"✅ Performance Monitoring Results:")
+        print("✅ Performance Monitoring Results:")
         print(f"   📊 Total operations: {summary['total_operations']}")
         print(f"   ⏱️  Average duration: {summary['avg_duration_seconds']}s")
         print(f"   💾 Cache hit rate: {summary['cache_hit_rate_percent']:.1f}%")
@@ -428,7 +426,7 @@ async def main():
     results.append(await test_performance_monitoring())
     
     print("\n" + "=" * 50)
-    print(f"🎯 Test Results Summary:")
+    print("🎯 Test Results Summary:")
     print(f"   ✅ Passed: {sum(results)}/{len(results)} tests")
     print(f"   ❌ Failed: {len(results) - sum(results)}/{len(results)} tests")
     
