@@ -2,7 +2,7 @@ import logging
 import asyncio
 import hashlib
 import pickle
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Optional, Tuple
 import numpy as np
 from openai import AsyncOpenAI
 from sklearn.metrics.pairwise import cosine_similarity
