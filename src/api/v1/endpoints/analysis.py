@@ -4,7 +4,6 @@ import logging
 from src.schemas.analysis import AnalysisRequest, AnalysisResponse
 from src.core.security import validate_bearer_token
 from src.services import ingestion_service, rag_workflow_service
-from src.worker import cleanup_queue
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +12,8 @@ router = APIRouter()
 @router.post(
     "/hackrx/run",
     response_model=AnalysisResponse,
-    summary="Run Document Analysis with Gemini 2.5 Pro",
-    description="Directly analyzes a document with Gemini 2.5 Pro to answer questions.",
+    summary="Run Document Analysis with Embedding-based RAG",
+    description="Analyzes documents using text extraction, embeddings, and Gemini 2.5 Pro for high accuracy and speed.",
     response_description="Analysis results with answers to the provided questions"
 )
 async def run_analysis(
@@ -22,40 +21,45 @@ async def run_analysis(
     token: str = Depends(validate_bearer_token)
 ) -> AnalysisResponse:
     """
-    This endpoint orchestrates the new, simplified workflow:
-    1.  Downloads the document from the provided URL.
-    2.  Uploads the document directly to the Gemini API.
-    3.  Runs a parallel RAG workflow for each question using Gemini 2.5 Pro.
-    4.  Adds the file name to a queue for background cleanup.
+    This endpoint orchestrates the new embedding-based RAG workflow:
+    1. Downloads the document from the provided URL
+    2. Extracts text and splits into chunks
+    3. Generates embeddings for document chunks
+    4. For each question, finds relevant chunks using similarity search
+    5. Generates answers using Gemini 2.5 Pro with relevant context
     """
-    logger.info(f"🎯 Starting analysis for document and {len(request.questions)} questions.")
+    logger.info(f"🎯 Starting embedding-based analysis for document and {len(request.questions)} questions.")
     
-    gemini_files = None
     try:
-        # Step 1 & 2: Process the document and get a list of file chunks
-        gemini_files = await ingestion_service.process_and_upload(url=str(request.documents))
+        # Step 1 & 2: Process the document and extract text chunks
+        document_chunks = await ingestion_service.process_and_extract(url=str(request.documents))
+        
+        if not document_chunks:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No text could be extracted from the document. Please check the document format."
+            )
+        
+        logger.info(f"📄 Extracted {len(document_chunks)} text chunks from document")
 
-        # Step 3: Run the parallel RAG workflow
+        # Step 3-5: Run the parallel embedding-based RAG workflow
         answers = await rag_workflow_service.run_parallel_workflow(
             questions=request.questions,
-            document_files=gemini_files
+            document_chunks=document_chunks
         )
         
         logger.info(f"✅ Generated {len(answers)} answers successfully.")
         return AnalysisResponse(answers=answers)
         
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         logger.error(f"❌ Error during analysis: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An internal server error occurred: {e}"
         )
-    finally:
-        # Step 4: Add all file chunks to the cleanup queue
-        if gemini_files:
-            for f in gemini_files:
-                logger.info(f"Adding file to cleanup queue: {f.name}")
-                cleanup_queue.put_nowait(f.name)
 
 @router.get(
     "/hackrx/health",
@@ -67,7 +71,7 @@ async def health_check():
     """Health check endpoint for monitoring service availability."""
     return {
         "status": "healthy",
-        "service": "RAG Analysis API",
-        "version": "3.0.0", # Version bump for new architecture
-        "message": "Service is running properly with Gemini 2.5 Pro"
+        "service": "Embedding-based RAG Analysis API",
+        "version": "4.0.0", # Version bump for embedding-based architecture
+        "message": "Service is running properly with OpenAI embeddings and Gemini 2.5 Pro"
     }
