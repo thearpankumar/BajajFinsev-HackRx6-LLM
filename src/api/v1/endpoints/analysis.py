@@ -18,21 +18,21 @@ router = APIRouter()
 @router.post(
     "/hackrx/run",
     response_model=AnalysisResponse,
-    summary="Run Optimized Document Analysis",
-    description="Analyzes documents using hierarchical processing, parallel embeddings, and smart caching for 10-20x performance improvement on large documents.",
-    response_description="Analysis results with answers and performance metrics"
+    summary="Run Business Document Analysis",
+    description="Analyzes business documents (insurance, legal, HR, compliance) using AI-powered hierarchical processing, OpenAI GPT-4o-mini, and advanced embedding retrieval for accurate information extraction.",
+    response_description="Business-focused analysis results with comprehensive answers"
 )
 async def run_analysis(
     request: AnalysisRequest,
     token: str = Depends(validate_bearer_token)
 ) -> AnalysisResponse:
     """
-    Optimized document analysis endpoint with hierarchical processing:
-    1. Downloads and processes the document
-    2. Detects large documents (>100K chars) and uses hierarchical chunking
-    3. Applies smart caching and parallel processing
-    4. Uses optimized embedding retrieval
-    5. Generates answers with performance metrics
+    Business document analysis endpoint specialized for enterprise domains:
+    1. Downloads and processes business documents (insurance, legal, HR, compliance)
+    2. Applies domain-aware hierarchical processing for large documents
+    3. Uses OpenAI GPT-4o-mini with business-focused prompts
+    4. Employs advanced embedding retrieval with business terminology
+    5. Generates comprehensive, domain-specific answers
     """
     logger.info(f"🚀 Starting optimized analysis for document and {len(request.questions)} questions.")
     
@@ -267,32 +267,36 @@ async def health_check():
         
         return {
             "status": "healthy",
-            "service": "Optimized Document Analysis API",
-            "version": "5.0.0",  # Version bump for optimization features
+            "service": "Business Document Analysis API",
+            "version": "5.0.0",
+            "specialization": "Insurance, Legal, HR, and Compliance domains",
             "features": {
                 "hierarchical_processing": settings.ENABLE_HIERARCHICAL_PROCESSING,
                 "document_caching": settings.ENABLE_DOCUMENT_CACHE,
                 "parallel_processing": True,
                 "streaming_responses": settings.ENABLE_STREAMING_RESPONSES,
-                "performance_monitoring": True
+                "performance_monitoring": True,
+                "business_domain_awareness": True
             },
             "models": {
                 "embedding_model": settings.EMBEDDING_MODEL,
-                "llm_model": "gemini-2.5-pro"
+                "main_llm_model": "gpt-4o-mini",
+                "query_enhancement_model": "gemini-2.5-flash-lite"
             },
             "performance": {
                 "cache_hit_rate": round(performance_monitor.get_cache_hit_rate(), 1),
                 "total_operations": len(performance_monitor.metrics_history)
             },
             "embedding_service": "healthy" if embedding_healthy else "error",
-            "message": "Service is running with advanced optimization features"
+            "message": "Business document analysis service is running with enterprise-grade AI capabilities"
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {
             "status": "degraded",
-            "service": "Optimized Document Analysis API",
+            "service": "Business Document Analysis API",
             "version": "5.0.0",
+            "specialization": "Insurance, Legal, HR, and Compliance domains",
             "error": str(e),
             "message": "Service is running but some features may be impaired"
         }

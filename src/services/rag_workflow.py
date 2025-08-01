@@ -2,7 +2,7 @@ import logging
 import asyncio
 from typing import List, Tuple, Dict, Optional
 
-from src.services.llm_clients import GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL
+from src.services.llm_clients import OPENAI_CLIENT, OPENAI_MODEL_NAME, GEMINI_FLASH_MODEL
 from src.services.embedding_service import embedding_service
 from src.services.hierarchical_chunking_service import hierarchical_chunking_service
 from src.core.config import settings
@@ -24,28 +24,37 @@ class RAGWorkflowService:
         Clarifies and enhances a user's query using the fast Gemini Flash model.
         """
         logger.info(f"Clarifying query: '{query}'")
-        prompt = f"""You are a query enhancement specialist. Transform vague user queries into specific, detailed prompts for document analysis.
+        prompt = f"""You are a business document analysis specialist with expertise in insurance, legal, HR, and compliance domains. Transform user queries into comprehensive, domain-aware prompts for document analysis.
 
 Your Task:
-Convert user queries into comprehensive prompts that extract information exclusively from provided document excerpts.
+Convert user queries into detailed prompts that extract relevant business information from document excerpts, considering industry-specific terminology and regulatory requirements.
 
 Output Format: Provide ONLY an enhanced query prompt. No explanations or additional text.
 
 Enhancement Guidelines:
-- Add specific terminology and concepts relevant to the query topic
-- Target specific document sections and references
-- Focus on extracting information only from provided document excerpts
-- Include related concepts that might be in the documents
+- Add domain-specific terminology (insurance, legal, HR, compliance)
+- Include regulatory and compliance considerations
+- Target specific document sections, clauses, and policy details
+- Focus on business-critical information extraction
+- Include related concepts, procedures, and requirements
 
-Examples:
+Domain Examples:
+
+Insurance:
 Input: "What about car insurance claims?"
-Output: "Extract from document excerpts: automobile insurance claims procedures, filing requirements, documentation needed, processing timelines, coverage limits, deductibles, approval criteria, and related processes."
+Output: "Extract from document excerpts: automobile insurance claims procedures, filing requirements, documentation needed, processing timelines, coverage limits, deductibles, approval criteria, claim settlement processes, exclusions, and related policy provisions."
 
+HR/Employment:
 Input: "Employee termination process"
-Output: "Identify from document excerpts: employee termination procedures, documentation requirements, compliance steps, final pay processes, benefits termination, notifications required, and related policies."
+Output: "Identify from document excerpts: employee termination procedures, documentation requirements, compliance steps, final pay processes, benefits termination, COBRA notifications, employment law requirements, severance policies, and related HR procedures."
 
-Input: "Research methodology"
-Output: "Locate from document excerpts: research methodology procedures, validation requirements, review processes, data validation methods, analysis frameworks, and quality assurance measures."
+Legal/Compliance:
+Input: "Data privacy requirements"
+Output: "Locate from document excerpts: data privacy policies, compliance requirements, regulatory obligations, data handling procedures, breach notification processes, consent mechanisms, retention policies, and related legal provisions."
+
+Insurance/Benefits:
+Input: "Health coverage details"
+Output: "Extract from document excerpts: health insurance coverage details, benefit limits, co-pays, deductibles, covered services, exclusions, pre-authorization requirements, provider networks, claim procedures, and related policy terms."
 
 ---
 User Query: '{query}'"""
@@ -210,37 +219,67 @@ User Query: '{query}'"""
         
         context = "\n\n".join(context_parts)
         
-        system_prompt = """You are a document analysis specialist. Your task is to answer questions based exclusively on the provided document excerpts.
+        # Debug logging
+        logger.info(f"Number of relevant chunks: {len(relevant_chunks)}")
+        logger.info(f"Context length: {len(context)} characters")
+        if relevant_chunks:
+            logger.info(f"Best similarity score: {relevant_chunks[0][1]:.3f}")
+            logger.info(f"First chunk preview: {relevant_chunks[0][0][:200]}...")
+        
+        system_prompt = """You are a specialized business document analyst with deep expertise in insurance, legal, HR, and compliance domains. Your role is to extract critical business information from document excerpts and provide concise, precise answers.
 
-Response Requirements:
-- Maximum 1-2 sentences only
-- Include specific details from excerpts (amounts, percentages, timeframes, section references)
-- State "Information not found in provided excerpts" if unavailable
-- Only use information explicitly stated in the provided document excerpts
-- Reference the excerpt number when possible (e.g., "According to Excerpt 1...")
+CRITICAL REQUIREMENT: Your answers must be EXACTLY 1-2 sentences only. No exceptions.
+
+Key Instructions:
+- Provide only the most essential information in 1-2 sentences maximum
+- Reference specific excerpts clearly (e.g., "According to Excerpt 1..." or "Excerpts 2 and 5 indicate...")
+- Include precise details: monetary amounts, percentages, timeframes, legal requirements, policy numbers when available
+- Prioritize business-critical information: compliance requirements, regulatory obligations, policy terms, procedural details
+- Search across ALL excerpts for relevant information
+- Interpret business terminology correctly: deductibles, co-pays, exclusions, compliance requirements, etc.
+- Only use "Information not found in provided excerpts" when absolutely no related business content exists
+
+Response Format: Maximum 1-2 sentences, no bullet points, no lengthy explanations.
+
+Domain Expertise Areas:
+- Insurance: Policies, claims, coverage, exclusions, deductibles, premiums, underwriting
+- Legal: Contracts, compliance, regulations, liability, terms and conditions
+- HR: Employment policies, benefits, procedures, compensation, compliance
+- Compliance: Regulatory requirements, audit procedures, documentation, reporting
 
 Examples:
-Query: "What is the waiting period for pre-existing diseases?"
-Response: "According to Excerpt 1, the waiting period for pre-existing diseases is 2 years from the policy commencement date."
+Question: "What is the waiting period for pre-existing diseases?"
+Answer: "According to Excerpt 1, the waiting period for pre-existing diseases is 36 months from the policy commencement date."
 
-Query: "What are the room rent limits?"
-Response: "Excerpt 2 states that room rent is limited to 1% of the sum insured per day with ICU charges at 2% of sum insured per day."
+Question: "What are the employee termination procedures?"
+Answer: "Based on Excerpts 2 and 4, employee termination requires 30 days written notice, completion of exit documentation, and final pay calculation within 72 hours."
+
+Question: "What compliance reporting is required?"
+Answer: "Excerpt 3 indicates quarterly compliance reports must be submitted to regulatory authorities within 15 days of quarter-end, including incident reports and audit findings."
 """
         
-        user_prompt = f"""Document Excerpts:
+        user_prompt = f"""Business Document Excerpts:
 {context}
 
 Question: {clarified_query}
 
-Based on the above excerpts, provide a concise answer:"""
+IMPORTANT: Provide your answer in EXACTLY 1-2 sentences only. Be concise and precise.
+
+Analyze the excerpts above and extract the most relevant information that directly answers the question. Include specific details like amounts, percentages, timeframes, and reference the excerpt number when possible."""
 
         try:
-            response = await GEMINI_PRO_MODEL.generate_content_async(
-                f"{system_prompt}\n\n{user_prompt}",
-                generation_config={"temperature": 0.1}  # Lower temperature for more factual responses
+            response = await OPENAI_CLIENT.chat.completions.create(
+                model=OPENAI_MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3,  # Lower temperature for more focused, concise responses
+                max_tokens=150,   # Limited tokens to enforce 1-2 sentence limit
+                top_p=0.8        # More focused token selection for conciseness
             )
             
-            answer = response.text.strip()
+            answer = response.choices[0].message.content.strip()
             logger.debug(f"Generated answer: {answer[:100]}...")
             return answer
             
