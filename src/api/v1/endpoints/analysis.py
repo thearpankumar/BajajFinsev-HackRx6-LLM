@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 import logging
 import json
-from typing import Optional
+
 
 from src.schemas.analysis import AnalysisRequest, AnalysisResponse
 from src.core.security import validate_bearer_token
 from src.services import ingestion_service, rag_workflow_service, text_extraction_service
 from src.services.streaming_service import streaming_service
-from src.utils.performance_monitor import performance_monitor, monitor_performance
+from src.utils.performance_monitor import performance_monitor
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -129,9 +129,7 @@ async def run_analysis(
                 success=True
             )
         
-        # Step 3: Compile response with performance data
-        performance_summary = performance_monitor.get_performance_summary()
-        
+        # Step 3: Compile response with performance data        
         logger.info(f"✅ Generated {len(answers)} answers successfully.")
         logger.info(f"📊 Cache hit rate: {performance_monitor.get_cache_hit_rate():.1f}%")
         

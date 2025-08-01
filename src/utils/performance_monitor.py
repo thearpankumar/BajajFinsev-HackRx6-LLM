@@ -240,7 +240,7 @@ class PerformanceDecorator:
                     result = await func(*args, **kwargs)
                     self.monitor.end_operation(self.operation_name, success=True)
                     return result
-                except Exception as e:
+                except Exception:
                     self.monitor.record_error()
                     self.monitor.end_operation(self.operation_name, success=False)
                     raise
@@ -252,7 +252,7 @@ class PerformanceDecorator:
                     result = func(*args, **kwargs)
                     self.monitor.end_operation(self.operation_name, success=True)
                     return result
-                except Exception as e:
+                except Exception:
                     self.monitor.record_error()
                     self.monitor.end_operation(self.operation_name, success=False)
                     raise

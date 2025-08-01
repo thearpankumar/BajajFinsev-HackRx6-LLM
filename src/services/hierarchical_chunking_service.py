@@ -1,7 +1,7 @@
 import logging
 import asyncio
 import re
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple
 from dataclasses import dataclass
 
 from src.services.llm_clients import GEMINI_FLASH_MODEL

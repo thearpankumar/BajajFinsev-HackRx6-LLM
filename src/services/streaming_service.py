@@ -2,7 +2,6 @@ import logging
 import asyncio
 from typing import AsyncGenerator, Dict, List, Any
 from dataclasses import dataclass
-import json
 
 from src.services.rag_workflow import RAGWorkflowService
 from src.core.config import settings
