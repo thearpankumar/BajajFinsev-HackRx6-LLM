@@ -170,6 +170,117 @@ class EmbeddingService:
         
         self.logger.info(f"Generated {len(all_embeddings)} embeddings total")
         return all_embeddings
+
+    async def generate_embeddings_parallel(self, texts: List[str], model: str = None, batch_size: int = 100, max_concurrent: int = 3) -> List[List[float]]:
+        """
+        Generate embeddings for multiple texts using controlled parallel batch processing.
+        Optimized to avoid gRPC threading issues while maintaining performance.
+        """
+        if not texts:
+            return []
+        
+        if model is None:
+            model = settings.EMBEDDING_MODEL
+        
+        # For small text sets, use sequential processing to avoid threading issues
+        if len(texts) <= 50:
+            self.logger.info(f"Using sequential processing for {len(texts)} texts (small set)")
+            return await self.generate_embeddings_batch(texts, model, batch_size=50)
+        
+        self.logger.info(f"Starting controlled parallel embedding generation for {len(texts)} texts with batch_size={batch_size}, max_concurrent={max_concurrent}")
+        
+        # Split texts into smaller batches for controlled processing
+        batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
+        
+        # Use semaphore to limit concurrent API calls to avoid gRPC issues
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def process_batch_with_semaphore(batch_texts, batch_idx):
+            """Process a single batch with semaphore control"""
+            async with semaphore:
+                self.logger.debug(f"Processing batch {batch_idx + 1}/{len(batches)} with {len(batch_texts)} texts")
+                # Add small delay between batches to reduce threading pressure
+                if batch_idx > 0:
+                    await asyncio.sleep(0.1)
+                return await self.generate_embeddings_batch(batch_texts, model, batch_size=50)  # Smaller internal batch size
+        
+        # Execute batches with controlled concurrency
+        batch_results = await asyncio.gather(
+            *[process_batch_with_semaphore(batch, idx) for idx, batch in enumerate(batches)]
+        )
+        
+        # Flatten results
+        all_embeddings = [emb for batch in batch_results for emb in batch]
+        
+        self.logger.info(f"Controlled parallel embedding generation completed: {len(all_embeddings)} embeddings generated")
+        return all_embeddings
+
+    def _get_document_hash(self, document_text: str) -> str:
+        """Generate a hash for the entire document for caching purposes."""
+        return hashlib.sha256(document_text.encode()).hexdigest()
+    
+    async def _load_document_cache(self, doc_hash: str) -> Optional[dict]:
+        """Load document-level cache containing all embeddings and chunks."""
+        cache_path = os.path.join(self.cache_dir, f"doc_{doc_hash}.pkl")
+        try:
+            if os.path.exists(cache_path):
+                async with aiofiles.open(cache_path, 'rb') as f:
+                    content = await f.read()
+                    cached_data = pickle.loads(content)
+                    self.logger.info(f"Loaded document cache: {doc_hash}")
+                    return cached_data
+        except Exception as e:
+            self.logger.warning(f"Error loading document cache: {e}")
+        return None
+    
+    async def _save_document_cache(self, doc_hash: str, data: dict) -> None:
+        """Save document-level cache with embeddings and chunks."""
+        cache_path = os.path.join(self.cache_dir, f"doc_{doc_hash}.pkl")
+        try:
+            async with aiofiles.open(cache_path, 'wb') as f:
+                content = pickle.dumps(data)
+                await f.write(content)
+                self.logger.info(f"Saved document cache: {doc_hash}")
+        except Exception as e:
+            self.logger.warning(f"Error saving document cache: {e}")
+    
+    async def process_document_with_cache(self, document_chunks: List[str]) -> dict:
+        """
+        Process entire document with smart caching.
+        Returns embeddings and metadata for the entire document.
+        """
+        # Generate document hash from all chunks
+        document_text = "\n".join(document_chunks)
+        doc_hash = self._get_document_hash(document_text)
+        
+        # Check document-level cache first
+        cached_data = await self._load_document_cache(doc_hash)
+        if cached_data:
+            self.logger.info(f"Document found in cache, returning {len(cached_data['embeddings'])} cached embeddings")
+            return cached_data
+        
+        # Process document using parallel embeddings
+        self.logger.info("Document not in cache, generating embeddings...")
+        embeddings = await self.generate_embeddings_parallel(
+            document_chunks,
+            batch_size=getattr(settings, 'EMBEDDING_BATCH_SIZE', 500),
+            max_concurrent=getattr(settings, 'PARALLEL_BATCHES', 10)
+        )
+        
+        # Prepare cache data
+        cache_data = {
+            'doc_hash': doc_hash,
+            'chunks': document_chunks,
+            'embeddings': embeddings,
+            'timestamp': asyncio.get_event_loop().time(),
+            'total_chunks': len(document_chunks),
+            'model': settings.EMBEDDING_MODEL
+        }
+        
+        # Save to cache
+        await self._save_document_cache(doc_hash, cache_data)
+        
+        return cache_data
     
     def calculate_similarity(self, query_embedding: List[float], document_embeddings: List[List[float]]) -> List[float]:
         """

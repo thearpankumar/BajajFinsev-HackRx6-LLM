@@ -18,4 +18,5 @@ PyMuPDF
 openai
 numpy
 scikit-learn
+psutil
 aiofiles

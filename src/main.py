@@ -13,13 +13,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Document Analysis API with Embedding-based RAG",
-    version="4.0.0",
-    description="An API that uses OpenAI embeddings and Google's Gemini 2.5 Pro for fast, accurate document analysis through embedding-based retrieval.",
+    title="Business Document Analysis API with AI-Powered RAG",
+    version="5.0.0",
+    description="An enterprise-grade API specialized for insurance, legal, HR, and compliance document analysis. Uses OpenAI GPT-4o-mini and advanced embedding-based retrieval for accurate business information extraction.",
     openapi_tags=[
-        {"name": "analysis", "description": "Endpoints for running analysis on documents."},
-        {"name": "monitoring", "description": "Endpoints for health checks and monitoring."},
-        {"name": "info", "description": "General API information."}
+        {"name": "analysis", "description": "Endpoints for business document analysis in insurance, legal, HR, and compliance domains."},
+        {"name": "monitoring", "description": "Endpoints for health checks and performance monitoring."},
+        {"name": "info", "description": "General API information and capabilities."}
     ]
 )
 
@@ -86,9 +86,11 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/", tags=["info"])
 async def root():
     return {
-        "name": "Document Analysis API with Embedding-based RAG",
-        "version": "4.0.0",
+        "name": "Business Document Analysis API with AI-Powered RAG",
+        "version": "5.0.0",
         "status": "running",
+        "specialization": "Insurance, Legal, HR, and Compliance domains",
+        "ai_models": "OpenAI GPT-4o-mini + Google Gemini Flash",
         "docs": "/docs"
     }
 
@@ -96,8 +98,9 @@ async def root():
 async def global_health():
     return {
         "status": "healthy",
-        "message": "API is running",
-        "version": "4.0.0"
+        "message": "Business Document Analysis API is running",
+        "version": "5.0.0",
+        "domains": ["Insurance", "Legal", "HR", "Compliance"]
     }
 
 if __name__ == "__main__":
