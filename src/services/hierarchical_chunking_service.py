@@ -47,13 +47,24 @@ class HierarchicalChunkingService:
         
         sections = []
         
-        # Patterns for identifying section boundaries in business documents (insurance, legal, HR, compliance)
+        # Patterns for identifying section boundaries in multiple document types
         section_patterns = [
             # Document structure patterns
             r'\n\s*(?:SECTION|Section|PART|Part|CHAPTER|Chapter|ARTICLE|Article)\s+[IVXLC\d]+',  # Roman/numeric sections
             r'\n\s*\d+\.\s+[A-Z][A-Za-z\s]{10,}',  # Numbered sections with titles
             r'\n\s*[A-Z\s]{5,}:\s*\n',  # ALL CAPS headers with colons
             r'\n\s*(?:TABLE|SCHEDULE|APPENDIX|ANNEXURE|EXHIBIT|ATTACHMENT)',  # Document structure keywords
+            
+            # Scientific/Mathematical document patterns (for texts like Newton's Principia)
+            r'\n\s*(?:PROPOSITION|Proposition)\s+[IVXLC\d]+',  # Mathematical propositions
+            r'\n\s*(?:THEOREM|Theorem)\s+[IVXLC\d]+',  # Mathematical theorems
+            r'\n\s*(?:COROLLARY|Corollary)\s+[IVXLC\d]+',  # Mathematical corollaries
+            r'\n\s*(?:LEMMA|Lemma)\s+[IVXLC\d]+',  # Mathematical lemmas
+            r'\n\s*(?:SCHOLIUM|Scholium)',  # Mathematical scholiums
+            r'\n\s*(?:DEFINITION|Definition)\s+[IVXLC\d]+',  # Mathematical definitions
+            r'\n\s*(?:AXIOM|Axiom)\s+[IVXLC\d]+',  # Mathematical axioms
+            r'\n\s*(?:PROBLEM|Problem)\s+[IVXLC\d]+',  # Mathematical problems
+            r'\n\s*(?:BOOK|Book)\s+[IVXLC\d]+',  # Book divisions
             
             # Insurance domain patterns
             r'\n\s*(?:DEFINITIONS|COVERAGE|EXCLUSIONS|CONDITIONS|CLAIMS|BENEFITS|DEDUCTIBLE|PREMIUM|POLICY)',
@@ -154,11 +165,29 @@ class HierarchicalChunkingService:
         return sections
     
     def _identify_section_type(self, content: str) -> str:
-        """Identify the type of business document section based on content patterns"""
+        """Identify the type of document section based on content patterns (business and scientific)"""
         content_lower = content.lower()
         
+        # Scientific/Mathematical sections (for texts like Newton's Principia)
+        if any(word in content_lower for word in ['proposition', 'theorem', 'proof', 'demonstrate']):
+            return 'mathematical_proposition'
+        elif any(word in content_lower for word in ['corollary', 'follows that', 'hence']):
+            return 'mathematical_corollary'
+        elif any(word in content_lower for word in ['lemma', 'preliminary', 'first show']):
+            return 'mathematical_lemma'
+        elif any(word in content_lower for word in ['scholium', 'remark', 'note that', 'observe']):
+            return 'mathematical_scholium'
+        elif any(word in content_lower for word in ['axiom', 'law of motion', 'principle']):
+            return 'mathematical_axiom'
+        elif any(word in content_lower for word in ['problem', 'find', 'determine', 'construct']):
+            return 'mathematical_problem'
+        elif any(word in content_lower for word in ['force', 'motion', 'velocity', 'acceleration', 'gravity']):
+            return 'physics_concepts'
+        elif any(word in content_lower for word in ['orbit', 'planetary', 'celestial', 'ellipse', 'centripetal']):
+            return 'astronomy_concepts'
+        
         # Insurance-specific sections
-        if any(word in content_lower for word in ['definition', 'meaning', 'term', 'means', 'shall mean', 'defined as']):
+        elif any(word in content_lower for word in ['definition', 'meaning', 'term', 'means', 'shall mean', 'defined as']):
             return 'definitions'
         elif any(word in content_lower for word in ['coverage', 'benefit', 'cover', 'insured', 'policy limit']):
             return 'coverage'
@@ -220,8 +249,11 @@ Content:
 
 Provide a 2-3 sentence summary that captures:
 1. Main topic/purpose of this section
-2. Key information or concepts covered
-3. Specific details (amounts, percentages, timeframes if present)
+2. Key information or concepts covered  
+3. Specific details (amounts, percentages, timeframes, mathematical concepts, scientific principles if present)
+4. For scientific texts: key theorems, propositions, laws, or mathematical relationships
+
+Focus on extracting searchable terms and concepts that would help match user queries about the content.
 
 Summary:"""
                     
@@ -254,7 +286,7 @@ Summary:"""
         for i, section in enumerate(sections):
             section_summaries.append(f"Section {i}: [{section.section_type}] {section.summary}")
         
-        prompt = f"""You are analyzing document sections to find the most relevant ones for a user query.
+        prompt = f"""You are analyzing document sections to find the most relevant ones for a user query. You must be thorough in finding relevant content, especially for scientific and mathematical queries.
 
 Query: "{query}"
 
@@ -264,9 +296,14 @@ Available Sections:
 Task: Identify the {top_k} most relevant sections that would likely contain information to answer the query.
 
 Consider:
-1. Direct keyword matches
-2. Conceptual relevance
-3. Section type appropriateness
+1. Direct keyword matches (exact terms from the query)
+2. Conceptual relevance (related concepts, synonyms, scientific principles)
+3. Mathematical/scientific relationships (if applicable)
+4. Section type appropriateness for the domain
+5. Historical/biographical information (if query asks about people)
+6. For scientific queries: look for propositions, theorems, laws, principles that relate to the topic
+
+Be generous in identifying relevance - err on the side of including sections that might contain useful information rather than being too restrictive.
 
 Respond with ONLY the section numbers (comma-separated, e.g., "2,5,8") of the {top_k} most relevant sections.
 If fewer than {top_k} sections are relevant, list only the relevant ones."""
