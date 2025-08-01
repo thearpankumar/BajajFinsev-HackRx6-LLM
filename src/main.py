@@ -13,9 +13,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Document Analysis API with Gemini 2.5 Pro",
-    version="3.0.0",
-    description="An API that uses Google's Gemini 2.5 Pro to analyze documents and answer user questions directly.",
+    title="Document Analysis API with Embedding-based RAG",
+    version="4.0.0",
+    description="An API that uses OpenAI embeddings and Google's Gemini 2.5 Pro for fast, accurate document analysis through embedding-based retrieval.",
     openapi_tags=[
         {"name": "analysis", "description": "Endpoints for running analysis on documents."},
         {"name": "monitoring", "description": "Endpoints for health checks and monitoring."},
@@ -86,8 +86,8 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/", tags=["info"])
 async def root():
     return {
-        "name": "Document Analysis API with Gemini 2.5 Pro",
-        "version": "3.0.0",
+        "name": "Document Analysis API with Embedding-based RAG",
+        "version": "4.0.0",
         "status": "running",
         "docs": "/docs"
     }
@@ -97,7 +97,7 @@ async def global_health():
     return {
         "status": "healthy",
         "message": "API is running",
-        "version": "3.0.0"
+        "version": "4.0.0"
     }
 
 if __name__ == "__main__":
