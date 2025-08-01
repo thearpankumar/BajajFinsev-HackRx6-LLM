@@ -226,46 +226,41 @@ User Query: '{query}'"""
             logger.info(f"Best similarity score: {relevant_chunks[0][1]:.3f}")
             logger.info(f"First chunk preview: {relevant_chunks[0][0][:200]}...")
         
-        system_prompt = """You are a specialized business document analyst with deep expertise in insurance, legal, HR, and compliance domains. Your role is to extract critical business information from document excerpts and provide concise, precise answers.
+        system_prompt = """You are a helpful document analyst that can extract information from any type of document. Your goal is to provide accurate, concise answers based on the provided excerpts.
 
 CRITICAL REQUIREMENT: Your answers must be EXACTLY 1-2 sentences only. No exceptions.
 
 Key Instructions:
-- Provide only the most essential information in 1-2 sentences maximum
+- Always try to find relevant information in the excerpts, even if it's partial or tangentially related
 - Reference specific excerpts clearly (e.g., "According to Excerpt 1..." or "Excerpts 2 and 5 indicate...")
-- Include precise details: monetary amounts, percentages, timeframes, legal requirements, policy numbers when available
-- Prioritize business-critical information: compliance requirements, regulatory obligations, policy terms, procedural details
-- Search across ALL excerpts for relevant information
-- Interpret business terminology correctly: deductibles, co-pays, exclusions, compliance requirements, etc.
-- Only use "Information not found in provided excerpts" when absolutely no related business content exists
+- Include precise details: amounts, percentages, timeframes, names, concepts, formulas when available
+- Search across ALL excerpts for any relevant information
+- Be helpful and generous in interpreting relevance - if information is related to the topic, use it
+- For scientific/mathematical documents: focus on principles, laws, formulas, demonstrations, and explanations
+- For business documents: focus on policies, procedures, requirements, and compliance details
+- Only use "Information not found in provided excerpts" as a last resort when truly nothing relevant exists
 
 Response Format: Maximum 1-2 sentences, no bullet points, no lengthy explanations.
 
-Domain Expertise Areas:
-- Insurance: Policies, claims, coverage, exclusions, deductibles, premiums, underwriting
-- Legal: Contracts, compliance, regulations, liability, terms and conditions
-- HR: Employment policies, benefits, procedures, compensation, compliance
-- Compliance: Regulatory requirements, audit procedures, documentation, reporting
-
 Examples:
-Question: "What is the waiting period for pre-existing diseases?"
-Answer: "According to Excerpt 1, the waiting period for pre-existing diseases is 36 months from the policy commencement date."
+Question: "How does gravity work?"
+Answer: "According to Excerpt 1, gravitational force acts proportionally to the masses involved and inversely to the square of the distance between them, as demonstrated through mathematical principles."
 
-Question: "What are the employee termination procedures?"
-Answer: "Based on Excerpts 2 and 4, employee termination requires 30 days written notice, completion of exit documentation, and final pay calculation within 72 hours."
+Question: "What is the waiting period?"
+Answer: "Based on Excerpt 2, the waiting period is 36 months from the policy commencement date for pre-existing conditions."
 
-Question: "What compliance reporting is required?"
-Answer: "Excerpt 3 indicates quarterly compliance reports must be submitted to regulatory authorities within 15 days of quarter-end, including incident reports and audit findings."
+Question: "What mathematical methods were used?"
+Answer: "Excerpts 3 and 7 indicate the use of geometric methods and fluxional calculus concepts, including ratios and proportional relationships to demonstrate physical principles."
 """
         
-        user_prompt = f"""Business Document Excerpts:
+        user_prompt = f"""Document Excerpts:
 {context}
 
 Question: {clarified_query}
 
-IMPORTANT: Provide your answer in EXACTLY 1-2 sentences only. Be concise and precise.
+IMPORTANT: Provide your answer in EXACTLY 1-2 sentences only. Be helpful and generous in finding relevant information.
 
-Analyze the excerpts above and extract the most relevant information that directly answers the question. Include specific details like amounts, percentages, timeframes, and reference the excerpt number when possible."""
+Analyze ALL the excerpts above and extract any information that relates to the question. Look for direct answers, related concepts, or supporting information. Include specific details and reference the excerpt number when possible."""
 
         try:
             response = await OPENAI_CLIENT.chat.completions.create(
@@ -274,9 +269,9 @@ Analyze the excerpts above and extract the most relevant information that direct
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3,  # Lower temperature for more focused, concise responses
-                max_tokens=150,   # Limited tokens to enforce 1-2 sentence limit
-                top_p=0.8        # More focused token selection for conciseness
+                temperature=0.5,  # Slightly higher temperature for more helpful responses
+                max_tokens=200,   # More tokens for better content generation within 1-2 sentences
+                top_p=0.9        # More diverse token selection for better content coverage
             )
             
             answer = response.choices[0].message.content.strip()
