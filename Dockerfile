@@ -1,5 +1,6 @@
 # ==============================================================================
-# Production Docker Image for Embedding-based RAG System
+# Production Docker Image for Business Document Analysis API
+# Specialized for Insurance, Legal, HR, and Compliance domains
 # ==============================================================================
 FROM python:3.11-slim
 
@@ -12,7 +13,7 @@ RUN addgroup --system appuser && adduser --system --ingroup appuser --home /home
 # Copy requirements first to leverage Docker layer caching
 COPY --chown=appuser:appuser requirements.txt .
 
-# Install system dependencies for PyMuPDF, NumPy, scikit-learn, and OpenAI
+# Install system dependencies for PyMuPDF, NumPy, scikit-learn, OpenAI GPT-4o-mini, and Google Gemini
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
