@@ -66,9 +66,9 @@ class TextExtractionService:
             is_very_large = total_pages > 500
             
             if is_very_large:
-                self.logger.info(f"🔄 Processing very large document ({total_pages} pages) with fast extraction...")
-                # Use fast extraction for large documents
-                page_interval = max(1, total_pages // 100)  # Process every nth page for sampling
+                self.logger.info(f"🔄 Processing very large document ({total_pages} pages) with optimized extraction...")
+                # Use more comprehensive extraction for large documents
+                page_interval = max(1, total_pages // 30)  # Process every nth page for better coverage
                 processed_pages = 0
                 
                 for page_num in range(0, total_pages, page_interval):
@@ -84,7 +84,7 @@ class TextExtractionService:
                     if processed_pages % 10 == 0:
                         self.logger.info(f"📄 Processed {processed_pages} representative pages...")
                 
-                self.logger.info(f"✅ Fast extraction completed - processed {processed_pages} representative pages")
+                self.logger.info(f"✅ Optimized extraction completed - processed {processed_pages} representative pages (every {page_interval} pages)")
             else:
                 # Use full extraction for smaller documents
                 for page_num in range(total_pages):
