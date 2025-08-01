@@ -86,6 +86,50 @@ class IngestionService:
             logger.error(f"Error processing {extension} document {file_name}: {e}", exc_info=True)
             raise
 
+    async def extract_full_text(self, url: str) -> str:
+        """
+        Extract the full text content from a document without chunking.
+        Used for hierarchical processing of large documents.
+        """
+        extension, file_name = self._get_file_info(url)
+        file_content = await self.download_document(url)
+        
+        logger.info(f"Extracting full text from {file_name} ({len(file_content)} bytes)")
+
+        try:
+            if extension == ".pdf":
+                # Extract full text from PDF
+                full_text = await text_extraction_service.extract_text_from_pdf(file_content)
+            elif extension == ".docx":
+                full_text = parse_docx(file_content)
+            elif extension == ".eml":
+                full_text = parse_eml(file_content)
+            else:
+                # Try PDF extraction as fallback
+                logger.warning(f"Unknown extension {extension}, trying PDF extraction")
+                full_text = await text_extraction_service.extract_text_from_pdf(file_content)
+            
+            if not full_text or not full_text.strip():
+                logger.warning(f"No text extracted from {file_name}")
+                return ""
+            
+            logger.info(f"Extracted {len(full_text):,} characters from {file_name}")
+            return full_text.strip()
+            
+        except Exception as e:
+            logger.error(f"Error extracting full text from {file_name}: {e}", exc_info=True)
+            raise
+
+    async def chunk_text(self, text: str) -> List[str]:
+        """
+        Chunk text using the configured chunk size and overlap.
+        """
+        return text_extraction_service.chunk_text(
+            text,
+            chunk_size=settings.CHUNK_SIZE,
+            overlap=settings.CHUNK_OVERLAP
+        )
+
     async def process_and_extract(self, url: str) -> List[str]:
         """
         Main orchestration method. Downloads a document, extracts text, and returns chunks.

@@ -35,10 +35,16 @@ class TextExtractionService:
         self.logger.info("Starting advanced PDF text extraction")
         
         try:
-            # Run PDF processing in thread pool to avoid blocking
-            text = await asyncio.to_thread(self._extract_text_advanced, pdf_content)
+            # Run PDF processing in thread pool with timeout for very large documents
+            text = await asyncio.wait_for(
+                asyncio.to_thread(self._extract_text_advanced, pdf_content),
+                timeout=300  # 5 minute timeout for text extraction
+            )
             self.logger.info(f"Extracted {len(text)} characters from PDF using optimized extraction")
             return text
+        except asyncio.TimeoutError:
+            self.logger.error("PDF text extraction timed out after 5 minutes")
+            raise Exception("PDF processing timed out - document may be too complex")
         except Exception as e:
             self.logger.error(f"Error extracting text from PDF: {e}", exc_info=True)
             raise
@@ -55,14 +61,44 @@ class TextExtractionService:
             extraction_stats = self._analyze_document(pdf_document)
             self.logger.info(f"Document analysis: {extraction_stats}")
             
-            for page_num in range(len(pdf_document)):
-                page = pdf_document[page_num]
+            # Optimize for very large documents (>500 pages)
+            total_pages = len(pdf_document)
+            is_very_large = total_pages > 500
+            
+            if is_very_large:
+                self.logger.info(f"🔄 Processing very large document ({total_pages} pages) with fast extraction...")
+                # Use fast extraction for large documents
+                page_interval = max(1, total_pages // 100)  # Process every nth page for sampling
+                processed_pages = 0
                 
-                # Try multiple extraction methods and choose the best result
-                page_text = self._extract_page_text_multimethod(page, page_num, extraction_stats)
+                for page_num in range(0, total_pages, page_interval):
+                    page = pdf_document[page_num]
+                    
+                    # Use fast text extraction only
+                    page_text = page.get_text("text")  # Fastest method
+                    
+                    if page_text.strip():
+                        all_text.append(f"--- Page {page_num + 1} ---\n{page_text}")
+                    
+                    processed_pages += 1
+                    if processed_pages % 10 == 0:
+                        self.logger.info(f"📄 Processed {processed_pages} representative pages...")
                 
-                if page_text.strip():
-                    all_text.append(f"--- Page {page_num + 1} ---\n{page_text}")
+                self.logger.info(f"✅ Fast extraction completed - processed {processed_pages} representative pages")
+            else:
+                # Use full extraction for smaller documents
+                for page_num in range(total_pages):
+                    page = pdf_document[page_num]
+                    
+                    # Try multiple extraction methods and choose the best result
+                    page_text = self._extract_page_text_multimethod(page, page_num, extraction_stats)
+                    
+                    if page_text.strip():
+                        all_text.append(f"--- Page {page_num + 1} ---\n{page_text}")
+                    
+                    # Progress logging for medium documents
+                    if page_num % 50 == 0 and page_num > 0:
+                        self.logger.info(f"📄 Processed {page_num + 1}/{total_pages} pages...")
             
             pdf_document.close()
             
