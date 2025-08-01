@@ -40,3 +40,26 @@ def parse_eml(file_content: bytes) -> str:
     except Exception as e:
         logger.error(f"Failed to parse EML file: {e}")
         return "" # Return empty string on failure
+
+def parse_txt(file_content: bytes) -> str:
+    """
+    Parses the content of a .txt file and returns its text with proper UTF-8 encoding handling.
+    """
+    logger.info("Parsing TXT file content.")
+    try:
+        # Try UTF-8 first (most common)
+        try:
+            return file_content.decode('utf-8')
+        except UnicodeDecodeError:
+            # Fallback to other common encodings
+            for encoding in ['latin-1', 'cp1252', 'ascii']:
+                try:
+                    return file_content.decode(encoding)
+                except UnicodeDecodeError:
+                    continue
+            
+            # Final fallback with error handling
+            return file_content.decode('utf-8', errors='ignore')
+    except Exception as e:
+        logger.error(f"Failed to parse TXT file: {e}")
+        return "" # Return empty string on failure
