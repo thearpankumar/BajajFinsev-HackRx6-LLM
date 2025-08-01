@@ -2,15 +2,32 @@ services:
   fastapi-app:
     image: arpankumar1119/hackrx-bajaj:latest
     container_name: fastapi-app-container
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
       - API_KEY=${API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-1536}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1000}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-200}
+      - MAX_CHUNKS_PER_QUERY=${MAX_CHUNKS_PER_QUERY:-5}
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
     expose:
       - "8000"
+    volumes:
+      - embedding_cache:/tmp/embedding_cache
     restart: unless-stopped
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   nginx:
     image: nginx:alpine
@@ -40,6 +57,10 @@ services:
     # This service runs on-demand, not continuously
     profiles:
       - tools
+
+volumes:
+  embedding_cache:
+    driver: local
 
 networks:
   app-network:

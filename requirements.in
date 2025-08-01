@@ -15,3 +15,6 @@ aiohttp
 google-generativeai
 python-docx
 PyMuPDF
+openai
+numpy
+scikit-learn
