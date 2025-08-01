@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict
 
 from src.services.llm_clients import OPENAI_CLIENT, OPENAI_MODEL_NAME, GEMINI_FLASH_MODEL
 from src.services.embedding_service import embedding_service
