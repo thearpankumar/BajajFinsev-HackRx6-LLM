@@ -1,9 +1,8 @@
 import logging
 import asyncio
 import fitz  # PyMuPDF
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Dict, Any
 import re
-from io import BytesIO
 import statistics
 
 logger = logging.getLogger(__name__)

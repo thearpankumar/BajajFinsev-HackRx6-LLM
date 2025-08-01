@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from typing import List, Any, Tuple
+from typing import List, Tuple
 
 from src.services.llm_clients import GEMINI_PRO_MODEL, GEMINI_FLASH_MODEL
 from src.services.embedding_service import embedding_service

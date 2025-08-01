@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from typing import Tuple, List
 import pathlib
 from urllib.parse import urlparse
