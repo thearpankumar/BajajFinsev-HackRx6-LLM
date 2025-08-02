@@ -43,7 +43,7 @@ def clear_lancedb():
             print(f"📊 Table stats: {stats}")
             return True
         else:
-            print(f"❌ Failed to create LanceDB table")
+            print("❌ Failed to create LanceDB table")
             return False
             
     except Exception as e:
