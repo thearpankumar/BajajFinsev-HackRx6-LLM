@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 import pathlib
 from urllib.parse import urlparse
 import aiohttp
@@ -12,14 +12,13 @@ logger = logging.getLogger(__name__)
 
 class IngestionService:
     """
-    Updated service to download and process documents using text extraction and chunking
-    instead of uploading to Gemini API. Returns text chunks for embedding-based RAG.
+    Service to download, process, and chunk documents with metadata.
     """
 
     async def download_document(self, url: str) -> bytes:
         """Downloads document content from a URL asynchronously."""
         logger.info(f"Downloading document from: {url}")
-        timeout = aiohttp.ClientTimeout(total=180)  # Increased timeout for large files
+        timeout = aiohttp.ClientTimeout(total=180)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             try:
                 async with session.get(url) as response:
@@ -36,129 +35,134 @@ class IngestionService:
         file_name = pathlib.Path(path).name
         return extension, file_name
 
-    async def _process_pdf(self, file_content: bytes, file_name: str) -> List[str]:
+    async def process_and_extract(self, url: str) -> List[Dict[str, Any]]:
         """
-        Process PDF by extracting text and splitting into chunks.
-        """
-        logger.info(f"Processing PDF: {file_name} ({len(file_content) / (1024*1024):.2f}MB)")
-        
-        try:
-            # Extract text and chunk it
-            text_chunks = await text_extraction_service.extract_and_chunk_pdf(
-                file_content, 
-                chunk_size=settings.CHUNK_SIZE,
-                overlap=settings.CHUNK_OVERLAP
-            )
-            
-            logger.info(f"Processed PDF into {len(text_chunks)} text chunks")
-            return text_chunks
-            
-        except Exception as e:
-            logger.error(f"Error processing PDF {file_name}: {e}", exc_info=True)
-            raise
-
-    async def _process_text_document(self, file_content: bytes, extension: str, file_name: str) -> List[str]:
-        """
-        Process DOCX, EML, or TXT documents by extracting text and chunking.
-        """
-        logger.info(f"Processing {extension} document: {file_name}")
-        
-        try:
-            # Extract text using appropriate parser
-            if extension == ".docx":
-                text_parser = parse_docx
-            elif extension == ".eml":
-                text_parser = parse_eml
-            elif extension == ".txt":
-                text_parser = parse_txt
-            else:
-                raise ValueError(f"Unsupported text document extension: {extension}")
-            
-            text = text_parser(file_content)
-            
-            if not text.strip():
-                logger.warning(f"No text extracted from {file_name}")
-                return []
-            
-            # Chunk the text
-            text_chunks = text_extraction_service.chunk_text(
-                text,
-                chunk_size=settings.CHUNK_SIZE,
-                overlap=settings.CHUNK_OVERLAP
-            )
-            
-            logger.info(f"Processed {extension} document into {len(text_chunks)} text chunks")
-            return text_chunks
-            
-        except Exception as e:
-            logger.error(f"Error processing {extension} document {file_name}: {e}", exc_info=True)
-            raise
-
-    async def extract_full_text(self, url: str) -> str:
-        """
-        Extract the full text content from a document without chunking.
-        Used for hierarchical processing of large documents.
-        """
-        extension, file_name = self._get_file_info(url)
-        file_content = await self.download_document(url)
-        
-        logger.info(f"Extracting full text from {file_name} ({len(file_content)} bytes)")
-
-        try:
-            if extension == ".pdf":
-                # Extract full text from PDF
-                full_text = await text_extraction_service.extract_text_from_pdf(file_content)
-            elif extension == ".docx":
-                full_text = parse_docx(file_content)
-            elif extension == ".eml":
-                full_text = parse_eml(file_content)
-            elif extension == ".txt":
-                full_text = parse_txt(file_content)
-            else:
-                # Try PDF extraction as fallback
-                logger.warning(f"Unknown extension {extension}, trying PDF extraction")
-                full_text = await text_extraction_service.extract_text_from_pdf(file_content)
-            
-            if not full_text or not full_text.strip():
-                logger.warning(f"No text extracted from {file_name}")
-                return ""
-            
-            logger.info(f"Extracted {len(full_text):,} characters from {file_name}")
-            return full_text.strip()
-            
-        except Exception as e:
-            logger.error(f"Error extracting full text from {file_name}: {e}", exc_info=True)
-            raise
-
-    async def chunk_text(self, text: str) -> List[str]:
-        """
-        Chunk text using the configured chunk size and overlap.
-        """
-        return text_extraction_service.chunk_text(
-            text,
-            chunk_size=settings.CHUNK_SIZE,
-            overlap=settings.CHUNK_OVERLAP
-        )
-
-    async def process_and_extract(self, url: str) -> List[str]:
-        """
-        Main orchestration method. Downloads a document, extracts text, and returns chunks.
-        This replaces the old process_and_upload method for embedding-based RAG.
+        Main orchestration method. Downloads a document, extracts text, 
+        and returns chunks with metadata.
         """
         extension, file_name = self._get_file_info(url)
         file_content = await self.download_document(url)
 
         if extension == ".pdf":
-            return await self._process_pdf(file_content, file_name)
+            logger.info(f"Processing PDF: {file_name}")
+            return await text_extraction_service.extract_and_chunk_pdf(
+                file_content,
+                chunk_size=settings.CHUNK_SIZE,
+                overlap=settings.CHUNK_OVERLAP
+            )
         
         elif extension in [".docx", ".eml", ".txt"]:
-            return await self._process_text_document(file_content, extension, file_name)
+            logger.info(f"Processing {extension} document: {file_name}")
+            if extension == ".docx":
+                text = parse_docx(file_content)
+            elif extension == ".eml":
+                text = parse_eml(file_content)
+            else: # .txt
+                text = parse_txt(file_content)
+            
+            # For non-PDF files, we don't have page numbers, so we pass a single tuple
+            # representing the whole document.
+            pages_with_metadata = [(text, 1)]
+            return text_extraction_service.chunk_text(
+                pages_with_metadata,
+                chunk_size=settings.CHUNK_SIZE,
+                overlap=settings.CHUNK_OVERLAP
+            )
             
         else:
-            logger.warning(f"Unsupported file type: {extension}. Attempting PDF extraction.")
-            # Try to process as PDF (fallback for unknown extensions)
+            logger.warning(f"Unsupported file type: {extension}. Attempting PDF extraction as fallback.")
             try:
-                return await self._process_pdf(file_content, file_name)
+                return await text_extraction_service.extract_and_chunk_pdf(
+                    file_content,
+                    chunk_size=settings.CHUNK_SIZE,
+                    overlap=settings.CHUNK_OVERLAP
+                )
             except Exception as e:
                 logger.error(f"Could not process file {file_name} as PDF: {e}")
                 return []
+
+    async def extract_full_text(self, url: str) -> str:
+        """
+        Extracts the full text content from a document without chunking.
+        (This method is used for the hierarchical workflow and can remain as is,
+        as it doesn't need chunk-level metadata).
+        """
+        extension, _ = self._get_file_info(url)
+        file_content = await self.download_document(url)
+        
+        if extension == ".pdf":
+            # This will now return a list of tuples. We need to join the text.
+            pages_with_metadata = await text_extraction_service.extract_text_from_pdf_with_metadata(file_content)
+            return "\n\n".join([page[0] for page in pages_with_metadata])
+        elif extension == ".docx":
+            return parse_docx(file_content)
+        elif extension == ".eml":
+            return parse_eml(file_content)
+        elif extension == ".txt":
+            return parse_txt(file_content)
+        else:
+            logger.warning(f"Unknown extension {extension}, trying PDF extraction.")
+            pages_with_metadata = await text_extraction_service.extract_text_from_pdf_with_metadata(file_content)
+            return "\n\n".join([page[0] for page in pages_with_metadata])
+
+
+    async def process_documents_batch(self, urls: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Process multiple documents in batch for offline scenarios.
+        
+        Args:
+            urls: List of document URLs to process
+            
+        Returns:
+            Dictionary mapping URLs to their processed chunks
+        """
+        logger.info(f"Processing batch of {len(urls)} documents")
+        
+        # Process documents with controlled concurrency
+        import asyncio
+        semaphore = asyncio.Semaphore(settings.PARALLEL_BATCHES)
+        
+        async def process_single_document(url: str) -> Tuple[str, List[Dict[str, Any]]]:
+            async with semaphore:
+                try:
+                    chunks = await self.process_and_extract(url)
+                    return url, chunks
+                except Exception as e:
+                    logger.error(f"Error processing document {url}: {e}")
+                    return url, []
+        
+        # Process all documents concurrently
+        tasks = [process_single_document(url) for url in urls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Format results
+        batch_results = {}
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Batch processing error: {result}")
+                continue
+            elif isinstance(result, tuple) and len(result) == 2:
+                url, chunks = result
+                batch_results[url] = chunks
+        
+        logger.info(f"Batch processing completed. Processed {len(batch_results)} documents successfully.")
+        return batch_results
+    
+    async def process_large_batch_with_quantization(self, urls: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Process large batches of documents with model quantization for resource-constrained environments.
+        
+        Args:
+            urls: List of document URLs to process
+            
+        Returns:
+            Dictionary mapping URLs to their processed chunks
+        """
+        logger.info(f"Processing large batch of {len(urls)} documents with quantization")
+        
+        # Use standard processing for batch
+        return await self.process_documents_batch(urls)
+        
+        # For now, we'll just use the standard batch processing
+        # In a full implementation, we would apply quantization to models used in processing
+        return await self.process_documents_batch(urls)

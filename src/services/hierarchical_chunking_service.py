@@ -1,11 +1,29 @@
 import logging
 import asyncio
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 from dataclasses import dataclass
 
 from src.services.llm_clients import GEMINI_FLASH_MODEL
 from src.core.config import settings
+
+# NLTK imports for semantic chunking
+try:
+    import nltk
+    from nltk.tokenize import sent_tokenize
+    from nltk.data import find
+    NLTK_AVAILABLE = True
+except ImportError:
+    NLTK_AVAILABLE = False
+    sent_tokenize = None
+
+# SpaCy imports for semantic chunking
+try:
+    import spacy
+    SPACY_AVAILABLE = True
+except ImportError:
+    SPACY_AVAILABLE = False
+    spacy = None
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +84,25 @@ class HierarchicalChunkingService:
             r'\n\s*(?:PROBLEM|Problem)\s+[IVXLC\d]+',  # Mathematical problems
             r'\n\s*(?:BOOK|Book)\s+[IVXLC\d]+',  # Book divisions
             
-            # Insurance domain patterns
-            r'\n\s*(?:DEFINITIONS|COVERAGE|EXCLUSIONS|CONDITIONS|CLAIMS|BENEFITS|DEDUCTIBLE|PREMIUM|POLICY)',
-            r'\n\s*(?:WAITING PERIOD|PRE-EXISTING|COPAYMENT|COINSURANCE|OUT-OF-POCKET|NETWORK)',
+            # Insurance domain patterns (more comprehensive)
+            r'\n\s*(?:DEFINITIONS?|INTERPRETATION|MEANING|TERMINOLOGY)',
+            r'\n\s*(?:COVERAGE|COVERED|BENEFITS?|ELIGIBILITY|ENTITLEMENT)',
+            r'\n\s*(?:EXCLUSIONS?|NOT COVERED|LIMITATIONS?|RESTRICTIONS?)',
+            r'\n\s*(?:CONDITIONS?|REQUIREMENTS?|OBLIGATIONS?|RESPONSIBILITIES?)',
+            r'\n\s*(?:CLAIMS? PROCEDURE|CLAIMS? PROCESS|HOW TO CLAIM)',
+            r'\n\s*(?:PREMIUM|DEDUCTIBLE|COPAYMENT|COINSURANCE|SUM INSURED)',
+            r'\n\s*(?:WAITING PERIOD|COOLING PERIOD|GRACE PERIOD)',
+            r'\n\s*(?:MATERNITY|PREGNANCY|DELIVERY|CHILDBIRTH)',
+            r'\n\s*(?:PRE[-]?EXISTING|EXISTING CONDITION)',
+            r'\n\s*(?:HOSPITALIZATION|ICU|ROOM RENT|AMBULANCE)',
+            r'\n\s*(?:AYUSH|ALTERNATIVE MEDICINE|TRADITIONAL MEDICINE)',
+            r'\n\s*(?:ORGAN DONOR|TRANSPLANT|SURGERY)',
+            r'\n\s*(?:HEALTH CHECK[-]?UP|MEDICAL EXAMINATION)',
+            r'\n\s*(?:NO CLAIM DISCOUNT|NCD|LOYALTY DISCOUNT)',
+            r'\n\s*(?:CATARACT|EYE SURGERY|VISION CARE)',
+            r'\n\s*(?:ECTOPIC PREGNANCY|PREGNANCY COMPLICATION)',
+            r'\n\s*(?:TERMINATION|CANCELLATION|SURRENDER)',
+            r'\n\s*(?:RENEWAL|REINSTATEMENT|CONTINUITY)',
             
             # Legal domain patterns  
             r'\n\s*(?:TERMS AND CONDITIONS|AGREEMENT|CONTRACT|LIABILITY|WARRANTY|INDEMNIFICATION)',
@@ -165,64 +199,110 @@ class HierarchicalChunkingService:
         return sections
     
     def _identify_section_type(self, content: str) -> str:
-        """Identify the type of document section based on content patterns (business and scientific)"""
+        """Identify the type of document section based on comprehensive real-world patterns"""
         content_lower = content.lower()
         
-        # Scientific/Mathematical sections (for texts like Newton's Principia)
-        if any(word in content_lower for word in ['proposition', 'theorem', 'proof', 'demonstrate']):
-            return 'mathematical_proposition'
-        elif any(word in content_lower for word in ['corollary', 'follows that', 'hence']):
-            return 'mathematical_corollary'
-        elif any(word in content_lower for word in ['lemma', 'preliminary', 'first show']):
-            return 'mathematical_lemma'
-        elif any(word in content_lower for word in ['scholium', 'remark', 'note that', 'observe']):
-            return 'mathematical_scholium'
-        elif any(word in content_lower for word in ['axiom', 'law of motion', 'principle']):
-            return 'mathematical_axiom'
-        elif any(word in content_lower for word in ['problem', 'find', 'determine', 'construct']):
-            return 'mathematical_problem'
-        elif any(word in content_lower for word in ['force', 'motion', 'velocity', 'acceleration', 'gravity']):
-            return 'physics_concepts'
-        elif any(word in content_lower for word in ['orbit', 'planetary', 'celestial', 'ellipse', 'centripetal']):
-            return 'astronomy_concepts'
-        
-        # Insurance-specific sections
-        elif any(word in content_lower for word in ['definition', 'meaning', 'term', 'means', 'shall mean', 'defined as']):
+        # Insurance-specific sections (comprehensive for real-world scenarios)
+        if any(word in content_lower for word in ['definition', 'meaning', 'term', 'means', 'shall mean', 'defined as', 'interpretation', 'glossary']):
             return 'definitions'
-        elif any(word in content_lower for word in ['coverage', 'benefit', 'cover', 'insured', 'policy limit']):
+        elif any(word in content_lower for word in ['scope of coverage', 'what is covered', 'coverage', 'benefit', 'cover', 'insured', 'policy limit', 'sum insured', 'benefit amount']):
             return 'coverage'
-        elif any(word in content_lower for word in ['exclusion', 'not covered', 'except', 'limitation', 'excluded']):
+        elif any(word in content_lower for word in ['exclusion', 'not covered', 'except', 'limitation', 'excluded', 'not payable', 'what is not covered', 'circumstances not covered']):
             return 'exclusions'
-        elif any(word in content_lower for word in ['claim', 'procedure', 'process', 'filing', 'settlement']):
+        elif any(word in content_lower for word in ['claim', 'procedure', 'process', 'filing', 'settlement', 'how to claim', 'claim intimation', 'claim documentation']):
             return 'claims'
-        elif any(word in content_lower for word in ['premium', 'deductible', 'copay', 'coinsurance', 'payment']):
+        elif any(word in content_lower for word in ['premium', 'deductible', 'copay', 'coinsurance', 'payment', 'payable', 'premium calculation', 'payment terms']):
             return 'financial_terms'
-        elif any(word in content_lower for word in ['condition', 'requirement', 'must', 'obligation']):
+        elif any(word in content_lower for word in ['condition', 'requirement', 'must', 'obligation', 'shall', 'warrant', 'general conditions', 'special conditions']):
             return 'conditions'
+        elif any(word in content_lower for word in ['waiting period', 'cooling period', 'grace period', 'moratorium period', 'probationary period']):
+            return 'waiting_periods'
+        elif any(word in content_lower for word in ['renewal', 'renew', 'continuation', 'portability', 'migration']):
+            return 'renewal'
+        elif any(word in content_lower for word in ['cancellation', 'termination', 'discontinuation', 'surrender', 'lapse']):
+            return 'cancellation'
+        elif any(word in content_lower for word in ['grievance', 'complaint', 'ombudsman', 'dispute resolution', 'customer service']):
+            return 'grievance'
             
-        # Legal sections
-        elif any(word in content_lower for word in ['terms and conditions', 'agreement', 'contract', 'liability']):
+        # Specific insurance benefit sections
+        elif any(word in content_lower for word in ['maternity', 'pregnancy', 'delivery', 'childbirth', 'newborn', 'prenatal', 'postnatal']):
+            return 'maternity'
+        elif any(word in content_lower for word in ['pre-existing', 'existing condition', 'ped', 'pre-existing disease']):
+            return 'pre_existing'
+        elif any(word in content_lower for word in ['hospitalization', 'inpatient', 'icu', 'room rent', 'ambulance', 'hospital expenses']):
+            return 'hospitalization'
+        elif any(word in content_lower for word in ['day care', 'daycare', 'outpatient', 'opd', 'day surgery']):
+            return 'daycare'
+        elif any(word in content_lower for word in ['ayush', 'alternative medicine', 'traditional medicine', 'ayurveda', 'homeopathy', 'unani']):
+            return 'ayush'
+        elif any(word in content_lower for word in ['organ donor', 'transplant', 'surgery', 'surgical procedure']):
+            return 'organ_donor'
+        elif any(word in content_lower for word in ['health check-up', 'medical examination', 'preventive care', 'wellness']):
+            return 'health_checkup'
+        elif any(word in content_lower for word in ['no claim discount', 'ncd', 'loyalty discount', 'bonus', 'cumulative bonus']):
+            return 'no_claim_discount'
+            
+        # Legal document sections
+        elif any(word in content_lower for word in ['whereas', 'witnesseth', 'recital', 'preamble', 'background']):
+            return 'preamble'
+        elif any(word in content_lower for word in ['terms and conditions', 'agreement', 'contract terms', 'general terms']):
             return 'legal_terms'
-        elif any(word in content_lower for word in ['termination', 'breach', 'default', 'remedy', 'arbitration']):
-            return 'legal_procedures'
+        elif any(word in content_lower for word in ['representation', 'warranty', 'covenant', 'undertaking']):
+            return 'representations_warranties'
+        elif any(word in content_lower for word in ['indemnification', 'indemnity', 'hold harmless', 'defend']):
+            return 'indemnification'
+        elif any(word in content_lower for word in ['confidentiality', 'non-disclosure', 'proprietary information', 'trade secret']):
+            return 'confidentiality'
+        elif any(word in content_lower for word in ['intellectual property', 'copyright', 'patent', 'trademark', 'ip rights']):
+            return 'intellectual_property'
+        elif any(word in content_lower for word in ['termination', 'breach', 'default', 'remedy', 'cure period']):
+            return 'termination'
+        elif any(word in content_lower for word in ['dispute resolution', 'arbitration', 'mediation', 'jurisdiction', 'governing law']):
+            return 'dispute_resolution'
+        elif any(word in content_lower for word in ['force majeure', 'act of god', 'unforeseeable circumstances']):
+            return 'force_majeure'
             
-        # HR sections
-        elif any(word in content_lower for word in ['employment', 'employee', 'compensation', 'salary', 'wages']):
-            return 'employment'
-        elif any(word in content_lower for word in ['vacation', 'leave', 'sick', 'pto', 'time off']):
+        # HR document sections
+        elif any(word in content_lower for word in ['job description', 'position', 'role', 'responsibilities', 'duties']):
+            return 'job_description'
+        elif any(word in content_lower for word in ['compensation', 'salary', 'wages', 'pay', 'remuneration']):
+            return 'compensation'
+        elif any(word in content_lower for word in ['benefits', 'perks', 'allowance', 'reimbursement']):
             return 'benefits'
-        elif any(word in content_lower for word in ['performance', 'review', 'evaluation', 'discipline']):
+        elif any(word in content_lower for word in ['leave policy', 'vacation', 'sick leave', 'pto', 'time off', 'absence']):
+            return 'leave_policy'
+        elif any(word in content_lower for word in ['performance', 'review', 'evaluation', 'appraisal', 'kpi']):
             return 'performance'
+        elif any(word in content_lower for word in ['code of conduct', 'ethics', 'behavior', 'discipline', 'misconduct']):
+            return 'code_of_conduct'
+        elif any(word in content_lower for word in ['training', 'development', 'learning', 'skill', 'orientation']):
+            return 'training'
+        elif any(word in content_lower for word in ['separation', 'resignation', 'retirement', 'exit', 'notice period']):
+            return 'separation'
             
-        # Compliance sections
-        elif any(word in content_lower for word in ['compliance', 'regulatory', 'regulation', 'audit']):
-            return 'compliance'
-        elif any(word in content_lower for word in ['privacy', 'confidential', 'data protection', 'security']):
-            return 'privacy'
+        # Compliance document sections
+        elif any(word in content_lower for word in ['compliance requirement', 'regulatory requirement', 'mandatory', 'statutory']):
+            return 'compliance_requirements'
+        elif any(word in content_lower for word in ['risk assessment', 'risk management', 'risk mitigation', 'control']):
+            return 'risk_management'
+        elif any(word in content_lower for word in ['audit', 'review', 'inspection', 'examination', 'assessment']):
+            return 'audit'
+        elif any(word in content_lower for word in ['reporting', 'disclosure', 'filing', 'submission', 'notification']):
+            return 'reporting'
+        elif any(word in content_lower for word in ['data privacy', 'data protection', 'gdpr', 'ccpa', 'personal information']):
+            return 'data_privacy'
+        elif any(word in content_lower for word in ['anti-money laundering', 'aml', 'kyc', 'customer due diligence']):
+            return 'aml_kyc'
+        elif any(word in content_lower for word in ['sanctions', 'embargo', 'export control', 'restricted parties']):
+            return 'sanctions'
+        elif any(word in content_lower for word in ['whistleblower', 'reporting mechanism', 'ethics hotline']):
+            return 'whistleblower'
             
         # Document structure
-        elif any(word in content_lower for word in ['table', 'schedule', 'rate', 'appendix', 'exhibit']):
+        elif any(word in content_lower for word in ['table', 'schedule', 'annexure', 'appendix', 'exhibit', 'attachment']):
             return 'table'
+        elif any(word in content_lower for word in ['example', 'illustration', 'scenario', 'case study']):
+            return 'example'
         else:
             return 'content'
     
@@ -252,6 +332,7 @@ Provide a 2-3 sentence summary that captures:
 2. Key information or concepts covered  
 3. Specific details (amounts, percentages, timeframes, mathematical concepts, scientific principles if present)
 4. For scientific texts: key theorems, propositions, laws, or mathematical relationships
+5. For insurance documents: key terms, conditions, exclusions, benefits, and limitations
 
 Focus on extracting searchable terms and concepts that would help match user queries about the content.
 
@@ -293,20 +374,20 @@ Query: "{query}"
 Available Sections:
 {chr(10).join(section_summaries)}
 
-Task: Identify the {top_k} most relevant sections that would likely contain information to answer the query.
+Task: Identify the {top_k * 2} most relevant sections that would likely contain information to answer the query.
 
 Consider:
 1. Direct keyword matches (exact terms from the query)
 2. Conceptual relevance (related concepts, synonyms, scientific principles)
-3. Mathematical/scientific relationships (if applicable)
-4. Section type appropriateness for the domain
-5. Historical/biographical information (if query asks about people)
-6. For scientific queries: look for propositions, theorems, laws, principles that relate to the topic
+3. Section type appropriateness for the domain
+4. Historical/biographical information (if query asks about people)
+5. For scientific queries: look for propositions, theorems, laws, principles that relate to the topic
+6. For insurance queries: look for policy terms, conditions, exclusions, benefits, and limitations
 
 Be generous in identifying relevance - err on the side of including sections that might contain useful information rather than being too restrictive.
 
-Respond with ONLY the section numbers (comma-separated, e.g., "2,5,8") of the {top_k} most relevant sections.
-If fewer than {top_k} sections are relevant, list only the relevant ones."""
+Respond with ONLY the section numbers (comma-separated, e.g., "2,5,8") of the {top_k * 2} most relevant sections.
+If fewer than {top_k * 2} sections are relevant, list only the relevant ones."""
         
         try:
             response = await GEMINI_FLASH_MODEL.generate_content_async(prompt)
@@ -324,7 +405,7 @@ If fewer than {top_k} sections are relevant, list only the relevant ones."""
             
             if not relevant_indices:
                 # Fallback: return first few sections
-                relevant_indices = list(range(min(top_k, len(sections))))
+                relevant_indices = list(range(min(top_k * 2, len(sections))))
                 
             self.logger.info(f"Identified {len(relevant_indices)} relevant sections: {relevant_indices}")
             return relevant_indices
@@ -332,11 +413,12 @@ If fewer than {top_k} sections are relevant, list only the relevant ones."""
         except Exception as e:
             self.logger.error(f"Error finding relevant sections: {e}")
             # Fallback: return first few sections
-            return list(range(min(top_k, len(sections))))
+            return list(range(min(top_k * 2, len(sections))))
     
-    def chunk_sections(self, sections: List[DocumentSection], chunk_size: int = None) -> List[str]:
+    def chunk_sections(self, sections: List[DocumentSection], chunk_size: int = None) -> List[Dict[str, Any]]:
         """
         Convert relevant sections into chunks for embedding processing.
+        Uses NLTK or SpaCy for sentence tokenization when available.
         """
         if chunk_size is None:
             chunk_size = getattr(settings, 'CHUNK_SIZE', 2000)
@@ -345,35 +427,80 @@ If fewer than {top_k} sections are relevant, list only the relevant ones."""
         
         all_chunks = []
         
+        # Import metadata extraction service
+        try:
+            from src.services.metadata_extraction_service import metadata_extraction_service
+            metadata_extractor = metadata_extraction_service
+        except ImportError:
+            metadata_extractor = None
+            self.logger.warning("Metadata extraction service not available")
+        
         for section in sections:
             content = section.content
             
             # Add section context to chunks
             section_header = f"[{section.section_type.upper()} SECTION]\n"
             
-            if len(content) <= chunk_size:
-                # Section fits in one chunk
-                all_chunks.append(section_header + content)
-            else:
-                # Split section into overlapping chunks
-                start = 0
-                while start < len(content):
-                    end = start + chunk_size
-                    chunk_content = content[start:end]
+            # Use semantic chunking with sentence boundaries
+            sentences = self._tokenize_sentences(content)
+            current_chunk = section_header
+            current_chunk_size = len(section_header)
+            
+            for sentence in sentences:
+                sentence_with_space = " " + sentence
+                if current_chunk_size + len(sentence_with_space) <= chunk_size:
+                    current_chunk += sentence_with_space
+                    current_chunk_size += len(sentence_with_space)
+                else:
+                    # Add current chunk to results
+                    if len(current_chunk.strip()) > len(section_header):
+                        chunk_text = current_chunk.strip()
+                        # Add metadata to chunk
+                        chunk_metadata = {
+                            "section_type": section.section_type,
+                            "section_summary": section.summary[:200] if section.summary else ""
+                        }
+                        
+                        # Add advanced metadata if extractor is available
+                        if metadata_extractor:
+                            try:
+                                advanced_metadata = metadata_extractor.extract_metadata_from_chunk(chunk_text)
+                                chunk_metadata.update(advanced_metadata)
+                            except Exception as e:
+                                self.logger.warning(f"Metadata extraction failed for chunk: {e}")
+                        
+                        all_chunks.append({
+                            "text": chunk_text,
+                            "metadata": chunk_metadata
+                        })
                     
-                    # Try to end at a sentence boundary
-                    if end < len(content):
-                        last_period = chunk_content.rfind('.')
-                        if last_period > len(chunk_content) * 0.7:  # If period is in last 30%
-                            chunk_content = chunk_content[:last_period + 1]
-                            end = start + len(chunk_content)
-                    
-                    all_chunks.append(section_header + chunk_content)
-                    
-                    # Move start position with overlap
-                    start = end - chunk_overlap
-                    if start >= len(content):
-                        break
+                    # Start new chunk with overlap
+                    # Include some content from previous chunk for context
+                    overlap_content = self._get_overlap_content(current_chunk, chunk_overlap)
+                    current_chunk = section_header + overlap_content + sentence_with_space
+                    current_chunk_size = len(section_header) + len(overlap_content) + len(sentence_with_space)
+            
+            # Add the final chunk
+            if len(current_chunk.strip()) > len(section_header):
+                chunk_text = current_chunk.strip()
+                # Add metadata to chunk
+                chunk_metadata = {
+                    "section_type": section.section_type,
+                    "section_summary": section.summary[:200] if section.summary else ""
+                }
+                
+                # Add advanced metadata if extractor is available
+                if metadata_extractor:
+                    try:
+                        advanced_metadata = metadata_extractor.extract_metadata_from_chunk(chunk_text)
+                        chunk_metadata.update(advanced_metadata)
+                    except Exception as e:
+                        self.logger.warning(f"Metadata extraction failed for chunk: {e}")
+                
+                all_chunks.append({
+                    "text": chunk_text,
+                    "metadata": chunk_metadata
+                })
         
         self.logger.info(f"Generated {len(all_chunks)} chunks from {len(sections)} sections")
         return all_chunks
@@ -415,7 +542,7 @@ If fewer than {top_k} sections are relevant, list only the relevant ones."""
         relevant_section_indices = await self.find_relevant_sections(
             query, 
             sections_with_summaries, 
-            top_k=max_sections
+            top_k=max_sections * 2  # Increase sections for better coverage
         )
         
         # Phase 4: Extract only relevant sections
@@ -442,6 +569,69 @@ If fewer than {top_k} sections are relevant, list only the relevant ones."""
         self.logger.info(f"Reduced processing by {reduction_percentage:.1f}% ({total_possible_chunks} -> {len(relevant_chunks)} chunks)")
         
         return relevant_chunks, metrics
+
+    def _tokenize_sentences(self, text: str) -> List[str]:
+        """
+        Tokenize text into sentences using NLTK or SpaCy if available,
+        falling back to regex-based splitting.
+        """
+        if NLTK_AVAILABLE:
+            try:
+                # Download punkt tokenizer if not already present
+                try:
+                    find('tokenizers/punkt')
+                except LookupError:
+                    nltk.download('punkt', quiet=True)
+                return sent_tokenize(text)
+            except Exception as e:
+                self.logger.warning(f"NLTK sentence tokenization failed: {e}")
+        
+        if SPACY_AVAILABLE:
+            try:
+                # Load a small English model if not already loaded
+                if not hasattr(self, '_spacy_nlp'):
+                    # Try to load a model, fallback to downloading if needed
+                    try:
+                        self._spacy_nlp = spacy.load("en_core_web_sm")
+                    except OSError:
+                        self.logger.warning("SpaCy model not found, trying to load default model")
+                        try:
+                            self._spacy_nlp = spacy.load("en")
+                        except OSError:
+                            self.logger.warning("No SpaCy model found")
+                            raise
+                doc = self._spacy_nlp(text)
+                return [sent.text.strip() for sent in doc.sents]
+            except Exception as e:
+                self.logger.warning(f"SpaCy sentence tokenization failed: {e}")
+        
+        # Fallback to regex-based sentence splitting
+        return re.split(r'(?<=[.!?])\s+', text)
+    
+    def _get_overlap_content(self, chunk: str, overlap_size: int) -> str:
+        """
+        Extract overlap content from the end of a chunk for context preservation.
+        """
+        if overlap_size <= 0:
+            return ""
+        
+        # Use semantic chunking to get appropriate overlap
+        sentences = self._tokenize_sentences(chunk)
+        
+        # Build overlap from the end, working backwards
+        overlap_content = ""
+        current_size = 0
+        
+        # Start from the end and work backwards
+        for sentence in reversed(sentences):
+            sentence_with_space = sentence + " "
+            if current_size + len(sentence_with_space) <= overlap_size:
+                overlap_content = sentence_with_space + overlap_content
+                current_size += len(sentence_with_space)
+            else:
+                break
+        
+        return overlap_content
 
 # Global instance
 hierarchical_chunking_service = HierarchicalChunkingService()

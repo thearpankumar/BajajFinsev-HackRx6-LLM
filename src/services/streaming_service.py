@@ -75,7 +75,7 @@ class StreamingService:
                 # Use basic embedding search with limited chunks
                 similar_chunks = await self.rag_service.embedding_service.embed_and_search(
                     query=clarified_query,
-                    document_chunks=quick_chunks,
+                    document_url="streaming_document",  # Use placeholder for streaming documents
                     top_k=min(5, len(quick_chunks))  # Limit to 5 chunks for speed
                 )
                 
