@@ -7,15 +7,12 @@ from dataclasses import dataclass
 from src.services.llm_clients import GEMINI_FLASH_MODEL
 from src.core.config import settings
 
-# NLTK imports for semantic chunking
+# pysbd for sentence tokenization
 try:
-    import nltk
-    from nltk.tokenize import sent_tokenize
-    from nltk.data import find
-    NLTK_AVAILABLE = True
+    import pysbd
+    PYSBD_AVAILABLE = True
 except ImportError:
-    NLTK_AVAILABLE = False
-    sent_tokenize = None
+    PYSBD_AVAILABLE = False
 
 # SpaCy imports for semantic chunking
 try:
@@ -572,20 +569,9 @@ If fewer than {top_k * 2} sections are relevant, list only the relevant ones."""
 
     def _tokenize_sentences(self, text: str) -> List[str]:
         """
-        Tokenize text into sentences using NLTK or SpaCy if available,
-        falling back to regex-based splitting.
+        Tokenize text into sentences using SpaCy if available,
+        falling back to pysbd, then to regex-based splitting.
         """
-        if NLTK_AVAILABLE:
-            try:
-                # Download punkt tokenizer if not already present
-                try:
-                    find('tokenizers/punkt')
-                except LookupError:
-                    nltk.download('punkt', quiet=True)
-                return sent_tokenize(text)
-            except Exception as e:
-                self.logger.warning(f"NLTK sentence tokenization failed: {e}")
-        
         if SPACY_AVAILABLE:
             try:
                 # Load a small English model if not already loaded
@@ -604,6 +590,13 @@ If fewer than {top_k * 2} sections are relevant, list only the relevant ones."""
                 return [sent.text.strip() for sent in doc.sents]
             except Exception as e:
                 self.logger.warning(f"SpaCy sentence tokenization failed: {e}")
+
+        if PYSBD_AVAILABLE:
+            try:
+                seg = pysbd.Segmenter(language="en", clean=False)
+                return seg.segment(text)
+            except Exception as e:
+                self.logger.warning(f"pysbd sentence tokenization failed: {e}")
         
         # Fallback to regex-based sentence splitting
         return re.split(r'(?<=[.!?])\s+', text)

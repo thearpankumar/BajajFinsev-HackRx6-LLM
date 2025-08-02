@@ -86,50 +86,85 @@ class LanceDBService:
             self.logger.warning("Upsert called with empty vectors or chunks.")
             return
 
-        tbl = self.db.open_table(table_name)
+        try:
+            tbl = self.db.open_table(table_name)
+        except Exception as e:
+            self.logger.error(f"Failed to open table '{table_name}': {e}")
+            raise
         
         data_to_upsert = []
         for i, (vector, chunk_data) in enumerate(zip(vectors, chunks)):
-            # Convert metadata lists to JSON strings
-            import json
-            import hashlib
-            entities_str = json.dumps(chunk_data['metadata'].get('entities', []))
-            concepts_str = json.dumps(chunk_data['metadata'].get('concepts', []))
-            categories_str = json.dumps(chunk_data['metadata'].get('categories', []))
-            keywords_str = json.dumps(chunk_data['metadata'].get('keywords', []))
-            
-            # Generate chunk hash for deduplication
-            chunk_text = chunk_data['metadata'].get('text', '')
-            chunk_hash = hashlib.sha256(chunk_text.encode('utf-8')).hexdigest()
-            
-            # Generate document hash for versioning
-            document_url = chunk_data['metadata'].get('document_url', '')
-            document_hash = hashlib.sha256(document_url.encode('utf-8')).hexdigest()
-            
-            data = {
-                "vector": vector,
-                "text": chunk_text,
-                "document_url": document_url,
-                "page_number": chunk_data['metadata'].get('page_number', -1),
-                "chunk_index": i,
-                "section_type": chunk_data['metadata'].get('section_type', ''),
-                "section_summary": chunk_data['metadata'].get('section_summary', '')[:500],  # Limit to 500 chars
-                "entities": entities_str,
-                "concepts": concepts_str,
-                "categories": categories_str,
-                "keywords": keywords_str,
-                "indexed_at": chunk_data['metadata'].get('indexed_at', 0.0),
-                "document_hash": document_hash,
-                "chunk_hash": chunk_hash
-            }
-            data_to_upsert.append(data)
+            try:
+                # Convert metadata lists to JSON strings safely
+                import json
+                import hashlib
+                
+                metadata = chunk_data.get('metadata', {})
+                
+                # Safely extract and convert metadata fields
+                entities = metadata.get('entities', [])
+                concepts = metadata.get('concepts', [])
+                categories = metadata.get('categories', [])
+                keywords = metadata.get('keywords', [])
+                
+                entities_str = json.dumps(entities) if isinstance(entities, list) else "[]"
+                concepts_str = json.dumps(concepts) if isinstance(concepts, list) else "[]"
+                categories_str = json.dumps(categories) if isinstance(categories, list) else "[]"
+                keywords_str = json.dumps(keywords) if isinstance(keywords, list) else "[]"
+                
+                # Generate chunk hash for deduplication
+                chunk_text = metadata.get('text', '')
+                chunk_hash = hashlib.sha256(chunk_text.encode('utf-8')).hexdigest()
+                
+                # Generate document hash for versioning
+                document_url = metadata.get('document_url', '')
+                document_hash = hashlib.sha256(document_url.encode('utf-8')).hexdigest()
+                
+                # Prepare data with all required fields and safe defaults
+                data = {
+                    "vector": vector,
+                    "text": chunk_text,
+                    "document_url": document_url,
+                    "page_number": int(metadata.get('page_number', -1)),
+                    "chunk_index": i,
+                    "section_type": str(metadata.get('section_type', '')),
+                    "section_summary": str(metadata.get('section_summary', ''))[:500],  # Limit to 500 chars
+                    "entities": entities_str,
+                    "concepts": concepts_str,
+                    "categories": categories_str,
+                    "keywords": keywords_str,
+                    "indexed_at": float(metadata.get('indexed_at', 0.0)),
+                    "document_hash": document_hash,
+                    "chunk_hash": chunk_hash
+                }
+                data_to_upsert.append(data)
+                
+            except Exception as e:
+                self.logger.error(f"Error preparing chunk {i} for upsert: {e}")
+                continue
+
+        if not data_to_upsert:
+            self.logger.warning("No valid data to upsert after processing chunks.")
+            return
 
         try:
             tbl.add(data_to_upsert)
             self.logger.info(f"Successfully upserted {len(data_to_upsert)} vectors into '{table_name}'.")
         except Exception as e:
             self.logger.error(f"Error upserting data to LanceDB: {e}", exc_info=True)
-            raise
+            # Try to recreate the table if schema mismatch
+            if "not found in target schema" in str(e):
+                self.logger.info("Schema mismatch detected. Recreating table...")
+                try:
+                    self.create_table_if_not_exists(table_name, force_recreate=True)
+                    tbl = self.db.open_table(table_name)
+                    tbl.add(data_to_upsert)
+                    self.logger.info(f"Successfully upserted {len(data_to_upsert)} vectors after table recreation.")
+                except Exception as recreate_error:
+                    self.logger.error(f"Failed to recreate table and upsert: {recreate_error}")
+                    raise
+            else:
+                raise
 
     def query(self, table_name: str, vector: List[float], top_k: int, filter_str: Optional[str] = None) -> List[Dict]:
         """

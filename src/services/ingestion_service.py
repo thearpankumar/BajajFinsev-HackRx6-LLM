@@ -35,11 +35,17 @@ class IngestionService:
         file_name = pathlib.Path(path).name
         return extension, file_name
 
-    async def process_and_extract(self, url: str) -> List[Dict[str, Any]]:
+    async def process_and_extract(self, url: str, chunk_size: int = None, overlap: int = None) -> List[Dict[str, Any]]:
         """
         Main orchestration method. Downloads a document, extracts text, 
         and returns chunks with metadata.
         """
+        # Use provided parameters or defaults
+        if chunk_size is None:
+            chunk_size = settings.CHUNK_SIZE
+        if overlap is None:
+            overlap = settings.CHUNK_OVERLAP
+            
         extension, file_name = self._get_file_info(url)
         file_content = await self.download_document(url)
 
@@ -47,8 +53,8 @@ class IngestionService:
             logger.info(f"Processing PDF: {file_name}")
             return await text_extraction_service.extract_and_chunk_pdf(
                 file_content,
-                chunk_size=settings.CHUNK_SIZE,
-                overlap=settings.CHUNK_OVERLAP
+                chunk_size=chunk_size,
+                overlap=overlap
             )
         
         elif extension in [".docx", ".eml", ".txt"]:
@@ -65,8 +71,8 @@ class IngestionService:
             pages_with_metadata = [(text, 1)]
             return text_extraction_service.chunk_text(
                 pages_with_metadata,
-                chunk_size=settings.CHUNK_SIZE,
-                overlap=settings.CHUNK_OVERLAP
+                chunk_size=chunk_size,
+                overlap=overlap
             )
             
         else:
@@ -74,8 +80,8 @@ class IngestionService:
             try:
                 return await text_extraction_service.extract_and_chunk_pdf(
                     file_content,
-                    chunk_size=settings.CHUNK_SIZE,
-                    overlap=settings.CHUNK_OVERLAP
+                    chunk_size=chunk_size,
+                    overlap=overlap
                 )
             except Exception as e:
                 logger.error(f"Could not process file {file_name} as PDF: {e}")

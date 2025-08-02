@@ -78,23 +78,45 @@ class EmbeddingService:
         
         # Extract metadata for each chunk if not already present
         for chunk in document_chunks:
+            # Ensure we have the basic metadata structure
             if 'entities' not in chunk['metadata']:
                 # Import metadata extraction service
                 from src.services.metadata_extraction_service import metadata_extraction_service
                 # Extract advanced metadata
-                metadata = metadata_extraction_service.extract_metadata_from_chunk(chunk['text'])
-                chunk['metadata'].update(metadata)
+                try:
+                    metadata = metadata_extraction_service.extract_metadata_from_chunk(chunk['text'])
+                    # Only add the expected fields to avoid schema mismatch
+                    chunk['metadata']['entities'] = metadata.get('entities', [])
+                    chunk['metadata']['concepts'] = metadata.get('concepts', [])
+                    chunk['metadata']['categories'] = metadata.get('categories', [])
+                    chunk['metadata']['keywords'] = metadata.get('keywords', [])
+                except Exception as e:
+                    self.logger.warning(f"Metadata extraction failed for chunk: {e}")
+                    # Set default empty values
+                    chunk['metadata']['entities'] = []
+                    chunk['metadata']['concepts'] = []
+                    chunk['metadata']['categories'] = []
+                    chunk['metadata']['keywords'] = []
         
         chunk_texts = [chunk['text'] for chunk in document_chunks]
         embeddings = await self.generate_embeddings_batch(chunk_texts)
         
-        # Add document_url and other metadata to each chunk
+        # Add document_url and other required metadata to each chunk
+        import time
+        current_time = time.time()
+        
         for chunk in document_chunks:
             chunk['metadata']['document_url'] = document_url
             chunk['metadata']['text'] = chunk['text']
-            # Add timestamp for versioning
-            import time
-            chunk['metadata']['indexed_at'] = time.time()
+            chunk['metadata']['indexed_at'] = current_time
+            
+            # Ensure all required fields exist with default values
+            chunk['metadata'].setdefault('section_type', '')
+            chunk['metadata'].setdefault('section_summary', '')
+            chunk['metadata'].setdefault('entities', [])
+            chunk['metadata'].setdefault('concepts', [])
+            chunk['metadata'].setdefault('categories', [])
+            chunk['metadata'].setdefault('keywords', [])
 
         self.lancedb_service.upsert_chunks(
             table_name=settings.LANCEDB_TABLE_NAME,
