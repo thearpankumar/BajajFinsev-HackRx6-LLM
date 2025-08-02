@@ -19,128 +19,64 @@ router = APIRouter()
     "/hackrx/run",
     response_model=AnalysisResponse,
     summary="Run Business Document Analysis",
-    description="Analyzes business documents (insurance, legal, HR, compliance) using AI-powered hierarchical processing, OpenAI GPT-4o-mini, and advanced embedding retrieval for accurate information extraction.",
-    response_description="Business-focused analysis results with comprehensive answers"
+    description="Analyzes business documents using a high-performance RAG pipeline with Pinecone.",
+    response_description="Analysis results with answers generated from document context."
 )
 async def run_analysis(
     request: AnalysisRequest,
     token: str = Depends(validate_bearer_token)
 ) -> AnalysisResponse:
     """
-    Business document analysis endpoint specialized for enterprise domains:
-    1. Downloads and processes business documents (insurance, legal, HR, compliance)
-    2. Applies domain-aware hierarchical processing for large documents
-    3. Uses OpenAI GPT-4o-mini with business-focused prompts
-    4. Employs advanced embedding retrieval with business terminology
-    5. Generates comprehensive, domain-specific answers
+    Business document analysis endpoint:
+    1. Downloads and processes documents.
+    2. Uses semantic chunking and stores embeddings in Pinecone.
+    3. Applies hierarchical processing for large documents.
+    4. Runs a parallelized RAG workflow to generate answers.
     """
-    logger.info(f"🚀 Starting optimized analysis for document and {len(request.questions)} questions.")
-    
-    # Use hierarchical processing for large documents
-    hierarchical_enabled = settings.ENABLE_HIERARCHICAL_PROCESSING
+    logger.info(f"🚀 Starting analysis for document: {request.documents}")
+    document_url = str(request.documents)
     
     try:
-        # Step 1: Check document size first to determine processing strategy
-        performance_monitor.start_operation("document_download")
-        
-        # Download document to check size
-        document_url = str(request.documents)
-        extension, file_name = ingestion_service._get_file_info(document_url)
+        # Step 1: Download document and determine strategy
+        performance_monitor.start_operation("document_processing")
         file_content = await ingestion_service.download_document(document_url)
         file_size_bytes = len(file_content)
         
-        performance_monitor.end_operation(
-            "document_download", 
-            document_size=file_size_bytes,
-            success=True
-        )
-        
-        # Determine if this is a large document based on file size
         is_large_document = file_size_bytes >= settings.LARGE_DOCUMENT_THRESHOLD
+        strategy = "hierarchical" if is_large_document and settings.ENABLE_HIERARCHICAL_PROCESSING else "standard"
         
-        logger.info(f"📄 Downloaded document: {file_name} ({file_size_bytes/1024/1024:.2f}MB)")
-        logger.info(f"🔍 Large document detected: {is_large_document}")
-        logger.info(f"⚡ Processing strategy: {'hierarchical' if is_large_document and hierarchical_enabled else 'standard'}")
+        logger.info(f"📄 Document size: {file_size_bytes/1024/1024:.2f}MB. Strategy: {strategy}")
 
-        # Step 2: Choose processing strategy based on document size
-        if is_large_document and hierarchical_enabled:
-            # Use hierarchical workflow for large documents (>20MB)
-            performance_monitor.start_operation("hierarchical_workflow")
-            
-            # Extract full text for hierarchical processing
-            if extension == ".pdf":
-                document_text = await text_extraction_service.extract_text_from_pdf(file_content)
-            elif extension == ".docx":
-                from src.utils.document_parsers import parse_docx
-                document_text = parse_docx(file_content)
-            elif extension == ".eml":
-                from src.utils.document_parsers import parse_eml
-                document_text = parse_eml(file_content)
-            elif extension == ".txt":
-                from src.utils.document_parsers import parse_txt
-                document_text = parse_txt(file_content)
-            else:
-                document_text = await text_extraction_service.extract_text_from_pdf(file_content)
-            
-            answers, workflow_metrics = await rag_workflow_service.run_hierarchical_workflow(
+        # Step 2: Choose and execute the appropriate workflow
+        if strategy == "hierarchical":
+            document_text = await ingestion_service.extract_full_text(url=document_url)
+            if not document_text:
+                raise HTTPException(status_code=400, detail="Failed to extract text for hierarchical processing.")
+
+            answers, _ = await rag_workflow_service.run_hierarchical_workflow(
+                document_url=document_url,
                 questions=request.questions,
                 document_text=document_text
             )
-            
-            performance_monitor.end_operation(
-                "hierarchical_workflow",
-                document_size=len(document_text),
-                chunks_processed=workflow_metrics.get('total_questions', 0),
-                success=True,
-                metadata=workflow_metrics
-            )
-            
-        else:
-            # Use ORIGINAL fast workflow for smaller documents (<20MB)
-            performance_monitor.start_operation("standard_workflow")
-            
-            # Use original chunking approach - much faster!
-            if extension == ".pdf":
-                document_chunks = await ingestion_service._process_pdf(file_content, file_name)
-            elif extension in [".docx", ".eml", ".txt"]:
-                document_chunks = await ingestion_service._process_text_document(file_content, extension, file_name)
-            else:
-                document_chunks = await ingestion_service._process_pdf(file_content, file_name)
-            
+            performance_monitor.end_operation("document_processing", document_size=len(document_text), success=True)
+
+        else: # Standard workflow
+            document_chunks = await ingestion_service.process_and_extract(url=document_url)
             if not document_chunks:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="No text could be extracted from the document."
-                )
-            
-            # Use ORIGINAL fast parallel workflow
+                raise HTTPException(status_code=400, detail="No text could be extracted from the document.")
+
             answers = await rag_workflow_service.run_parallel_workflow(
+                document_url=document_url,
                 questions=request.questions,
                 document_chunks=document_chunks
             )
-            
-            workflow_metrics = {
-                'hierarchical_used': False,
-                'total_chunks': len(document_chunks),
-                'processing_method': 'standard_parallel_fast'
-            }
-            
-            performance_monitor.end_operation(
-                "standard_workflow",
-                document_size=sum(len(chunk) for chunk in document_chunks),
-                chunks_processed=len(document_chunks),
-                success=True
-            )
-        
-        # Step 3: Compile response with performance data        
-        logger.info(f"✅ Generated {len(answers)} answers successfully.")
-        logger.info(f"📊 Cache hit rate: {performance_monitor.get_cache_hit_rate():.1f}%")
-        
-        # Clean response with only answers
-        response_data = {
-            "answers": answers
-        }
-        
+            performance_monitor.end_operation("document_processing", document_size=sum(len(c) for c in document_chunks), success=True)
+
+        # Step 3: Compile and return the response
+        # Extract just the answer strings for the final response
+        answer_strings = [result['answer'] for result in answers]
+        logger.info(f"✅ Generated {len(answer_strings)} answers successfully.")
+        response_data = {"answers": answer_strings}
         return AnalysisResponse(**response_data)
         
     except HTTPException:
@@ -148,12 +84,13 @@ async def run_analysis(
         raise
     except Exception as e:
         performance_monitor.record_error()
-        logger.error(f"❌ Error during optimized analysis: {e}", exc_info=True)
+        logger.error(f"❌ Error during analysis: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An internal server error occurred: {e}"
         )
 
+# ... (other endpoints remain the same)
 @router.post(
     "/hackrx/stream",
     summary="Stream Document Analysis",
