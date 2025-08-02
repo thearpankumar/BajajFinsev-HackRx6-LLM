@@ -1,29 +1,26 @@
 import logging
 import asyncio
 import hashlib
-from typing import List, Optional, Tuple, Dict, Any
-import numpy as np
+from typing import List, Optional, Dict, Any
 from openai import AsyncOpenAI
-from sklearn.metrics.pairwise import cosine_similarity
 
 from src.core.config import settings
-from src.services.pinecone_service import get_pinecone_service
+from src.services.lancedb_service import get_lancedb_service
 
 logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     """
-    Service for generating embeddings using OpenAI and interacting with Pinecone.
+    Service for generating embeddings using OpenAI and interacting with LanceDB.
     """
     
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.logger = logger
-        self.pinecone_service = get_pinecone_service()
-        # Ensure the index exists before performing operations
-        self.pinecone_service.create_index_if_not_exists(
-            index_name=settings.PINECONE_INDEX_NAME,
-            dimension=settings.EMBEDDING_DIMENSIONS
+        self.lancedb_service = get_lancedb_service()
+        # Ensure the table exists before performing operations
+        self.lancedb_service.create_table_if_not_exists(
+            table_name=settings.LANCEDB_TABLE_NAME
         )
 
     async def generate_embedding(self, text: str, model: str = None) -> List[float]:
@@ -37,15 +34,10 @@ class EmbeddingService:
             model = settings.EMBEDDING_MODEL
         
         try:
-            self.logger.debug(f"Generating embedding for text (length: {len(text)})")
             response = await self.client.embeddings.create(
-                model=model,
-                input=text.strip(),
-                encoding_format="float"
+                model=model, input=text.strip(), encoding_format="float"
             )
-            embedding = response.data[0].embedding
-            self.logger.debug(f"Generated embedding with {len(embedding)} dimensions")
-            return embedding
+            return response.data[0].embedding
         except Exception as e:
             self.logger.error(f"Error generating embedding: {e}", exc_info=True)
             raise
@@ -65,78 +57,73 @@ class EmbeddingService:
             batch_texts = [t.strip() for t in texts[i:i + batch_size]]
             try:
                 response = await self.client.embeddings.create(
-                    model=model,
-                    input=batch_texts,
-                    encoding_format="float"
+                    model=model, input=batch_texts, encoding_format="float"
                 )
                 all_embeddings.extend([item.embedding for item in response.data])
             except Exception as e:
                 self.logger.error(f"Error generating batch embeddings: {e}", exc_info=True)
-                # Add placeholder for failed batch
                 all_embeddings.extend([[0.0] * settings.EMBEDDING_DIMENSIONS] * len(batch_texts))
         
-        self.logger.info(f"Generated {len(all_embeddings)} embeddings total")
         return all_embeddings
-
-    def _generate_chunk_id(self, document_url: str, chunk_index: int) -> str:
-        """Generate a unique and deterministic ID for a chunk."""
-        return hashlib.sha256(f"{document_url}-{chunk_index}".encode()).hexdigest()
 
     async def embed_and_upsert_chunks(self, document_url: str, document_chunks: List[Dict[str, Any]]):
         """
-        Generates embeddings for document chunks and upserts them into Pinecone.
-        Expects chunks as dictionaries with 'text' and 'metadata' keys.
+        Generates embeddings for document chunks and upserts them into LanceDB.
         """
         self.logger.info(f"Starting embedding and upsert for {len(document_chunks)} chunks from {document_url}")
         
         chunk_texts = [chunk['text'] for chunk in document_chunks]
         embeddings = await self.generate_embeddings_batch(chunk_texts)
         
-        # Prepare chunks with metadata for upserting
-        chunks_to_upsert = []
-        for i, chunk_data in enumerate(document_chunks):
-            chunk_id = self._generate_chunk_id(document_url, i)
-            
-            # Combine existing metadata with the document URL and full text
-            metadata = chunk_data['metadata']
-            metadata['document_url'] = document_url
-            metadata['text'] = chunk_data['text']
+        # Add document_url to each chunk's metadata
+        for chunk in document_chunks:
+            chunk['metadata']['document_url'] = document_url
+            chunk['metadata']['text'] = chunk['text']
 
-            chunks_to_upsert.append({"id": chunk_id, "metadata": metadata})
-
-        # Upsert to Pinecone
-        self.pinecone_service.upsert_chunks(
-            index_name=settings.PINECONE_INDEX_NAME,
+        self.lancedb_service.upsert_chunks(
+            table_name=settings.LANCEDB_TABLE_NAME,
             vectors=embeddings,
-            chunks=chunks_to_upsert
+            chunks=document_chunks
         )
         self.logger.info(f"Completed upsert for {len(document_chunks)} chunks.")
 
     async def embed_and_search(self, query: str, document_url: str, top_k: int = None) -> List[Dict[str, Any]]:
         """
-        Embeds a query and searches for the most similar chunks in Pinecone,
+        Embeds a query and searches for the most similar chunks in LanceDB,
         filtered by the document URL.
         """
         if top_k is None:
             top_k = settings.MAX_CHUNKS_PER_QUERY
         
-        self.logger.info(f"Embedding query and searching for top {top_k} chunks for document: {document_url}")
+        self.logger.info(f"Embedding query and searching in LanceDB for top {top_k} chunks for document: {document_url}")
         
         query_embedding = await self.generate_embedding(query)
         
-        # Use metadata filtering to search only within the specified document
-        filter_dict = {"document_url": {"$eq": document_url}}
+        # LanceDB uses a SQL-like WHERE clause for filtering
+        filter_str = f"document_url = '{document_url}'"
         
-        search_results = self.pinecone_service.query(
-            index_name=settings.PINECONE_INDEX_NAME,
+        search_results = self.lancedb_service.query(
+            table_name=settings.LANCEDB_TABLE_NAME,
             vector=query_embedding,
             top_k=top_k,
-            filter_dict=filter_dict
+            filter_str=filter_str
         )
         
-        # The result from pinecone_service.query is already a list of dictionaries
-        self.logger.info(f"Found {len(search_results)} similar chunks in Pinecone.")
-        return search_results
+        # The result from lancedb_service is already a list of dictionaries.
+        # We need to reshape it slightly to match the expected format downstream.
+        formatted_results = []
+        for res in search_results:
+            formatted_results.append({
+                "metadata": {
+                    "text": res.get("text", ""),
+                    "page_number": res.get("page_number", -1),
+                    "document_url": res.get("document_url", "")
+                },
+                "score": 1 - res.get("score", 1.0) # LanceDB distance is 0-2, convert to similarity score 1-0
+            })
+
+        self.logger.info(f"Found {len(formatted_results)} similar chunks in LanceDB.")
+        return formatted_results
 
 # Global instance
 embedding_service = EmbeddingService()

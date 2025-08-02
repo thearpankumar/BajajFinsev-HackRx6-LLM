@@ -31,7 +31,6 @@ certifi==2025.7.14
     # via
     #   httpcore
     #   httpx
-    #   pinecone-client
     #   requests
 charset-normalizer==3.4.2
     # via requests
@@ -43,6 +42,8 @@ datasets==4.0.0
     # via
     #   -r requirements.in
     #   ragas
+deprecation==2.1.0
+    # via lancedb
 dill==0.3.8
     # via
     #   datasets
@@ -142,6 +143,8 @@ jsonpatch==1.33
     # via langchain-core
 jsonpointer==3.0.0
     # via jsonpatch
+lancedb==0.24.2
+    # via -r requirements.in
 langchain==0.3.27
     # via
     #   langchain-community
@@ -188,6 +191,7 @@ numpy==2.3.2
     # via
     #   -r requirements.in
     #   datasets
+    #   lancedb
     #   langchain-community
     #   pandas
     #   ragas
@@ -239,10 +243,14 @@ openai==1.98.0
     #   ragas
 orjson==3.11.1
     # via langsmith
+overrides==7.7.0
+    # via lancedb
 packaging==25.0
     # via
     #   datasets
+    #   deprecation
     #   huggingface-hub
+    #   lancedb
     #   langchain-core
     #   langsmith
     #   marshmallow
@@ -251,10 +259,6 @@ pandas==2.3.1
     # via datasets
 pillow==11.3.0
     # via sentence-transformers
-pinecone-client==6.0.0
-    # via -r requirements.in
-pinecone-plugin-interface==0.0.7
-    # via pinecone-client
 propcache==0.3.2
     # via
     #   aiohttp
@@ -272,7 +276,9 @@ protobuf==5.29.5
     #   grpcio-status
     #   proto-plus
 pyarrow==21.0.0
-    # via datasets
+    # via
+    #   datasets
+    #   lancedb
 pyasn1==0.6.1
     # via
     #   pyasn1-modules
@@ -284,6 +290,7 @@ pydantic==2.11.7
     #   -r requirements.in
     #   fastapi
     #   google-generativeai
+    #   lancedb
     #   langchain
     #   langchain-core
     #   langsmith
@@ -301,9 +308,7 @@ pymupdf==1.26.3
 pyparsing==3.2.3
     # via httplib2
 python-dateutil==2.9.0.post0
-    # via
-    #   pandas
-    #   pinecone-client
+    # via pandas
 python-docx==1.2.0
     # via -r requirements.in
 python-dotenv==1.1.1
@@ -392,6 +397,7 @@ tqdm==4.67.1
     #   datasets
     #   google-generativeai
     #   huggingface-hub
+    #   lancedb
     #   openai
     #   sentence-transformers
     #   transformers
@@ -408,7 +414,6 @@ typing-extensions==4.14.1
     #   huggingface-hub
     #   langchain-core
     #   openai
-    #   pinecone-client
     #   pydantic
     #   pydantic-core
     #   python-docx
@@ -429,9 +434,7 @@ tzdata==2025.2
 uritemplate==4.2.0
     # via google-api-python-client
 urllib3==2.5.0
-    # via
-    #   pinecone-client
-    #   requests
+    # via requests
 uvicorn[standard]==0.35.0
     # via -r requirements.in
 uvloop==0.21.0

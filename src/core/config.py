@@ -10,10 +10,9 @@ class Settings(BaseSettings):
     # OpenAI Configuration
     OPENAI_API_KEY: str
 
-    # Pinecone Configuration
-    PINECONE_API_KEY: str
-    PINECONE_ENVIRONMENT: str = "us-east-1"
-    PINECONE_INDEX_NAME: str = "hackrx-bajaj-rag"
+    # LanceDB Configuration
+    LANCEDB_PATH: str = "/tmp/lancedb"
+    LANCEDB_TABLE_NAME: str = "hackrx_bajaj_rag"
 
     # Embedding Configuration
     EMBEDDING_MODEL: str = "text-embedding-3-small"  # Fast and cost-effective

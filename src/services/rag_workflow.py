@@ -55,9 +55,10 @@ User Query: '{query}'"""
 
     async def retrieve_and_rerank_chunks(self, query: str, document_url: str, document_chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Performs hybrid search (BM25 + Pinecone) and re-ranks the results.
+        Performs hybrid search (BM25 + Pinecone) with Reciprocal Rank Fusion (RRF)
+        and re-ranks the results.
         """
-        self.logger.info(f"Starting hybrid search and re-ranking for query: '{query[:50]}...'" )
+        self.logger.info(f"Starting hybrid search and re-ranking for query: '{query[:50]}...'")
         
         chunk_texts = [chunk['text'] for chunk in document_chunks]
 
@@ -65,21 +66,49 @@ User Query: '{query}'"""
         tokenized_corpus = [doc.split(" ") for doc in chunk_texts]
         bm25 = BM25Okapi(tokenized_corpus)
         tokenized_query = query.split(" ")
-        bm25_scores = bm25.get_scores(tokenized_query)
         
-        top_bm25_indices = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:10]
-        bm25_results = [document_chunks[i] for i in top_bm25_indices]
+        bm25_scores = bm25.get_scores(tokenized_query)
+        bm25_results = sorted(
+            [(score, i) for i, score in enumerate(bm25_scores)], 
+            key=lambda x: x[0], 
+            reverse=True
+        )[:20]
 
-        # 2. Dense Search (Pinecone)
+        # 2. Dense Search (LanceDB)
         pinecone_results = await self.embedding_service.embed_and_search(
-            query=query, document_url=document_url, top_k=10
+            query=query, document_url=document_url, top_k=20
         )
-        pinecone_chunks = [{"text": res.metadata.get('text', ''), "metadata": res.metadata} for res in pinecone_results]
+        
+        # 3. Reciprocal Rank Fusion (RRF)
+        fused_scores = {}
+        k = 60  # RRF ranking constant
 
-        # 3. Combine and Deduplicate
-        combined_chunks_map = {chunk['text']: chunk for chunk in bm25_results + pinecone_chunks}
-        combined_chunks = list(combined_chunks_map.values())
-        self.logger.info(f"Combined search returned {len(combined_chunks)} unique candidates.")
+        # Process BM25 results
+        for rank, (score, doc_index) in enumerate(bm25_results):
+            doc_text = chunk_texts[doc_index]
+            if doc_text not in fused_scores:
+                fused_scores[doc_text] = 0
+            fused_scores[doc_text] += 1 / (k + rank + 1)
+
+        # Process Dense search results
+        for rank, result in enumerate(pinecone_results):
+            doc_text = result['metadata']['text']
+            if doc_text not in fused_scores:
+                fused_scores[doc_text] = 0
+            fused_scores[doc_text] += 1 / (k + rank + 1)
+
+        # Sort fused results
+        sorted_fused_results = sorted(fused_scores.items(), key=lambda item: item[1], reverse=True)
+        
+        # Get the chunk objects for the top fused results
+        combined_chunks = []
+        for text, score in sorted_fused_results[:20]: # Take top 20 fused results for re-ranking
+            # Find the original chunk data
+            original_chunk = next((chunk for chunk in document_chunks if chunk['text'] == text), None)
+            if original_chunk:
+                combined_chunks.append(original_chunk)
+
+        self.logger.info(f"Fused search returned {len(combined_chunks)} unique candidates for re-ranking.")
 
         # 4. Re-ranking with CrossEncoder
         if not combined_chunks:
