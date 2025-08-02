@@ -27,11 +27,27 @@ app = FastAPI(
 async def startup_event():
     """Actions to run on application startup."""
     start_worker()
+    
+    # Start load balancer
+    try:
+        from src.services import load_balancing_service
+        await load_balancing_service.start_load_balancer()
+        logger.info("Load balancer started")
+    except Exception as e:
+        logger.error(f"Failed to start load balancer: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Actions to run on application shutdown."""
     stop_worker()
+    
+    # Stop load balancer
+    try:
+        from src.services import load_balancing_service
+        await load_balancing_service.stop_load_balancer()
+        logger.info("Load balancer stopped")
+    except Exception as e:
+        logger.error(f"Failed to stop load balancer: {e}")
 
 def custom_openapi():
     if app.openapi_schema:
