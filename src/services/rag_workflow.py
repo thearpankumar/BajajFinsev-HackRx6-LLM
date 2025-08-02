@@ -24,19 +24,19 @@ class RAGWorkflowService:
         Clarifies and enhances a user's query using the fast Gemini Flash model.
         """
         logger.info(f"Clarifying query: '{query}'")
-        prompt = f"""You are a precision-focused document analyst specializing in insurance, legal, HR, and compliance domains. Your task is to refine user queries for precise information extraction.
+        prompt = f"""You are a precision-focused document analyst specializing in multiple domains: insurance, legal, HR, compliance, and scientific/historical texts. Your task is to refine user queries for precise information extraction.
 
 Your Task:
-Transform user queries into focused, specific queries that target exact information in documents. Prioritize precision over breadth.
+Transform user queries into focused, specific queries that target exact information in documents. Adapt your approach based on the document domain.
 
 Output Format: Provide ONLY a refined query. No explanations or additional text.
 
 Refinement Guidelines:
 - Focus on specific, exact information being requested
-- Include precise terminology and numerical details
-- Target specific clauses, sections, and policy provisions
-- Emphasize exact values, timeframes, and conditions
-- Avoid broad, expansive searches
+- Include precise terminology appropriate to the domain
+- For scientific texts: Target definitions, laws, principles, and demonstrations
+- For business documents: Target clauses, sections, and policy provisions
+- Emphasize exact values, timeframes, conditions, and methodologies
 
 Domain Examples:
 
@@ -44,17 +44,32 @@ Insurance:
 Input: "What is the grace period for premium payments?"
 Output: "What is the exact grace period duration for premium payment after the due date and what are the specific conditions?"
 
-Insurance:
-Input: "What about waiting periods?"
-Output: "What are the specific waiting period durations for different conditions and when do they apply?"
+Input: "What are the waiting periods?"
+Output: "What are the specific waiting periods for pre-existing diseases, procedures like cataract surgery, and maternity benefits?"
 
 Legal/Compliance:
 Input: "Hospital definition requirements"
-Output: "What is the exact definition of 'Hospital' and what specific criteria must be met?"
+Output: "What is the exact definition of 'Hospital' and what specific criteria must be met according to the policy?"
 
-Benefits:
-Input: "Room rent coverage details"
-Output: "What are the specific room rent limits, ICU charge caps, and percentage restrictions mentioned in the policy?"
+Input: "What are the compliance requirements?"
+Output: "What are the specific regulatory compliance requirements, standards, and audit procedures outlined?"
+
+HR/Employee:
+Input: "What are the leave policies?"
+Output: "What are the specific employee leave entitlements, duration limits, and approval procedures?"
+
+Input: "What benefits are covered?"
+Output: "What are the exact employee benefits, coverage amounts, and eligibility criteria?"
+
+Scientific/Historical:
+Input: "How does Newton define quantity of motion?"
+Output: "What is Newton's exact definition of 'quantity of motion' and how does he distinguish it from other concepts like force?"
+
+Input: "What are the three laws of motion?"
+Output: "What are Newton's three laws of motion as explicitly stated, and how are they numbered or listed in the text?"
+
+Input: "How does Newton prove the inverse square law?"
+Output: "What is Newton's mathematical demonstration and proof that gravitational force follows an inverse square relationship?"
 
 ---
 User Query: '{query}'"""
@@ -82,6 +97,9 @@ User Query: '{query}'"""
                 top_k=settings.MAX_CHUNKS_PER_QUERY
             )
             
+            # Boost early document chunks for foundational queries
+            similar_chunks = self._boost_foundational_content(query, similar_chunks, document_chunks)
+            
             logger.info(f"Retrieved {len(similar_chunks)} relevant chunks with similarities: {[f'{score:.3f}' for _, score in similar_chunks[:3]]}")
             return similar_chunks
             
@@ -94,7 +112,7 @@ User Query: '{query}'"""
     async def retrieve_relevant_chunks_optimized(self, query: str, document_chunks: List[str]) -> Tuple[List[Tuple[str, float]], Dict]:
         """
         Optimized retrieval using document-level caching and parallel processing.
-        Returns chunks and performance metrics.
+        Returns chunks and performance metrics with prioritization for foundational content.
         """
         logger.info(f"Starting optimized retrieval for {len(document_chunks)} chunks")
         start_time = asyncio.get_event_loop().time()
@@ -120,6 +138,9 @@ User Query: '{query}'"""
                     top_k=settings.MAX_CHUNKS_PER_QUERY
                 )
             
+            # Boost early document chunks for foundational queries
+            similar_chunks = self._boost_foundational_content(query, similar_chunks, document_chunks)
+            
             processing_time = asyncio.get_event_loop().time() - start_time
             metrics = {
                 'processing_time': processing_time,
@@ -137,6 +158,94 @@ User Query: '{query}'"""
             fallback_chunks = [(chunk, 0.0) for chunk in document_chunks[:settings.MAX_CHUNKS_PER_QUERY]]
             metrics = {'processing_time': 0, 'total_chunks': len(document_chunks), 'retrieved_chunks': len(fallback_chunks), 'cache_used': False}
             return fallback_chunks, metrics
+
+    def _boost_foundational_content(self, query: str, similar_chunks: List[Tuple[str, float]], document_chunks: List[str]) -> List[Tuple[str, float]]:
+        """
+        Boost similarity scores for early document chunks when query asks about foundational concepts across all domains.
+        """
+        foundational_keywords = [
+            # Universal foundational terms
+            "definition", "define", "policy", "coverage", "benefit", "provision", "section", "clause",
+            "requirement", "procedure", "guideline", "standard", "regulation", "rule", "term",
+            
+            # Insurance domain
+            "premium", "deductible", "exclusion", "claim", "waiting period", "pre-existing", 
+            "sum insured", "copayment", "network", "hospital", "treatment",
+            
+            # Legal domain  
+            "statute", "article", "subsection", "act", "code", "agreement", "contract",
+            "liability", "jurisdiction", "compliance", "violation",
+            
+            # HR domain
+            "employee", "employer", "leave", "compensation", "salary", "benefits",
+            "performance", "disciplinary", "grievance", "termination",
+            
+            # Compliance domain
+            "audit", "control", "framework", "assessment", "monitoring", "reporting",
+            "breach", "incident", "remediation", "certification",
+            
+            # Scientific domain (Newton's Principia, etc.)
+            "law", "laws", "principle", "axiom", "theorem", "motion", "force", 
+            "absolute", "relative", "quantity", "demonstration", "proposition"
+        ]
+        
+        # Check if query contains foundational keywords
+        query_lower = query.lower()
+        is_foundational_query = any(keyword in query_lower for keyword in foundational_keywords)
+        
+        if not is_foundational_query:
+            return similar_chunks
+        
+        # Boost early chunks (first 20% of document) for foundational queries
+        total_chunks = len(document_chunks)
+        early_chunk_threshold = max(5, total_chunks // 5)  # First 20% or at least 5 chunks
+        
+        boosted_chunks = []
+        chunk_content_to_index = {chunk: idx for idx, chunk in enumerate(document_chunks)}
+        
+        for chunk_text, similarity in similar_chunks:
+            chunk_index = chunk_content_to_index.get(chunk_text, total_chunks)
+            
+            # Apply boost to early chunks for foundational queries
+            if chunk_index < early_chunk_threshold:
+                # Check for foundational content patterns across all domains
+                strong_patterns = [
+                    # Universal foundational patterns
+                    "definition", "defined as", "means", "shall mean", "for the purpose",
+                    
+                    # Insurance patterns
+                    "policy terms", "coverage includes", "benefit amount", "waiting period", 
+                    "exclusions", "pre-existing", "sum insured",
+                    
+                    # Legal patterns  
+                    "section", "clause", "article", "subsection", "provision", "whereas",
+                    "definitions:", "terms and conditions",
+                    
+                    # HR patterns
+                    "employee handbook", "policies and procedures", "code of conduct", 
+                    "terms of employment", "benefits overview",
+                    
+                    # Compliance patterns
+                    "regulatory requirements", "compliance framework", "standards", 
+                    "procedures manual", "guidelines",
+                    
+                    # Scientific patterns
+                    "law i", "law ii", "law iii", "axiom", "theorem", "proposition", 
+                    "definition i", "definition ii", "scholium"
+                ]
+                
+                if any(pattern in chunk_text.lower() for pattern in strong_patterns):
+                    similarity = min(1.0, similarity + 0.15)  # Strong boost for explicit foundational content
+                else:
+                    similarity = min(1.0, similarity + 0.05)  # Moderate boost for early content
+            
+            boosted_chunks.append((chunk_text, similarity))
+        
+        # Re-sort by boosted similarity
+        boosted_chunks.sort(key=lambda x: x[1], reverse=True)
+        
+        logger.info(f"Applied foundational content boosting for query: '{query[:50]}...'")
+        return boosted_chunks
 
     async def process_large_document_hierarchically(self, document_text: str, query: str) -> Tuple[List[str], Dict]:
         """
@@ -265,31 +374,29 @@ User Query: '{query}'"""
         if relevant_chunks:
             logger.info(f"🎯 Best relevance score: {relevant_chunks[0][1]:.3f}")
 
-        system_prompt = """You are a precise document analyst specializing in insurance, legal, HR, and compliance domains. Your mission is to provide accurate, factual answers directly from the source material.
+        system_prompt = """You are a helpful document analyst. Provide concise, conversational answers across all domains.
 
-CRITICAL RULES:
-- Provide complete, accurate answers (not limited to 1-2 sentences)
-- Extract exact numerical values, dates, and specific terms as they appear
-- Include all relevant conditions, exceptions, and qualifications
-- Reference specific excerpts when providing information
-- Maintain professional, authoritative tone
-- If information is not found, clearly state this
-
-APPROACH:
-1. Look for direct, explicit information first
-2. Include all relevant details and conditions
-3. Use exact terminology from the documents
-4. Provide complete context for numerical values
-5. Include any exceptions or special conditions mentioned
-
-Focus on PRECISION and COMPLETENESS over creativity."""
+RULES:
+- Maximum 1-2 sentences
+- Start with Yes/No for existence/coverage questions
+- Use simple, direct language
+- Include key numbers/timeframes only
+- Summarize main points, skip detailed conditions"""
 
         user_prompt = f"""Document Excerpts:
 {context}
 
 Question: {clarified_query}
 
-HACKATHON CHALLENGE: Extract ANY useful information related to this question. Be creative in finding connections and provide a helpful 1-2 sentence answer. Reference excerpt numbers."""
+CONCISE ANSWER: Provide a brief, conversational answer in 1-2 sentences. Start with Yes/No if applicable.
+
+CRITICAL: For foundational questions (definitions, policies, procedures, laws, principles):
+1. Look for numbered sections, definitions, policy terms, and formal statements
+2. Check introductory sections, terms & conditions, and regulatory content  
+3. Look for explicit coverage details, benefit amounts, waiting periods, and procedures
+4. Search for compliance requirements, standards, and guidelines
+5. If you find ANY relevant content, summarize it - don't claim "not found"
+6. Only say "not found" if you've thoroughly checked all excerpts"""
 
         try:
             response = await OPENAI_CLIENT.chat.completions.create(
@@ -299,7 +406,7 @@ HACKATHON CHALLENGE: Extract ANY useful information related to this question. Be
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.1,  # Higher precision
-                max_tokens=400,   # Allow more complete answers
+                max_tokens=75,    # Concise but complete responses
                 top_p=0.9        # More focused responses
             )
             
@@ -322,29 +429,22 @@ HACKATHON CHALLENGE: Extract ANY useful information related to this question. Be
         
         combined_context = "\n\n".join(all_content)
 
-        system_prompt = """CREATIVE SYNTHESIS MODE: You are an advanced AI that can connect dots between seemingly unrelated information. Your goal is to synthesize an answer even from fragmentary or indirect information.
+        system_prompt = """CREATIVE SYNTHESIS: Connect information fragments across any domain.
 
-INNOVATION RULES:
-- Extract 1-2 sentences that provide value to the user
-- Connect concepts creatively but factually
-- Use fragments to build a coherent partial answer
-- Look for patterns, themes, or related topics
-- Make reasonable connections between different parts
-- NEVER give up - always find something useful
-
-SYNTHESIS TECHNIQUES:
-1. Connect related concepts across fragments
-2. Use contextual clues and implications
-3. Combine partial information into insights
-4. Reference the source fragments clearly"""
+RULES:
+- Maximum 1-2 sentences
+- Start with Yes/No if applicable
+- Use simple, conversational language
+- Focus on main points, skip detailed conditions"""
 
         user_prompt = f"""Information Fragments:
 {combined_context}
 
-ORIGINAL QUESTION: {original_query}
-CLARIFIED QUESTION: {clarified_query}
+Question: {original_query}
 
-CREATIVE CHALLENGE: Synthesize these fragments to provide ANY useful insight related to the question. Even partial or tangential information is valuable. Create 1-2 sentences that help answer the question using available fragments."""
+BRIEF ANSWER: Connect fragments for a concise, conversational answer in 1-2 sentences. Start with Yes/No if applicable.
+
+CRITICAL: For foundational concepts (definitions, policies, laws, principles, procedures), look for numbered sections, policy terms, coverage details, and explicit statements. Only claim "not found" if genuinely absent across all excerpts."""
 
         try:
             response = await OPENAI_CLIENT.chat.completions.create(
@@ -354,7 +454,7 @@ CREATIVE CHALLENGE: Synthesize these fragments to provide ANY useful insight rel
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.8,  # High creativity for synthesis
-                max_tokens=250,
+                max_tokens=75,    # Concise but complete responses
                 top_p=0.95
             )
             
@@ -370,21 +470,13 @@ CREATIVE CHALLENGE: Synthesize these fragments to provide ANY useful insight rel
         """Generate answer through conceptual inference and reasoning"""
         logger.info("🧠 CONCEPTUAL INFERENCE MODE activated")
 
-        system_prompt = """CONCEPTUAL INFERENCE MODE: You are an expert at making reasonable inferences from limited information. Use logical reasoning and domain knowledge to provide useful insights.
+        system_prompt = """CONCEPTUAL INFERENCE: Make logical deductions across any document domain.
 
-INFERENCE RULES:
-- Make reasonable deductions from available information
-- Use domain knowledge to fill gaps responsibly  
-- Connect abstract concepts to concrete questions
-- Provide context-aware interpretations
-- Reference what you can infer from the available content
-- Format: Exactly 1-2 sentences
-
-REASONING APPROACH:
-1. Identify key concepts in the available content
-2. Apply domain knowledge and logical reasoning
-3. Make conservative but helpful inferences
-4. Clearly indicate when making reasonable deductions"""
+RULES:
+- Maximum 1-2 sentences
+- Start with Yes/No if applicable
+- Use simple, conversational language
+- Focus on main points, skip detailed conditions"""
 
         # Extract key concepts and themes from chunks
         key_content = []
@@ -396,9 +488,11 @@ REASONING APPROACH:
         user_prompt = f"""Available Content:
 {inference_context}
 
-QUESTION: {original_query}
+Question: {original_query}
 
-INFERENCE TASK: Using the available content and reasonable domain knowledge, what can you logically infer that relates to this question? Provide 1-2 sentences with your best reasoned response, clearly indicating any inferences made."""
+BRIEF ANSWER: Make a concise logical deduction in 1-2 sentences. Start with Yes/No if applicable.
+
+CRITICAL: For foundational concepts (definitions, policies, laws, principles, procedures), look carefully for any relevant content including policy terms, coverage details, and regulatory requirements before claiming "not found"."""
 
         try:
             response = await OPENAI_CLIENT.chat.completions.create(
@@ -408,7 +502,7 @@ INFERENCE TASK: Using the available content and reasonable domain knowledge, wha
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.6,
-                max_tokens=200,
+                max_tokens=75,   # Concise but complete responses
                 top_p=0.9
             )
             
@@ -427,7 +521,7 @@ INFERENCE TASK: Using the available content and reasonable domain knowledge, wha
         # This is a placeholder for when no chunks are found at all
         # In a real scenario, you might want to do a broader search with lower similarity thresholds
         
-        fallback_response = f"""Based on document analysis, while specific information about '{original_query}' was not directly located, the document contains related content that may require deeper analysis or different search terms to fully address this question."""
+        fallback_response = f"""Specific information about '{original_query}' was not found in the analyzed document. The document may require different search terms or the information might not be covered."""
         
         logger.info("🔍 Document-wide search completed")
         return fallback_response
