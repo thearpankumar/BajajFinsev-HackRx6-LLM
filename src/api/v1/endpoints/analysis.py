@@ -43,10 +43,17 @@ async def run_analysis(
         file_content = await ingestion_service.download_document(document_url)
         file_size_bytes = len(file_content)
         
-        is_large_document = file_size_bytes >= settings.LARGE_DOCUMENT_THRESHOLD
-        strategy = "hierarchical" if is_large_document and settings.ENABLE_HIERARCHICAL_PROCESSING else "standard"
+        # Only use hierarchical processing for extremely large documents and if explicitly enabled
+        hierarchical_threshold = settings.HIERARCHICAL_THRESHOLD_MB * 1024 * 1024  # Convert MB to bytes
+        is_extremely_large = file_size_bytes >= hierarchical_threshold
+        strategy = "hierarchical" if is_extremely_large and settings.ENABLE_HIERARCHICAL_PROCESSING else "standard"
         
         logger.info(f"📄 Document size: {file_size_bytes/1024/1024:.2f}MB. Strategy: {strategy}")
+        
+        if strategy == "hierarchical":
+            logger.info(f"⚠️  Using hierarchical processing for extremely large document ({settings.HIERARCHICAL_THRESHOLD_MB}MB+)")
+        else:
+            logger.info("✅ Using standard fast processing (recommended for most documents)")
 
         # Step 2: Choose and execute the appropriate workflow
         if strategy == "hierarchical":
@@ -62,7 +69,20 @@ async def run_analysis(
             performance_monitor.end_operation("document_processing", document_size=len(document_text), success=True)
 
         else: # Standard workflow
-            document_chunks = await ingestion_service.process_and_extract(url=document_url)
+            # Use optimized chunk size for fast mode
+            if settings.ENABLE_FAST_MODE:
+                chunk_size = settings.FAST_MODE_CHUNK_SIZE
+                overlap = chunk_size // 10  # 10% overlap for fast mode
+                logger.info(f"🚀 Fast mode enabled: using {chunk_size} char chunks with {overlap} overlap")
+            else:
+                chunk_size = settings.CHUNK_SIZE
+                overlap = settings.CHUNK_OVERLAP
+            
+            document_chunks = await ingestion_service.process_and_extract(
+                url=document_url,
+                chunk_size=chunk_size,
+                overlap=overlap
+            )
             if not document_chunks:
                 raise HTTPException(status_code=400, detail="No text could be extracted from the document.")
 
@@ -71,7 +91,7 @@ async def run_analysis(
                 questions=request.questions,
                 document_chunks=document_chunks
             )
-            performance_monitor.end_operation("document_processing", document_size=sum(len(c) for c in document_chunks), success=True)
+            performance_monitor.end_operation("document_processing", document_size=sum(len(c['text']) for c in document_chunks), success=True)
 
         # Step 3: Compile and return the response
         # Extract just the answer strings for the final response

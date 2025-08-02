@@ -2,23 +2,22 @@ import logging
 import re
 from typing import List, Dict, Any
 
-# NLTK imports for metadata extraction
-try:
-    import nltk
-    from nltk.tokenize import word_tokenize
-    from nltk.tag import pos_tag
-    from nltk.chunk import ne_chunk
-    from nltk.data import find
-    NLTK_AVAILABLE = True
-except ImportError:
-    NLTK_AVAILABLE = False
-
-# SpaCy imports for metadata extraction
+# SpaCy imports for metadata extraction (optional)
 try:
     import spacy
-    SPACY_AVAILABLE = True
+    # Try to load the model to check if it's available
+    try:
+        spacy.load("en_core_web_sm")
+        SPACY_AVAILABLE = True
+        SPACY_MODEL_AVAILABLE = True
+    except OSError:
+        SPACY_AVAILABLE = True
+        SPACY_MODEL_AVAILABLE = False
+        logging.getLogger(__name__).warning("SpaCy model 'en_core_web_sm' not found. Install with: python -m spacy download en_core_web_sm")
 except ImportError:
     SPACY_AVAILABLE = False
+    SPACY_MODEL_AVAILABLE = False
+    spacy = None
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +30,15 @@ class MetadataExtractionService:
     def __init__(self):
         self.logger = logger
         self._spacy_nlp = None
+        
+        # Initialize SpaCy model if available
+        if SPACY_AVAILABLE and SPACY_MODEL_AVAILABLE:
+            try:
+                self._spacy_nlp = spacy.load("en_core_web_sm")
+                self.logger.info("SpaCy model loaded successfully for metadata extraction")
+            except Exception as e:
+                self.logger.warning(f"Failed to load SpaCy model: {e}")
+                self._spacy_nlp = None
     
     def extract_metadata_from_chunk(self, chunk_text: str) -> Dict[str, Any]:
         """
@@ -64,89 +72,86 @@ class MetadataExtractionService:
     def _extract_entities(self, text: str) -> List[Dict[str, str]]:
         """
         Extract named entities (people, organizations, locations, etc.) from text.
+        Uses SpaCy if available, otherwise falls back to simple regex patterns.
         """
         entities = []
         
-        if NLTK_AVAILABLE:
+        # Try SpaCy first if available
+        if SPACY_AVAILABLE and SPACY_MODEL_AVAILABLE and self._spacy_nlp:
             try:
-                # Download required NLTK data if not present
-                try:
-                    find('tokenizers/punkt')
-                    find('taggers/averaged_perceptron_tagger')
-                    find('chunkers/maxent_ne_chunker')
-                    find('corpora/words')
-                except LookupError:
-                    nltk.download('punkt', quiet=True)
-                    nltk.download('averaged_perceptron_tagger', quiet=True)
-                    nltk.download('maxent_ne_chunker', quiet=True)
-                    nltk.download('words', quiet=True)
-                
-                # Tokenize and tag parts of speech
-                tokens = word_tokenize(text)
-                pos_tags = pos_tag(tokens)
-                
-                # Extract named entities
-                tree = ne_chunk(pos_tags)
-                
-                for subtree in tree:
-                    if hasattr(subtree, 'label'):
-                        entity_name = ' '.join([token for token, pos in subtree.leaves()])
-                        entity_type = subtree.label()
-                        entities.append({
-                            "name": entity_name,
-                            "type": entity_type
-                        })
-            except Exception as e:
-                self.logger.warning(f"NLTK entity extraction failed: {e}")
-        
-        if SPACY_AVAILABLE and not entities:
-            try:
-                # Load SpaCy model if not already loaded
-                if not self._spacy_nlp:
-                    try:
-                        self._spacy_nlp = spacy.load("en_core_web_sm")
-                    except OSError:
-                        self.logger.warning("SpaCy model not found")
-                        return entities
-                
                 doc = self._spacy_nlp(text)
                 for ent in doc.ents:
                     entities.append({
-                        "name": ent.text,
+                        "name": ent.text.strip(),
                         "type": ent.label_
                     })
+                return entities
             except Exception as e:
                 self.logger.warning(f"SpaCy entity extraction failed: {e}")
+        
+        # Fallback to simple regex-based entity extraction
+        try:
+            # Extract potential organization names (capitalized words)
+            org_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:Inc|Corp|LLC|Ltd|Company|Co)\.?)\b'
+            orgs = re.findall(org_pattern, text)
+            for org in orgs:
+                entities.append({"name": org.strip(), "type": "ORG"})
+            
+            # Extract potential person names (Title + Name pattern)
+            person_pattern = r'\b(?:Mr|Mrs|Ms|Dr|Prof)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b'
+            persons = re.findall(person_pattern, text)
+            for person in persons:
+                entities.append({"name": person.strip(), "type": "PERSON"})
+            
+            # Extract dates
+            date_pattern = r'\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b'
+            dates = re.findall(date_pattern, text, re.IGNORECASE)
+            for date in dates:
+                entities.append({"name": date.strip(), "type": "DATE"})
+            
+            # Extract monetary amounts
+            money_pattern = r'\$\d+(?:,\d{3})*(?:\.\d{2})?|\b\d+(?:,\d{3})*(?:\.\d{2})?\s*(?:dollars?|USD|INR|rupees?)\b'
+            amounts = re.findall(money_pattern, text, re.IGNORECASE)
+            for amount in amounts:
+                entities.append({"name": amount.strip(), "type": "MONEY"})
+                
+        except Exception as e:
+            self.logger.warning(f"Regex entity extraction failed: {e}")
         
         return entities
     
     def _extract_concepts(self, text: str) -> List[str]:
         """
-        Extract key concepts from text using keyword extraction.
+        Extract key concepts from text using simple keyword extraction and regex-based sentence splitting.
         """
         concepts = []
         
-        # Simple approach: extract noun phrases and important terms
-        if NLTK_AVAILABLE:
-            try:
-                tokens = word_tokenize(text.lower())
-                pos_tags = pos_tag(tokens)
+        try:
+            # Use simple regex for sentence tokenization (fast and effective for business docs)
+            sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text)
+            
+            # Extract important terms and phrases
+            for sentence in sentences:
+                if not sentence.strip():
+                    continue
+                    
+                # Extract capitalized phrases (potential concepts)
+                cap_phrases = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', sentence)
+                concepts.extend(cap_phrases)
                 
-                # Extract noun phrases (NN* combinations)
-                current_phrase = []
-                for word, pos in pos_tags:
-                    if pos.startswith('NN'):
-                        current_phrase.append(word)
-                    else:
-                        if current_phrase:
-                            concepts.append(' '.join(current_phrase))
-                            current_phrase = []
-                
-                # Add any remaining phrase
-                if current_phrase:
-                    concepts.append(' '.join(current_phrase))
-            except Exception as e:
-                self.logger.warning(f"NLTK concept extraction failed: {e}")
+                # Extract technical terms (words with numbers or special patterns)
+                tech_terms = re.findall(r'\b[a-zA-Z]+\d+[a-zA-Z]*\b|\b[A-Z]{2,}\b', sentence)
+                concepts.extend(tech_terms)
+            
+            # Remove duplicates and filter short concepts
+            concepts = list(set([c.strip() for c in concepts if len(c.strip()) > 2]))
+            
+            # Limit to top 20 concepts
+            return concepts[:20]
+            
+        except Exception as e:
+            self.logger.warning(f"Concept extraction failed: {e}")
+            return []
         
         # Fallback: comprehensive keyword extraction for business domains
         if not concepts:

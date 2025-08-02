@@ -80,6 +80,6 @@ jobs:
 
           # Restart the services with the new image
           echo ">>> Restarting services..."
-          docker compose up -d --force-recreate
+          docker compose up -d --force-recreate --remove-orphans
           
           echo ">>> Deployment complete!"
