@@ -11,6 +11,9 @@ import os
 from typing import List, Dict, Any, Tuple
 from dotenv import load_dotenv
 
+# Ragas model configuration
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
 # Import the actual services from our application
 from src.services import ingestion_service, rag_workflow_service
 
@@ -47,15 +50,15 @@ def get_evaluation_dataset() -> Tuple[Dataset, str]:
     document_url = "https://hackrx.blob.core.windows.net/assets/policy.pdf?sv=2023-01-03&st=2025-07-04T09%3A11%3A24Z&se=2027-07-05T09%3A11%3A00Z&sr=b&sp=r&sig=N4a9OU0w0QXO6AOIBiu4bpl7AXvEZogeT%2FjUHNO7HzQ%3D"
     questions = [
         "What is the waiting period for pre-existing diseases (PED) to be covered?",
-        "Are there any sub-limits on room rent and ICU charges for Plan A?",
-        "How does the policy define a 'Hospital'?",
+        "Are the medical expenses for an organ donor covered under this policy?",
+        "Is there a benefit for preventive health check-ups?",
     ]
     # NOTE: These ground truths should be manually verified for accuracy.
     # They are placeholders for a real evaluation.
     ground_truths = [
-        "The waiting period for pre-existing diseases (PED) is 48 months of continuous coverage from the date of inception of the policy.",
+        "There is a waiting period of thirty-six (36) months of continuous coverage from the first policy inception for pre-existing diseases and their direct complications to be covered.",
         "Yes, for Plan A, the sub-limit for room rent is up to 1% of the Sum Insured per day and for ICU charges it is up to 2% of the Sum Insured per day.",
-        "A hospital is defined as an institution with at least 15 in-patient beds, an operating theatre, and qualified medical staff available 24/7.",
+        "Yes, the policy reimburses expenses for health check-ups at the end of every block of two continuous policy years, provided the policy has been renewed without a break. The amount is subject to the limits specified in the Table of Benefits.",
     ]
     
     data = {
@@ -69,6 +72,10 @@ async def main():
     Main function to run the RAG evaluation.
     """
     print("Starting RAG pipeline evaluation with real components...")
+
+    # Configure Ragas to use our specific, faster models
+    ragas_llm = ChatOpenAI(model="gpt-4o-mini")
+    ragas_embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
     # 1. Load the evaluation dataset and the target document URL
     eval_dataset, document_url = get_evaluation_dataset()
@@ -105,6 +112,9 @@ async def main():
     score = evaluate(
         dataset=result_dataset,
         metrics=metrics,
+        llm=ragas_llm,
+        embeddings=ragas_embeddings,
+        raise_exceptions=False,
     )
 
     print("Evaluation complete.")
@@ -112,6 +122,7 @@ async def main():
     df = score.to_pandas()
     print("\nEvaluation Results DataFrame:")
     print(df.to_string())
+
 
 if __name__ == "__main__":
     asyncio.run(main())

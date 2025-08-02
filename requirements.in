@@ -14,7 +14,7 @@ aiohttp
 # AI & Machine Learning Clients/Libraries
 google-generativeai
 openai
-pinecone-client
+lancedb
 sentence-transformers
 rank-bm25
 numpy
