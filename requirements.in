@@ -11,6 +11,12 @@ python-dotenv
 # HTTP Client
 aiohttp
 
+# AI & Machine Learning Core
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+transformers
+datasets
+
 # AI & Machine Learning Clients/Libraries
 google-generativeai
 openai
@@ -24,6 +30,12 @@ scikit-learn
 PyMuPDF
 python-docx
 
+# NLP Libraries
+nltk
+spacy
+
 # Evaluation Framework
 ragas
-datasets
+
+# System Monitoring
+psutil

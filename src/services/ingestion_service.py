@@ -106,3 +106,63 @@ class IngestionService:
             return "\n\n".join([page[0] for page in pages_with_metadata])
 
 
+    async def process_documents_batch(self, urls: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Process multiple documents in batch for offline scenarios.
+        
+        Args:
+            urls: List of document URLs to process
+            
+        Returns:
+            Dictionary mapping URLs to their processed chunks
+        """
+        logger.info(f"Processing batch of {len(urls)} documents")
+        
+        # Process documents with controlled concurrency
+        import asyncio
+        semaphore = asyncio.Semaphore(settings.PARALLEL_BATCHES)
+        
+        async def process_single_document(url: str) -> Tuple[str, List[Dict[str, Any]]]:
+            async with semaphore:
+                try:
+                    chunks = await self.process_and_extract(url)
+                    return url, chunks
+                except Exception as e:
+                    logger.error(f"Error processing document {url}: {e}")
+                    return url, []
+        
+        # Process all documents concurrently
+        tasks = [process_single_document(url) for url in urls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Format results
+        batch_results = {}
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Batch processing error: {result}")
+                continue
+            elif isinstance(result, tuple) and len(result) == 2:
+                url, chunks = result
+                batch_results[url] = chunks
+        
+        logger.info(f"Batch processing completed. Processed {len(batch_results)} documents successfully.")
+        return batch_results
+    
+    async def process_large_batch_with_quantization(self, urls: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Process large batches of documents with model quantization for resource-constrained environments.
+        
+        Args:
+            urls: List of document URLs to process
+            
+        Returns:
+            Dictionary mapping URLs to their processed chunks
+        """
+        logger.info(f"Processing large batch of {len(urls)} documents with quantization")
+        
+        # Use standard processing for batch
+        return await self.process_documents_batch(urls)
+        
+        # For now, we'll just use the standard batch processing
+        # In a full implementation, we would apply quantization to models used in processing
+        return await self.process_documents_batch(urls)

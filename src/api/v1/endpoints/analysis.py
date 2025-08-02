@@ -6,7 +6,7 @@ import json
 
 from src.schemas.analysis import AnalysisRequest, AnalysisResponse
 from src.core.security import validate_bearer_token
-from src.services import ingestion_service, rag_workflow_service, text_extraction_service
+from src.services import ingestion_service, rag_workflow_service
 from src.services.streaming_service import streaming_service
 from src.utils.performance_monitor import performance_monitor
 from src.core.config import settings

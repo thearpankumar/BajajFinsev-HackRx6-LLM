@@ -1,7 +1,6 @@
 import logging
-import asyncio
 import hashlib
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from openai import AsyncOpenAI
 
 from src.core.config import settings
@@ -22,6 +21,11 @@ class EmbeddingService:
         self.lancedb_service.create_table_if_not_exists(
             table_name=settings.LANCEDB_TABLE_NAME
         )
+        
+        # Log table statistics
+        stats = self.lancedb_service.get_table_stats(settings.LANCEDB_TABLE_NAME)
+        if stats["exists"]:
+            self.logger.info(f"LanceDB table '{settings.LANCEDB_TABLE_NAME}' ready with {stats['row_count']} existing vectors.")
 
     async def generate_embedding(self, text: str, model: str = None) -> List[float]:
         """
@@ -72,13 +76,25 @@ class EmbeddingService:
         """
         self.logger.info(f"Starting embedding and upsert for {len(document_chunks)} chunks from {document_url}")
         
+        # Extract metadata for each chunk if not already present
+        for chunk in document_chunks:
+            if 'entities' not in chunk['metadata']:
+                # Import metadata extraction service
+                from src.services.metadata_extraction_service import metadata_extraction_service
+                # Extract advanced metadata
+                metadata = metadata_extraction_service.extract_metadata_from_chunk(chunk['text'])
+                chunk['metadata'].update(metadata)
+        
         chunk_texts = [chunk['text'] for chunk in document_chunks]
         embeddings = await self.generate_embeddings_batch(chunk_texts)
         
-        # Add document_url to each chunk's metadata
+        # Add document_url and other metadata to each chunk
         for chunk in document_chunks:
             chunk['metadata']['document_url'] = document_url
             chunk['metadata']['text'] = chunk['text']
+            # Add timestamp for versioning
+            import time
+            chunk['metadata']['indexed_at'] = time.time()
 
         self.lancedb_service.upsert_chunks(
             table_name=settings.LANCEDB_TABLE_NAME,
@@ -99,15 +115,27 @@ class EmbeddingService:
         
         query_embedding = await self.generate_embedding(query)
         
-        # LanceDB uses a SQL-like WHERE clause for filtering
-        filter_str = f"document_url = '{document_url}'"
+        # Generate document hash for hierarchical querying
+        document_hash = hashlib.sha256(document_url.encode('utf-8')).hexdigest()
         
-        search_results = self.lancedb_service.query(
+        # Use hierarchical querying for better performance on large datasets
+        search_results = self.lancedb_service.query_hierarchical(
             table_name=settings.LANCEDB_TABLE_NAME,
             vector=query_embedding,
             top_k=top_k,
-            filter_str=filter_str
+            document_hash=document_hash
         )
+        
+        # If no results from hierarchical query, fall back to regular query
+        if not search_results:
+            # LanceDB uses a SQL-like WHERE clause for filtering
+            filter_str = f"document_url = '{document_url}'"
+            search_results = self.lancedb_service.query(
+                table_name=settings.LANCEDB_TABLE_NAME,
+                vector=query_embedding,
+                top_k=top_k,
+                filter_str=filter_str
+            )
         
         # The result from lancedb_service is already a list of dictionaries.
         # We need to reshape it slightly to match the expected format downstream.
@@ -117,7 +145,13 @@ class EmbeddingService:
                 "metadata": {
                     "text": res.get("text", ""),
                     "page_number": res.get("page_number", -1),
-                    "document_url": res.get("document_url", "")
+                    "document_url": res.get("document_url", ""),
+                    "section_type": res.get("section_type", ""),
+                    "section_summary": res.get("section_summary", ""),
+                    "entities": res.get("entities", []),
+                    "concepts": res.get("concepts", []),
+                    "categories": res.get("categories", []),
+                    "keywords": res.get("keywords", [])
                 },
                 "score": 1 - res.get("score", 1.0) # LanceDB distance is 0-2, convert to similarity score 1-0
             })
