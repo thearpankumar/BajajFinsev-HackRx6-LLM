@@ -323,36 +323,38 @@ class EmbeddingService:
         chunk_scores = list(zip(chunks, similarities))
         chunk_scores.sort(key=lambda x: x[1], reverse=True)
         
-        # INNOVATION: Adaptive threshold approach for hackathon
+        # PRECISION: Strict threshold approach for accuracy
         if len(chunk_scores) > 0:
             best_score = chunk_scores[0][1]
             
-            # Use generous thresholds based on best match quality
-            if best_score > 0.7:  # High similarity
-                threshold = 0.4  # Include anything reasonably related
-            elif best_score > 0.5:  # Medium similarity
-                threshold = 0.25  # Be more generous
-            else:  # Low similarity - be very generous
-                threshold = 0.1  # Include almost anything with minimal relation
+            # Use strict thresholds for higher precision
+            if best_score > 0.8:  # Very high similarity
+                threshold = 0.5  # Keep only highly relevant chunks
+            elif best_score > 0.6:  # Good similarity
+                threshold = 0.35  # Moderately strict
+            elif best_score > 0.4:  # Medium similarity
+                threshold = 0.25  # Somewhat strict
+            else:  # Low similarity
+                threshold = 0.15  # Still maintain some standards
             
-            # Include all chunks above threshold, up to top_k * 1.5 for more content
-            generous_limit = min(int(top_k * 1.5), len(chunk_scores))
+            # Filter chunks above threshold, prefer quality over quantity
+            precision_limit = min(top_k, len(chunk_scores))
             qualifying_chunks = [
-                (chunk, score) for chunk, score in chunk_scores[:generous_limit] 
+                (chunk, score) for chunk, score in chunk_scores[:precision_limit] 
                 if score >= threshold
             ]
             
-            # If we still don't have enough, take the top chunks regardless of threshold
-            if len(qualifying_chunks) < top_k // 2:
-                self.logger.debug(f"🔄 Threshold too strict, taking top {top_k} chunks regardless")
-                qualifying_chunks = chunk_scores[:top_k]
+            # If we have very few qualifying chunks, take at least top 3-5 for context
+            if len(qualifying_chunks) < 3 and len(chunk_scores) >= 3:
+                self.logger.debug(f"⚠️ Only {len(qualifying_chunks)} chunks above threshold, taking top 5 for context")
+                qualifying_chunks = chunk_scores[:min(5, len(chunk_scores))]
             
             top_chunks = qualifying_chunks[:top_k]
         else:
             top_chunks = []
         
         if top_chunks:
-            self.logger.debug(f"✅ Generous retrieval: {len(top_chunks)} chunks (best: {top_chunks[0][1]:.3f}, worst: {top_chunks[-1][1]:.3f})")
+            self.logger.debug(f"✅ Precision retrieval: {len(top_chunks)} chunks (best: {top_chunks[0][1]:.3f}, worst: {top_chunks[-1][1]:.3f})")
         else:
             self.logger.debug("❌ No chunks found")
         

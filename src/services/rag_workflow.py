@@ -24,37 +24,37 @@ class RAGWorkflowService:
         Clarifies and enhances a user's query using the fast Gemini Flash model.
         """
         logger.info(f"Clarifying query: '{query}'")
-        prompt = f"""You are a business document analysis specialist with expertise in insurance, legal, HR, and compliance domains. Transform user queries into comprehensive, domain-aware prompts for document analysis.
+        prompt = f"""You are a precision-focused document analyst specializing in insurance, legal, HR, and compliance domains. Your task is to refine user queries for precise information extraction.
 
 Your Task:
-Convert user queries into detailed prompts that extract relevant business information from document excerpts, considering industry-specific terminology and regulatory requirements.
+Transform user queries into focused, specific queries that target exact information in documents. Prioritize precision over breadth.
 
-Output Format: Provide ONLY an enhanced query prompt. No explanations or additional text.
+Output Format: Provide ONLY a refined query. No explanations or additional text.
 
-Enhancement Guidelines:
-- Add domain-specific terminology (insurance, legal, HR, compliance)
-- Include regulatory and compliance considerations
-- Target specific document sections, clauses, and policy details
-- Focus on business-critical information extraction
-- Include related concepts, procedures, and requirements
+Refinement Guidelines:
+- Focus on specific, exact information being requested
+- Include precise terminology and numerical details
+- Target specific clauses, sections, and policy provisions
+- Emphasize exact values, timeframes, and conditions
+- Avoid broad, expansive searches
 
 Domain Examples:
 
 Insurance:
-Input: "What about car insurance claims?"
-Output: "Extract from document excerpts: automobile insurance claims procedures, filing requirements, documentation needed, processing timelines, coverage limits, deductibles, approval criteria, claim settlement processes, exclusions, and related policy provisions."
+Input: "What is the grace period for premium payments?"
+Output: "What is the exact grace period duration for premium payment after the due date and what are the specific conditions?"
 
-HR/Employment:
-Input: "Employee termination process"
-Output: "Identify from document excerpts: employee termination procedures, documentation requirements, compliance steps, final pay processes, benefits termination, COBRA notifications, employment law requirements, severance policies, and related HR procedures."
+Insurance:
+Input: "What about waiting periods?"
+Output: "What are the specific waiting period durations for different conditions and when do they apply?"
 
 Legal/Compliance:
-Input: "Data privacy requirements"
-Output: "Locate from document excerpts: data privacy policies, compliance requirements, regulatory obligations, data handling procedures, breach notification processes, consent mechanisms, retention policies, and related legal provisions."
+Input: "Hospital definition requirements"
+Output: "What is the exact definition of 'Hospital' and what specific criteria must be met?"
 
-Insurance/Benefits:
-Input: "Health coverage details"
-Output: "Extract from document excerpts: health insurance coverage details, benefit limits, co-pays, deductibles, covered services, exclusions, pre-authorization requirements, provider networks, claim procedures, and related policy terms."
+Benefits:
+Input: "Room rent coverage details"
+Output: "What are the specific room rent limits, ICU charge caps, and percentage restrictions mentioned in the policy?"
 
 ---
 User Query: '{query}'"""
@@ -265,22 +265,24 @@ User Query: '{query}'"""
         if relevant_chunks:
             logger.info(f"🎯 Best relevance score: {relevant_chunks[0][1]:.3f}")
 
-        system_prompt = """You are an innovative document analyst with advanced synthesis capabilities. Your mission is to ALWAYS find useful information, even from partial or indirect sources.
+        system_prompt = """You are a precise document analyst specializing in insurance, legal, HR, and compliance domains. Your mission is to provide accurate, factual answers directly from the source material.
 
 CRITICAL RULES:
-- Answer length: EXACTLY 1-2 sentences only
-- NEVER say "information not found" unless absolutely impossible
-- Be creative and generous in connecting information to the question
-- Use related concepts, partial matches, and indirect references
-- Make reasonable inferences from available data
+- Provide complete, accurate answers (not limited to 1-2 sentences)
+- Extract exact numerical values, dates, and specific terms as they appear
+- Include all relevant conditions, exceptions, and qualifications
+- Reference specific excerpts when providing information
+- Maintain professional, authoritative tone
+- If information is not found, clearly state this
 
 APPROACH:
-1. Look for direct answers first
-2. If no direct answer, find related concepts
-3. Connect partial information creatively
-4. Reference specific excerpts clearly
+1. Look for direct, explicit information first
+2. Include all relevant details and conditions
+3. Use exact terminology from the documents
+4. Provide complete context for numerical values
+5. Include any exceptions or special conditions mentioned
 
-You are competing in a hackathon - BE HELPFUL and INNOVATIVE!"""
+Focus on PRECISION and COMPLETENESS over creativity."""
 
         user_prompt = f"""Document Excerpts:
 {context}
@@ -296,9 +298,9 @@ HACKATHON CHALLENGE: Extract ANY useful information related to this question. Be
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.7,  # Higher creativity
-                max_tokens=200,
-                top_p=0.95      # More diverse responses
+                temperature=0.1,  # Higher precision
+                max_tokens=400,   # Allow more complete answers
+                top_p=0.9        # More focused responses
             )
             
             answer = response.choices[0].message.content.strip()
