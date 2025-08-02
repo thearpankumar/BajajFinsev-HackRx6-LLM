@@ -382,6 +382,8 @@ rich==14.1.0
     # via typer
 rsa==4.9.1
     # via google-auth
+ruff==0.12.7
+    # via -r requirements.in
 safetensors==0.5.3
     # via transformers
 scikit-learn==1.7.1
