@@ -268,6 +268,7 @@ def create_contradiction_aware_prompt(question: str, answers: List[str],
     prompt_parts.append(
         "Instructions: The above answers may contain contradictions. "
         "Please analyze the contradictions and provide a single, coherent answer. "
+        "make the response as human as possible. "
         "If contradictions cannot be resolved, explain why and provide the most "
         "reliable answer based on the contexts."
     )
