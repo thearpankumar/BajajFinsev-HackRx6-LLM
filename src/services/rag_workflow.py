@@ -15,18 +15,12 @@ from src.core.config import settings
 
 # NLTK imports for metadata extraction
 try:
-    import nltk
-    from nltk.tokenize import word_tokenize
-    from nltk.tag import pos_tag
-    from nltk.chunk import ne_chunk
-    from nltk.data import find
     NLTK_AVAILABLE = True
 except ImportError:
     NLTK_AVAILABLE = False
 
 # SpaCy imports for metadata extraction
 try:
-    import spacy
     SPACY_AVAILABLE = True
 except ImportError:
     SPACY_AVAILABLE = False
