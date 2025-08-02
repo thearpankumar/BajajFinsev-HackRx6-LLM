@@ -7,7 +7,6 @@ from ragas.metrics import (
     context_precision,
     context_recall,
 )
-import os
 from typing import List, Dict, Any, Tuple
 from dotenv import load_dotenv
 

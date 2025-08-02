@@ -6,6 +6,25 @@ import re
 import statistics
 import unicodedata
 import hashlib
+from src.core.config import settings
+
+# NLTK imports for semantic chunking
+try:
+    import nltk
+    from nltk.tokenize import sent_tokenize
+    from nltk.data import find
+    NLTK_AVAILABLE = True
+except ImportError:
+    NLTK_AVAILABLE = False
+    sent_tokenize = None
+
+# SpaCy imports for semantic chunking
+try:
+    import spacy
+    SPACY_AVAILABLE = True
+except ImportError:
+    SPACY_AVAILABLE = False
+    spacy = None
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +47,13 @@ class TextExtractionService:
         try:
             pages_with_metadata = await asyncio.wait_for(
                 asyncio.to_thread(self._extract_text_advanced, pdf_content),
-                timeout=300
+                timeout=settings.PDF_EXTRACTION_TIMEOUT
             )
             self.logger.info(f"Extracted text from {len(pages_with_metadata)} pages.")
             return pages_with_metadata
         except asyncio.TimeoutError:
-            self.logger.error("PDF text extraction timed out.")
-            raise Exception("PDF processing timed out.")
+            self.logger.error(f"PDF text extraction timed out after {settings.PDF_EXTRACTION_TIMEOUT} seconds.")
+            raise Exception(f"PDF processing timed out after {settings.PDF_EXTRACTION_TIMEOUT} seconds.")
         except Exception as e:
             self.logger.error(f"Error extracting text from PDF: {e}", exc_info=True)
             raise
@@ -44,10 +63,17 @@ class TextExtractionService:
         Core logic for extracting text and page numbers.
         """
         pdf_document = fitz.open(stream=pdf_content, filetype="pdf")
+        total_pages = len(pdf_document)
+        self.logger.info(f"PDF has {total_pages} pages. Starting extraction...")
+        
         pages_with_metadata = []
         extraction_stats = self._analyze_document(pdf_document)
+        self.logger.info(f"Document analysis complete. Recommended method: {extraction_stats['recommended_method']}")
 
-        for page_num in range(len(pdf_document)):
+        for page_num in range(total_pages):
+            if page_num % 10 == 0:  # Log progress every 10 pages
+                self.logger.info(f"Processing page {page_num + 1}/{total_pages} ({(page_num/total_pages)*100:.1f}% complete)")
+            
             page = pdf_document[page_num]
             page_text = self._extract_page_text_multimethod(page, page_num, extraction_stats)
             if page_text.strip():
@@ -55,20 +81,40 @@ class TextExtractionService:
                 pages_with_metadata.append((page_text, page_num + 1))
         
         pdf_document.close()
+        self.logger.info(f"PDF extraction complete. Extracted text from {len(pages_with_metadata)} pages.")
         return pages_with_metadata
 
     def chunk_text(self, pages_with_metadata: List[Tuple[str, int]], chunk_size: int = 1000, overlap: int = 200) -> List[Dict[str, Any]]:
         """
         Splits text from pages into unique, semantically coherent chunks with metadata.
+        Uses NLTK or SpaCy for sentence tokenization when available.
         """
         if not pages_with_metadata:
             return []
 
+        total_pages = len(pages_with_metadata)
+        self.logger.info(f"Starting chunking process for {total_pages} pages...")
+
         all_chunks = []
         seen_hashes = set()
 
-        for page_text, page_number in pages_with_metadata:
-            sentences = re.split(r'(?<=[.!?])\s+', page_text)
+        # Import metadata extraction service
+        metadata_extractor = None
+        if settings.ENABLE_METADATA_EXTRACTION:
+            try:
+                from src.services.metadata_extraction_service import metadata_extraction_service
+                metadata_extractor = metadata_extraction_service
+                self.logger.info("Metadata extraction service loaded successfully")
+            except ImportError:
+                self.logger.warning("Metadata extraction service not available")
+        else:
+            self.logger.info("Metadata extraction is disabled in configuration")
+
+        for page_idx, (page_text, page_number) in enumerate(pages_with_metadata):
+            if page_idx % 10 == 0:  # Log progress every 10 pages
+                self.logger.info(f"Chunking page {page_idx + 1}/{total_pages} ({(page_idx/total_pages)*100:.1f}% complete)")
+            # Use NLTK or SpaCy for sentence tokenization if available
+            sentences = self._tokenize_sentences(page_text)
             
             current_chunk = ""
             for sentence in sentences:
@@ -80,9 +126,21 @@ class TextExtractionService:
                         if chunk_text and len(chunk_text) > 50:
                             chunk_hash = hashlib.sha256(chunk_text.encode('utf-8')).hexdigest()
                             if chunk_hash not in seen_hashes:
+                                # Create base metadata
+                                chunk_metadata = {"page_number": page_number}
+                                
+                                # Add advanced metadata if extractor is available
+                                # Skip metadata extraction for very large documents to avoid timeout
+                                if metadata_extractor and total_pages < settings.METADATA_EXTRACTION_PAGE_LIMIT:
+                                    try:
+                                        advanced_metadata = metadata_extractor.extract_metadata_from_chunk(chunk_text)
+                                        chunk_metadata.update(advanced_metadata)
+                                    except Exception as e:
+                                        self.logger.warning(f"Metadata extraction failed for chunk: {e}")
+                                
                                 all_chunks.append({
                                     "text": chunk_text,
-                                    "metadata": {"page_number": page_number}
+                                    "metadata": chunk_metadata
                                 })
                                 seen_hashes.add(chunk_hash)
                     current_chunk = sentence
@@ -92,9 +150,24 @@ class TextExtractionService:
                 if chunk_text and len(chunk_text) > 50:
                     chunk_hash = hashlib.sha256(chunk_text.encode('utf-8')).hexdigest()
                     if chunk_hash not in seen_hashes:
+                        # Create base metadata
+                        chunk_metadata = {"page_number": page_number}
+                        
+                        # Add advanced metadata if extractor is available
+                        # Skip metadata extraction for very large documents to avoid timeout
+                        if metadata_extractor and total_pages < settings.METADATA_EXTRACTION_PAGE_LIMIT:
+                            try:
+                                advanced_metadata = metadata_extractor.extract_metadata_from_chunk(chunk_text)
+                                chunk_metadata.update(advanced_metadata)
+                            except Exception as e:
+                                self.logger.warning(f"Metadata extraction failed for chunk: {e}")
+                        elif total_pages >= settings.METADATA_EXTRACTION_PAGE_LIMIT:
+                            if page_idx == 0:  # Log only once
+                                self.logger.info(f"Skipping metadata extraction for large document ({total_pages} pages) to improve performance")
+                        
                         all_chunks.append({
                             "text": chunk_text,
-                            "metadata": {"page_number": page_number}
+                            "metadata": chunk_metadata
                         })
                         seen_hashes.add(chunk_hash)
 
@@ -227,7 +300,8 @@ class TextExtractionService:
         return "\n".join([text for _, text in text_blocks])
 
     def _score_extraction(self, text: str) -> float:
-        if not text.strip(): return 0.0
+        if not text.strip():
+            return 0.0
         score = min(len(text) / 1000, 10.0)
         words = text.split()
         score += min(len(words) / 100, 5.0)
@@ -236,22 +310,29 @@ class TextExtractionService:
         score -= special_ratio * 5
         sentences = re.split(r'[.!?]+', text)
         avg_sentence_length = sum(len(s.split()) for s in sentences) / len(sentences) if sentences else 0
-        if 5 <= avg_sentence_length <= 30: score += 2.0
+        if 5 <= avg_sentence_length <= 30:
+            score += 2.0
         return max(score, 0.0)
 
     def _is_poor_extraction(self, text: str) -> bool:
-        if not text.strip(): return True
+        if not text.strip():
+            return True
         special_chars = sum(1 for c in text if not c.isalnum() and c not in ' \n\t.,!?;:-()[]{}')
-        if special_chars / len(text) > 0.3: return True
+        if special_chars / len(text) > 0.3:
+            return True
         words = text.split()
-        if not words: return True
+        if not words:
+            return True
         short_words = sum(1 for w in words if len(w) == 1 and w.isalpha())
-        if short_words / len(words) > 0.5: return True
+        if short_words / len(words) > 0.5:
+            return True
         return False
 
     def _clean_and_enhance_text(self, text: str, stats: Dict) -> str:
-        if not text: return ""
+        if not text:
+            return ""
         text = unicodedata.normalize('NFKC', text)
+        text = self._apply_special_char_mapping(text)
         text = self._basic_clean_text(text)
         if stats.get("has_tables"):
             text = self._clean_table_text(text)
@@ -293,6 +374,46 @@ class TextExtractionService:
         text = re.sub(r'\n+', '\n', text)
         text = re.sub(r'\n\s*\n', '\n\n', text)
         return text
+
+    def _apply_special_char_mapping(self, text: str) -> str:
+        """
+        Apply configurable special character mapping to text.
+        """
+        if not settings.SPECIAL_CHAR_MAPPING:
+            return text
+            
+        for special_char, replacement in settings.SPECIAL_CHAR_MAPPING.items():
+            text = text.replace(special_char, replacement)
+        return text
+
+    def _tokenize_sentences(self, text: str) -> List[str]:
+        """
+        Tokenize text into sentences using NLTK or SpaCy if available,
+        falling back to regex-based splitting.
+        """
+        if NLTK_AVAILABLE:
+            try:
+                # Download punkt tokenizer if not already present
+                try:
+                    find('tokenizers/punkt')
+                except LookupError:
+                    nltk.download('punkt', quiet=True)
+                return sent_tokenize(text)
+            except Exception as e:
+                self.logger.warning(f"NLTK sentence tokenization failed: {e}")
+        
+        if SPACY_AVAILABLE:
+            try:
+                # Load a small English model if not already loaded
+                if not hasattr(self, '_spacy_nlp'):
+                    self._spacy_nlp = spacy.load("en_core_web_sm")
+                doc = self._spacy_nlp(text)
+                return [sent.text.strip() for sent in doc.sents]
+            except Exception as e:
+                self.logger.warning(f"SpaCy sentence tokenization failed: {e}")
+        
+        # Fallback to regex-based sentence splitting
+        return re.split(r'(?<=[.!?])\s+', text)
 
 # Global instance
 text_extraction_service = TextExtractionService()
