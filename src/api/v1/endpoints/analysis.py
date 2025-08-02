@@ -33,6 +33,7 @@ async def run_analysis(
     3. Applies hierarchical processing for large documents.
     4. Runs a parallelized RAG workflow to generate answers.
     """
+    logger.info(f"Received request body: {request.model_dump_json()}")
     logger.info(f"🚀 Starting analysis for document: {request.documents}")
     document_url = str(request.documents)
     
