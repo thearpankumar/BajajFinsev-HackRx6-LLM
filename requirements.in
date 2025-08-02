@@ -1,22 +1,29 @@
-# Use the official PyTorch index for CPU-only packages
---extra-index-url https://download.pytorch.org/whl/cpu
-
-# High-level dependencies
+# Web Framework & Server
 fastapi
 uvicorn[standard]
+python-multipart
+
+# Data Validation & Configuration
 pydantic
 pydantic-settings
-python-multipart
-gunicorn
-requests
 python-dotenv
-ruff
+
+# HTTP Client
 aiohttp
+
+# AI & Machine Learning Clients/Libraries
 google-generativeai
-python-docx
-PyMuPDF
 openai
+pinecone-client
+sentence-transformers
+rank-bm25
 numpy
 scikit-learn
-psutil
-aiofiles
+
+# Document Parsing
+PyMuPDF
+python-docx
+
+# Evaluation Framework
+ragas
+datasets
