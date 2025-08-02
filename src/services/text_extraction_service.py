@@ -1,7 +1,7 @@
 import logging
 import asyncio
 import fitz  # PyMuPDF
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 import re
 import statistics
 import unicodedata

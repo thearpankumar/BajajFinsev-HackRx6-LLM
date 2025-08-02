@@ -56,7 +56,7 @@ async def debug_document_chunks():
                 print("⚠️  No obvious Newton-related terms found")
         
         # Test keyword matching
-        print(f"\n🔍 Testing Keyword Matching:")
+        print("\n🔍 Testing Keyword Matching:")
         test_question = "How does Newton demonstrate that gravity is inversely proportional to the square of the distance?"
         
         # Simple keyword matching test
@@ -82,7 +82,7 @@ async def debug_document_chunks():
         
         scored_chunks.sort(key=lambda x: x[0], reverse=True)
         
-        print(f"\n📊 Top 3 Matching Chunks:")
+        print("\n📊 Top 3 Matching Chunks:")
         for score, idx, chunk in scored_chunks[:3]:
             print(f"\nChunk {idx} (Score: {score}):")
             print(f"Page: {chunk['metadata'].get('page_number', 'Unknown')}")

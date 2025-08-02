@@ -289,7 +289,6 @@ CONCISE ANSWER:"""
         word_score = max(0.0, min(1.0, (word_count - 5) / 45.0))  # Normalize to 0-1
         
         # Score based on specific terms (numbers, dates, etc.)
-        import re
         number_count = len(re.findall(r'\d+', answer))
         number_score = min(number_count * 0.1, 0.5)  # Cap at 0.5
         
