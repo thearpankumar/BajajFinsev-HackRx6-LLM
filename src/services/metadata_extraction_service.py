@@ -203,10 +203,6 @@ class MetadataExtractionService:
             for term in all_terms:
                 if term in text_lower:
                     concepts.append(term)
-            text_lower = text.lower()
-            for term in business_terms:
-                if term in text_lower:
-                    concepts.append(term)
         
         return list(set(concepts))  # Remove duplicates
     

@@ -8,8 +8,6 @@ import logging
 from src.services.metadata_extraction_service import metadata_extraction_service
 from src.services.text_extraction_service import text_extraction_service
 from src.services.hierarchical_chunking_service import hierarchical_chunking_service
-from src.services.embedding_service import embedding_service
-from src.services.rag_workflow import RAGWorkflowService
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -239,31 +237,31 @@ async def test_rag_workflow_integration():
     logger.info("Testing RAG workflow integration...")
     
     # Create a simple RAG workflow instance
-    rag_service = RAGWorkflowService()
+    # rag_service = RAGWorkflowService()
     
     # Test document chunks with metadata
-    test_chunks = [
-        {
-            "text": "Pre-existing conditions are covered after 36 months of continuous coverage.",
-            "metadata": {
-                "page_number": 1,
-                "entities": [],
-                "concepts": ["pre-existing conditions", "coverage", "waiting period"],
-                "categories": ["insurance"],
-                "keywords": ["pre-existing", "36 months", "coverage"]
-            }
-        },
-        {
-            "text": "Room rent is limited to 1% of sum insured. ICU charges up to 2% of sum insured.",
-            "metadata": {
-                "page_number": 2,
-                "entities": [],
-                "concepts": ["room rent", "sum insured", "icu charges"],
-                "categories": ["insurance", "medical"],
-                "keywords": ["room rent", "1%", "icu", "2%", "sum insured"]
-            }
-        }
-    ]
+    # test_chunks = [
+    #     {
+    #         "text": "Pre-existing conditions are covered after 36 months of continuous coverage.",
+    #         "metadata": {
+    #             "page_number": 1,
+    #             "entities": [],
+    #             "concepts": ["pre-existing conditions", "coverage", "waiting period"],
+    #             "categories": ["insurance"],
+    #             "keywords": ["pre-existing", "36 months", "coverage"]
+    #         }
+    #     },
+    #     {
+    #         "text": "Room rent is limited to 1% of sum insured. ICU charges up to 2% of sum insured.",
+    #         "metadata": {
+    #             "page_number": 2,
+    #             "entities": [],
+    #             "concepts": ["room rent", "sum insured", "icu charges"],
+    #             "categories": ["insurance", "medical"],
+    #             "keywords": ["room rent", "1%", "icu", "2%", "sum insured"]
+    #         }
+    #     }
+    # ]
     
     # Test retrieve and rerank
     query = "What is the waiting period for pre-existing conditions?"
