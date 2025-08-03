@@ -1,7 +1,37 @@
+# ==============================================================================
+# BajajFinsev RAG System - Git Ignore Configuration
+# ==============================================================================
+
+# ==============================================================================
+# ENVIRONMENT AND SECRETS
+# ==============================================================================
+# Environment files with sensitive data
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+
+# API keys and secrets
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# ==============================================================================
+# PYTHON
+# ==============================================================================
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -21,10 +51,16 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# PyInstaller
 *.manifest
 *.spec
+
+# Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Unit test / coverage reports
 htmlcov/
 .tox/
 .nox/
@@ -37,64 +73,458 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+
+# Translations
 *.mo
 *.pot
+
+# Django stuff:
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+
+# Flask stuff:
 instance/
 .webassets-cache
+
+# Scrapy stuff:
 .scrapy
+
+# Sphinx documentation
 docs/_build/
+
+# PyBuilder
 target/
+
+# Jupyter Notebook
 .ipynb_checkpoints
+
+# IPython
 profile_default/
 ipython_config.py
+
+# pyenv
 .python-version
+
+# pipenv
 Pipfile.lock
+
+# PEP 582
 __pypackages__/
+
+# Celery stuff
 celerybeat-schedule
 celerybeat.pid
-*.sage.py
-# Environments
-.venv
-venv
-env
-.env
 
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Spyder project settings
 .spyderproject
 .spyproject
+
+# Rope project settings
 .ropeproject
+
+# mkdocs documentation
 /site
+
+# mypy
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Pyre type checker
 .pyre/
-ssl/
-*.pem
-*.key
-*.crt
+
+# ==============================================================================
+# AI/ML MODELS AND CACHE
+# ==============================================================================
+# Vector databases (IMPORTANT: These are generated and should NOT be committed)
+vector_db/
+*.db
+*.sqlite
+
+# Model files and caches
+models/
+*.bin
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.h5
+*.pkl
+*.pickle
+
+# Hugging Face cache
+.cache/
+transformers_cache/
+huggingface_cache/
+sentence_transformers_cache/
+
+# PyTorch cache
+torch_cache/
+.torch/
+
+# OpenAI cache
+openai_cache/
+
+# Embedding cache
+embedding_cache/
+embeddings/
+*.npy
+*.npz
+
+# NLTK data
+nltk_data/
+
+# SpaCy models
+spacy_models/
+
+# ==============================================================================
+# DOCUMENT PROCESSING CACHE
+# ==============================================================================
+# PDF processing cache
+pdf_cache/
+*.pdf.cache
+temp_pdfs/
+
+# Document extraction cache
+doc_cache/
+extracted_text/
+processed_docs/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
+
+# ==============================================================================
+# VECTOR STORE AND SEARCH INDEX
+# ==============================================================================
+# Vector databases (generated data - should not be committed)
+vector_db/
+vector_store/
+vectordb/
+lancedb/
+*.lance
+lance_data/
+*.lancedb/
+
+# BM25 index files
+bm25_index/
+*.bm25
+search_index/
+
+# Faiss index files
+*.faiss
+faiss_index/
+
+# Chroma database
+chroma_db/
+*.chroma
+
+# Pinecone local cache
+pinecone_cache/
+
+# Weaviate local data
+weaviate_data/
+
+# Any other vector database formats
+*.vectordb
+*.index
+vector_cache/
+
+# ==============================================================================
+# LOGS AND MONITORING
+# ==============================================================================
+# Application logs
 logs/
 *.log
+*.log.*
+log_*.txt
+
+# Performance monitoring
+performance_logs/
+metrics/
+monitoring/
+
+# Debug files
+debug/
+*.debug
+
+# ==============================================================================
+# DOCKER AND DEPLOYMENT
+# ==============================================================================
+# Docker volumes
+docker_volumes/
+
+# SSL certificates
+ssl/
+certs/
+*.crt
+*.cert
+
+# Nginx logs
+nginx_logs/
+
+# Let's Encrypt
+data/certbot/
+
+# ==============================================================================
+# DEVELOPMENT TOOLS
+# ==============================================================================
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
+
+# Vim
+*.vim
+.vimrc
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ==============================================================================
+# OPERATING SYSTEM
+# ==============================================================================
+# macOS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-swappy-20250725-150151.png
-.ruff*
-.DS_Store
-data/
-notes.txt
-CRUSH.md
-.crush
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ==============================================================================
+# TESTING AND BENCHMARKING
+# ==============================================================================
+# Test outputs
+test_results/
+test_outputs/
+benchmark_results/
+performance_tests/
+
+# Test data (keep structure, ignore content)
+test_data/*.pdf
+test_data/*.docx
+test_data/*.txt
+test_data/large_files/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# ==============================================================================
+# BACKUP AND ARCHIVE
+# ==============================================================================
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# ==============================================================================
+# CONFIGURATION OVERRIDES
+# ==============================================================================
+# Local configuration overrides
+config.local.py
+settings.local.py
+local_settings.py
+
+# Docker compose overrides (keep the main ones)
+docker-compose.override.local.yml
+
+# ==============================================================================
+# PERFORMANCE AND PROFILING
+# ==============================================================================
+# Profiling outputs
+*.prof
+*.profile
+profiling_results/
+
+# Memory profiling
+*.mprof
+memory_profiler/
+
+# Line profiling
+*.lprof
+
+# ==============================================================================
+# DOCUMENTATION BUILD
+# ==============================================================================
+# Sphinx build
+_build/
+_static/
+_templates/
+
+# MkDocs
+site/
+
+# ==============================================================================
+# PACKAGE MANAGERS
+# ==============================================================================
+# npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Poetry
+poetry.lock
+
+# Conda
+.conda/
+
+# ==============================================================================
+# CLOUD AND DEPLOYMENT SPECIFIC
+# ==============================================================================
+# AWS
+.aws/
+aws-credentials
+
+# Google Cloud
+.gcloud/
+gcp-credentials.json
+
+# Azure
+.azure/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes
+*.kubeconfig
+
+# ==============================================================================
+# CUSTOM PROJECT EXCLUSIONS
+# ==============================================================================
+# Large test documents (keep small samples)
+large_documents/
+sample_docs/*.pdf
+sample_docs/*.docx
+
+# User uploads (if any)
+uploads/
+user_files/
+
+# Generated API documentation
+api_docs/generated/
+
+# Performance benchmarks data
+benchmarks/data/
+benchmarks/results/
+
+# Custom scripts for specific environments
+scripts/local/
+scripts/dev/
+scripts/staging/
+
+# ==============================================================================
+# KEEP THESE FILES (explicitly track important files)
+# ==============================================================================
+# Keep example files
+!.env.example
+!docker-compose.yml
+!docker-compose.override.yml
+!docker-compose.prod.yml
+
+# Keep sample payloads
+!payloads/
+!payloads/*.json
+
+# Keep documentation
+!docs/
+!*.md
+
+# Keep configuration templates
+!config/
+!nginx/
+
+# Keep test structure (but not test data)
+!tests/
+!test_*.py
+
+# Keep requirements
+!requirements.txt
+!pyproject.toml
+
+.cursh 
+.crush/**
+.ruff**
+# ==============================================================================
+# NOTES:
+# 
+# This .gitignore is designed for the BajajFinsev RAG System and includes:
+# 
+# 1. Security: Excludes all sensitive files (API keys, certificates, etc.)
+# 2. Performance: Excludes large cache files and model downloads
+# 3. Development: Excludes IDE files and temporary development files
+# 4. Production: Excludes deployment-specific files and logs
+# 5. AI/ML: Excludes model caches and vector databases
+# 
+# Important files that ARE tracked:
+# - Source code (src/)
+# - Configuration templates (.env.example)
+# - Docker configurations
+# - Documentation (README.md, etc.)
+# - Test structure (but not test data)
+# - Sample payloads for testing
+# 
+# ==============================================================================

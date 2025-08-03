@@ -11,6 +11,7 @@ python-dotenv
 
 # HTTP Client
 aiohttp
+httpx
 
 # AI & Machine Learning Core
 --extra-index-url https://download.pytorch.org/whl/cpu
@@ -40,3 +41,7 @@ ragas
 
 # System Monitoring
 psutil
+
+# Additional dependencies for RAG system
+pyarrow
+pandas
