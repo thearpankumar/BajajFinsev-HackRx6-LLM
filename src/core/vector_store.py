@@ -1,5 +1,6 @@
 """
 Vector store implementation using LanceDB for high-performance similarity search
+Fixed for Docker container compatibility with proper vector schema
 """
 
 import logging
@@ -8,20 +9,18 @@ from typing import List, Dict, Any, Tuple, Optional
 import numpy as np
 from openai import AsyncOpenAI
 import lancedb
+import pyarrow as pa
 from pathlib import Path
 
 from src.core.config import settings
 from src.core.document_processor import DocumentChunk
-
-# Initialize OpenAI client after importing settings
-# Note: Client will be initialized in the VectorStore.__init__ method
 
 logger = logging.getLogger(__name__)
 
 
 class VectorStore:
     """
-    High-performance vector store using LanceDB
+    High-performance vector store using LanceDB with proper vector schema
     """
 
     def __init__(self):
@@ -62,7 +61,7 @@ class VectorStore:
             raise
 
     async def _create_or_connect_table(self):
-        """Create or connect to the vectors table"""
+        """Create or connect to the vectors table with proper schema"""
         table_name = "document_vectors"
 
         try:
@@ -78,32 +77,26 @@ class VectorStore:
             logger.info(f"Table doesn't exist or has issues, creating new one: {str(e)}")
             
             try:
-                # Create with dummy data using proper vector format
-                import numpy as np
+                # Create with proper schema using PyArrow
+                logger.info("Creating table with proper vector schema...")
                 
-                dummy_vector = np.array([0.0] * self.dimension, dtype=np.float32)
+                # Define schema with fixed-size list for vectors
+                schema = pa.schema([
+                    pa.field("id", pa.string()),
+                    pa.field("text", pa.string()),
+                    pa.field("vector", pa.list_(pa.float32(), self.dimension)),  # Fixed-size list
+                    pa.field("metadata", pa.string()),
+                    pa.field("chunk_id", pa.string()),
+                    pa.field("page_num", pa.int32()),
+                    pa.field("word_count", pa.int32()),
+                    pa.field("source_url", pa.string()),
+                ])
                 
-                dummy_data = [{
-                    "id": "dummy_init",
-                    "text": "initialization dummy text",
-                    "vector": dummy_vector,
-                    "metadata": "{}",
-                    "chunk_id": "init_chunk",
-                    "page_num": 0,
-                    "word_count": 3,
-                    "source_url": "init",
-                }]
+                # Create empty table with schema
+                empty_table = pa.table([], schema=schema)
+                self.table = self.db.create_table(table_name, empty_table)
                 
-                # Create table with pandas DataFrame first
-                import pandas as pd
-                df = pd.DataFrame(dummy_data)
-                
-                self.table = self.db.create_table(table_name, df)
-                logger.info(f"Created new table with schema: {self.table.schema}")
-                
-                # Remove the dummy data immediately
-                self.table.delete("id = 'dummy_init'")
-                logger.info("Removed dummy initialization data")
+                logger.info(f"Created new table with proper schema: {self.table.schema}")
                 
             except Exception as creation_error:
                 logger.error(f"Failed to create vector table: {creation_error}")
@@ -150,57 +143,53 @@ class VectorStore:
                         f"Embedding dimension mismatch: got {len(embedding)}, expected {self.dimension}"
                     )
 
+                # Ensure embedding is a proper numpy array with correct dtype and shape
+                embedding_array = np.array(embedding, dtype=np.float32)
+                if embedding_array.shape != (self.dimension,):
+                    embedding_array = embedding_array.reshape(self.dimension)
+
                 data.append(
                     {
                         "id": doc_id,
                         "text": text,
-                        "vector": list(embedding),  # Ensure it's a Python list
-                        "metadata": str(metadata),  # Convert to JSON string
+                        "vector": embedding_array.tolist(),  # Convert to list for PyArrow
+                        "metadata": json.dumps(metadata),  # Convert to JSON string
                         "chunk_id": metadata.get("chunk_id", ""),
-                        "page_num": int(
-                            metadata.get("page_num", 0)
-                        ),  # Ensure it's an int
-                        "word_count": int(
-                            metadata.get("word_count", 0)
-                        ),  # Ensure it's an int
+                        "page_num": int(metadata.get("page_num", 0)),
+                        "word_count": int(metadata.get("word_count", 0)),
                         "source_url": metadata.get("source_url", ""),
                     }
                 )
 
             logger.info(f"Prepared {len(data)} records for insertion")
 
-            # Convert to PyArrow table with explicit schema
-            # Extract data into separate lists for each column
+            # Create PyArrow table with proper schema
             ids = [item["id"] for item in data]
-            texts = [item["text"] for item in data]
+            texts_list = [item["text"] for item in data]
             vectors = [item["vector"] for item in data]
-            metadatas = [item["metadata"] for item in data]
+            metadatas_list = [item["metadata"] for item in data]
             chunk_ids = [item["chunk_id"] for item in data]
             page_nums = [item["page_num"] for item in data]
             word_counts = [item["word_count"] for item in data]
             source_urls = [item["source_url"] for item in data]
 
-            logger.info("Creating PyArrow table...")
+            logger.info("Creating PyArrow table with proper vector format...")
 
-            # Create DataFrame first, then convert to PyArrow
-            import pandas as pd
-            
-            df_data = {
-                "id": ids,
-                "text": texts,
-                "vector": [np.array(v, dtype=np.float32) for v in vectors],  # Convert to numpy arrays
-                "metadata": metadatas,
-                "chunk_id": chunk_ids,
-                "page_num": page_nums,
-                "word_count": word_counts,
-                "source_url": source_urls,
-            }
-            
-            df = pd.DataFrame(df_data)
+            # Create PyArrow table with explicit schema
+            pa_table = pa.table({
+                "id": pa.array(ids, type=pa.string()),
+                "text": pa.array(texts_list, type=pa.string()),
+                "vector": pa.array(vectors, type=pa.list_(pa.float32(), self.dimension)),
+                "metadata": pa.array(metadatas_list, type=pa.string()),
+                "chunk_id": pa.array(chunk_ids, type=pa.string()),
+                "page_num": pa.array(page_nums, type=pa.int32()),
+                "word_count": pa.array(word_counts, type=pa.int32()),
+                "source_url": pa.array(source_urls, type=pa.string()),
+            })
 
             logger.info("Adding data to LanceDB...")
-            # Add to LanceDB using DataFrame
-            self.table.add(df)
+            # Add to LanceDB
+            self.table.add(pa_table)
 
             logger.info(f"Successfully added {len(texts)} texts to vector store")
 
@@ -243,9 +232,13 @@ class VectorStore:
             # Get query embedding
             query_embedding = await self._get_embeddings([query])
             query_vector = query_embedding[0]
+            
+            # Ensure query vector is proper numpy array
+            query_vector = np.array(query_vector, dtype=np.float32)
 
-            # Perform vector search with explicit vector column name
-            results = self.table.search(query_vector, vector_column_name="vector").limit(k).to_pandas()
+            # Perform vector search
+            logger.info(f"Performing vector search with query vector shape: {query_vector.shape}")
+            results = self.table.search(query_vector).limit(k).to_pandas()
 
             # Convert results to DocumentChunk objects
             chunks_with_scores = []
