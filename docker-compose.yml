@@ -9,9 +9,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
       - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-1536}
-      - CHUNK_SIZE=${CHUNK_SIZE:-2000}
-      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-400}
-      - MAX_CHUNKS_PER_QUERY=${MAX_CHUNKS_PER_QUERY:-30}
+      - CHUNK_SIZE=${CHUNK_SIZE:-1000}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-200}
+      - MAX_CHUNKS_PER_QUERY=${MAX_CHUNKS_PER_QUERY:-10}
       - EMBEDDING_BATCH_SIZE=${EMBEDDING_BATCH_SIZE:-100}
       - PARALLEL_BATCHES=${PARALLEL_BATCHES:-3}
       - MAX_SECTIONS_PER_QUERY=${MAX_SECTIONS_PER_QUERY:-3}
@@ -21,6 +21,20 @@ services:
       - ENABLE_DOCUMENT_CACHE=${ENABLE_DOCUMENT_CACHE:-true}
       - CACHE_EXPIRY_HOURS=${CACHE_EXPIRY_HOURS:-24}
       - ENABLE_STREAMING_RESPONSES=${ENABLE_STREAMING_RESPONSES:-false}
+      - FAST_MODE=${FAST_MODE:-true}
+      - ENABLE_RERANKING=${ENABLE_RERANKING:-false}
+      - MAX_CHUNKS_FOR_GENERATION=${MAX_CHUNKS_FOR_GENERATION:-5}
+      - PARALLEL_PROCESSING=${PARALLEL_PROCESSING:-true}
+      - MAX_PARALLEL_QUESTIONS=${MAX_PARALLEL_QUESTIONS:-40}
+      - QUESTION_BATCH_SIZE=${QUESTION_BATCH_SIZE:-10}
+      - TOP_K_RETRIEVAL=${TOP_K_RETRIEVAL:-10}
+      - RERANK_TOP_K=${RERANK_TOP_K:-5}
+      - OPENAI_GENERATION_MODEL=${OPENAI_GENERATION_MODEL:-gpt-4o-mini}
+      - OPENAI_MAX_TOKENS=${OPENAI_MAX_TOKENS:-4000}
+      - OPENAI_TEMPERATURE=${OPENAI_TEMPERATURE:-0.1}
+      - GOOGLE_MODEL=${GOOGLE_MODEL:-gemini-2.0-flash-exp}
+      - VECTOR_DB_PATH=${VECTOR_DB_PATH:-./vector_db}
+      - MAX_DOCUMENT_SIZE_MB=${MAX_DOCUMENT_SIZE_MB:-100}
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
@@ -28,11 +42,12 @@ services:
       - "8000"
     volumes:
       - embedding_cache:/tmp/embedding_cache
+      - vector_db:/app/vector_db
     restart: unless-stopped
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/hackrx/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -69,6 +84,8 @@ services:
 
 volumes:
   embedding_cache:
+    driver: local
+  vector_db:
     driver: local
 
 networks:
