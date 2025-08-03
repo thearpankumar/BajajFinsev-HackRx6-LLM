@@ -70,66 +70,51 @@ class VectorStore:
             # Try to open existing table
             self.table = self.db.open_table(table_name)
             logger.info(f"Connected to existing table: {table_name}")
+            
+            # Verify the table has the correct schema
+            schema = self.table.schema
+            logger.info(f"Table schema: {schema}")
 
         except Exception as e:
-            logger.info(f"Table doesn't exist, creating new one: {str(e)}")
+            logger.info(f"Table doesn't exist or has issues, creating new one: {str(e)}")
             
             try:
-                # Method 1: Try creating with schema only
-                schema = pa.schema([
-                    pa.field("id", pa.string()),
-                    pa.field("text", pa.string()),
-                    pa.field("vector", pa.list_(pa.float32())),
-                    pa.field("metadata", pa.string()),
-                    pa.field("chunk_id", pa.string()),
-                    pa.field("page_num", pa.int32()),
-                    pa.field("word_count", pa.int32()),
-                    pa.field("source_url", pa.string()),
-                ])
-
-                self.table = self.db.create_table(table_name, schema=schema)
-                logger.info(f"Created new table with schema: {table_name}")
+                # Create with dummy data to ensure proper schema
+                dummy_data = [
+                    {
+                        "id": "dummy_init",
+                        "text": "initialization dummy text",
+                        "vector": [0.0] * self.dimension,
+                        "metadata": "{}",
+                        "chunk_id": "init_chunk",
+                        "page_num": 0,
+                        "word_count": 3,
+                        "source_url": "init",
+                    }
+                ]
                 
-            except Exception as schema_error:
-                logger.warning(f"Schema-only creation failed: {schema_error}")
-                
-                try:
-                    # Method 2: Create with minimal dummy data
-                    dummy_data = [
-                        {
-                            "id": "dummy_init",
-                            "text": "initialization dummy text",
-                            "vector": [0.0] * self.dimension,
-                            "metadata": "{}",
-                            "chunk_id": "init_chunk",
-                            "page_num": 0,
-                            "word_count": 3,
-                            "source_url": "init",
-                        }
-                    ]
-                    
-                    # Convert to PyArrow table
-                    pa_table = pa.table({
-                        "id": pa.array([item["id"] for item in dummy_data], type=pa.string()),
-                        "text": pa.array([item["text"] for item in dummy_data], type=pa.string()),
-                        "vector": pa.array([item["vector"] for item in dummy_data], type=pa.list_(pa.float32())),
-                        "metadata": pa.array([item["metadata"] for item in dummy_data], type=pa.string()),
-                        "chunk_id": pa.array([item["chunk_id"] for item in dummy_data], type=pa.string()),
-                        "page_num": pa.array([item["page_num"] for item in dummy_data], type=pa.int32()),
-                        "word_count": pa.array([item["word_count"] for item in dummy_data], type=pa.int32()),
-                        "source_url": pa.array([item["source_url"] for item in dummy_data], type=pa.string()),
-                    })
+                # Convert to PyArrow table with explicit schema
+                pa_table = pa.table({
+                    "id": pa.array([item["id"] for item in dummy_data], type=pa.string()),
+                    "text": pa.array([item["text"] for item in dummy_data], type=pa.string()),
+                    "vector": pa.array([item["vector"] for item in dummy_data], type=pa.list_(pa.float32())),
+                    "metadata": pa.array([item["metadata"] for item in dummy_data], type=pa.string()),
+                    "chunk_id": pa.array([item["chunk_id"] for item in dummy_data], type=pa.string()),
+                    "page_num": pa.array([item["page_num"] for item in dummy_data], type=pa.int32()),
+                    "word_count": pa.array([item["word_count"] for item in dummy_data], type=pa.int32()),
+                    "source_url": pa.array([item["source_url"] for item in dummy_data], type=pa.string()),
+                })
 
-                    self.table = self.db.create_table(table_name, pa_table)
-                    
-                    # Remove the dummy data immediately
-                    self.table.delete("id = 'dummy_init'")
-                    
-                    logger.info(f"Created new table with dummy data method: {table_name}")
-                    
-                except Exception as dummy_error:
-                    logger.error(f"All table creation methods failed: {dummy_error}")
-                    raise RuntimeError(f"Failed to create vector table: {dummy_error}")
+                self.table = self.db.create_table(table_name, pa_table)
+                logger.info(f"Created new table with schema: {self.table.schema}")
+                
+                # Remove the dummy data immediately
+                self.table.delete("id = 'dummy_init'")
+                logger.info("Removed dummy initialization data")
+                
+            except Exception as creation_error:
+                logger.error(f"Failed to create vector table: {creation_error}")
+                raise RuntimeError(f"Failed to create vector table: {creation_error}")
 
     async def add_texts(
         self, texts: List[str], metadatas: List[Dict[str, Any]]
@@ -247,12 +232,27 @@ class VectorStore:
             List of (DocumentChunk, similarity_score) tuples
         """
         try:
+            # Check if table exists and has data
+            if not self.table:
+                logger.warning("Vector table not initialized")
+                return []
+                
+            # Check if table has any data
+            try:
+                row_count = self.table.count_rows()
+                if row_count == 0:
+                    logger.warning("Vector table is empty, no data to search")
+                    return []
+            except Exception as e:
+                logger.warning(f"Error checking table row count: {str(e)}")
+                return []
+
             # Get query embedding
             query_embedding = await self._get_embeddings([query])
             query_vector = query_embedding[0]
 
-            # Perform vector search
-            results = self.table.search(query_vector).limit(k).to_pandas()
+            # Perform vector search with explicit vector column name
+            results = self.table.search(query_vector, vector_column_name="vector").limit(k).to_pandas()
 
             # Convert results to DocumentChunk objects
             chunks_with_scores = []
@@ -354,10 +354,12 @@ class VectorStore:
         """Check if vector store is healthy"""
         try:
             if not self.table:
+                logger.warning("Vector table not initialized for health check")
                 return False
 
-            # Try to get count
-            self.table.count_rows()
+            # Try to get count - this should work even with empty table
+            row_count = self.table.count_rows()
+            logger.info(f"Vector store health check passed - {row_count} rows in table")
             return True
 
         except Exception as e:
