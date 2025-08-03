@@ -44,12 +44,12 @@ class Settings(BaseSettings):
     # Speed vs Accuracy Trade-offs
     ENABLE_RERANKING: bool = False  # Disable by default for speed
     FAST_MODE: bool = True  # Enable fast mode by default
-    MAX_CHUNKS_FOR_GENERATION: int = 5  # Limit chunks for faster generation
+    MAX_CHUNKS_FOR_GENERATION: int = 10  # Increased for better context
 
     # Retrieval Configuration (optimized for speed)
-    TOP_K_RETRIEVAL: int = 10  # Reduced from 20
-    RERANK_TOP_K: int = 5  # Reduced from 10
-    SIMILARITY_THRESHOLD: float = 0.7
+    TOP_K_RETRIEVAL: int = 20  # Increased for better coverage
+    RERANK_TOP_K: int = 10  # Increased for better relevance
+    SIMILARITY_THRESHOLD: float = 0.5  # Lowered for more inclusive retrieval
 
     # BM25 Configuration
     BM25_K1: float = 1.2
