@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION_NAME: str = "bajaj_documents"
     QDRANT_API_KEY: Optional[str] = None
     QDRANT_TIMEOUT: int = 60
+    VECTOR_DIMENSION: int = 1536  # OpenAI text-embedding-3-small dimension
 
     # Document Processing Configuration
     MAX_CHUNK_SIZE: int = 1000
