@@ -156,7 +156,6 @@ vector_db/
 *.sqlite
 
 # Model files and caches
-models/
 *.bin
 *.safetensors
 *.onnx
