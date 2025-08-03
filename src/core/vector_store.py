@@ -37,20 +37,29 @@ class VectorStore:
     async def initialize(self):
         """Initialize the vector database"""
         try:
+            logger.info("Starting vector store initialization...")
+            
             # Create database directory if it doesn't exist
             db_path = Path(settings.VECTOR_DB_PATH)
             db_path.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Database directory created/verified: {db_path}")
 
             # Connect to LanceDB
+            logger.info("Connecting to LanceDB...")
             self.db = lancedb.connect(str(db_path))
+            logger.info("LanceDB connection established")
 
             # Create or connect to table
+            logger.info("Creating/connecting to vector table...")
             await self._create_or_connect_table()
 
-            logger.info(f"Vector store initialized at {db_path}")
+            logger.info(f"Vector store initialized successfully at {db_path}")
 
         except Exception as e:
             logger.error(f"Failed to initialize vector store: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
     async def _create_or_connect_table(self):
@@ -62,24 +71,65 @@ class VectorStore:
             self.table = self.db.open_table(table_name)
             logger.info(f"Connected to existing table: {table_name}")
 
-        except Exception:
-            # Create new table
-            # Create empty table
-            empty_data = pa.table(
-                {
-                    "id": pa.array([], type=pa.string()),
-                    "text": pa.array([], type=pa.string()),
-                    "vector": pa.array([], type=pa.list_(pa.float32())),
-                    "metadata": pa.array([], type=pa.string()),
-                    "chunk_id": pa.array([], type=pa.string()),
-                    "page_num": pa.array([], type=pa.int32()),
-                    "word_count": pa.array([], type=pa.int32()),
-                    "source_url": pa.array([], type=pa.string()),
-                }
-            )
+        except Exception as e:
+            logger.info(f"Table doesn't exist, creating new one: {str(e)}")
+            
+            try:
+                # Method 1: Try creating with schema only
+                schema = pa.schema([
+                    pa.field("id", pa.string()),
+                    pa.field("text", pa.string()),
+                    pa.field("vector", pa.list_(pa.float32())),
+                    pa.field("metadata", pa.string()),
+                    pa.field("chunk_id", pa.string()),
+                    pa.field("page_num", pa.int32()),
+                    pa.field("word_count", pa.int32()),
+                    pa.field("source_url", pa.string()),
+                ])
 
-            self.table = self.db.create_table(table_name, empty_data)
-            logger.info(f"Created new table: {table_name}")
+                self.table = self.db.create_table(table_name, schema=schema)
+                logger.info(f"Created new table with schema: {table_name}")
+                
+            except Exception as schema_error:
+                logger.warning(f"Schema-only creation failed: {schema_error}")
+                
+                try:
+                    # Method 2: Create with minimal dummy data
+                    dummy_data = [
+                        {
+                            "id": "dummy_init",
+                            "text": "initialization dummy text",
+                            "vector": [0.0] * self.dimension,
+                            "metadata": "{}",
+                            "chunk_id": "init_chunk",
+                            "page_num": 0,
+                            "word_count": 3,
+                            "source_url": "init",
+                        }
+                    ]
+                    
+                    # Convert to PyArrow table
+                    pa_table = pa.table({
+                        "id": pa.array([item["id"] for item in dummy_data], type=pa.string()),
+                        "text": pa.array([item["text"] for item in dummy_data], type=pa.string()),
+                        "vector": pa.array([item["vector"] for item in dummy_data], type=pa.list_(pa.float32())),
+                        "metadata": pa.array([item["metadata"] for item in dummy_data], type=pa.string()),
+                        "chunk_id": pa.array([item["chunk_id"] for item in dummy_data], type=pa.string()),
+                        "page_num": pa.array([item["page_num"] for item in dummy_data], type=pa.int32()),
+                        "word_count": pa.array([item["word_count"] for item in dummy_data], type=pa.int32()),
+                        "source_url": pa.array([item["source_url"] for item in dummy_data], type=pa.string()),
+                    })
+
+                    self.table = self.db.create_table(table_name, pa_table)
+                    
+                    # Remove the dummy data immediately
+                    self.table.delete("id = 'dummy_init'")
+                    
+                    logger.info(f"Created new table with dummy data method: {table_name}")
+                    
+                except Exception as dummy_error:
+                    logger.error(f"All table creation methods failed: {dummy_error}")
+                    raise RuntimeError(f"Failed to create vector table: {dummy_error}")
 
     async def add_texts(
         self, texts: List[str], metadatas: List[Dict[str, Any]]

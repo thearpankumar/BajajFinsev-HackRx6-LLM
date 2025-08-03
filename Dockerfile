@@ -1,6 +1,6 @@
 # ==============================================================================
 # Optimized Production Docker Image for BajajFinsev RAG System
-# Minimal size with essential components only
+# Fixed LanceDB initialization issues
 # ==============================================================================
 
 FROM python:3.12-slim AS base
@@ -11,10 +11,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PIP_NO_CACHE_DIR=1
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install only essential system dependencies
+# Install system dependencies including build tools for some packages
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
+    build-essential \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -33,19 +34,20 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies with minimal footprint
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip cache purge
+RUN pip install --upgrade pip --root-user-action=ignore && \
+    pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
-# Download only essential NLTK data (minimal)
-RUN python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('stopwords', quiet=True)" && \
+# Download NLTK data as root first, then copy to user directory
+RUN python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('stopwords', quiet=True)" && \
     find /root/nltk_data -name "*.zip" -delete 2>/dev/null || true
 
-# Create necessary directories
+# Create necessary directories with proper permissions
 RUN mkdir -p \
     /app/vector_db \
     /tmp/embedding_cache \
-    /app/logs && \
+    /app/logs \
+    /home/appuser/nltk_data && \
+    cp -r /root/nltk_data/* /home/appuser/nltk_data/ 2>/dev/null || true && \
     chown -R appuser:appuser /app /tmp/embedding_cache /home/appuser
 
 # Copy application code
@@ -64,7 +66,8 @@ ENV FAST_MODE=true \
     MAX_PARALLEL_QUESTIONS=40 \
     QUESTION_BATCH_SIZE=10 \
     PYTHONPATH=/app \
-    TOKENIZERS_PARALLELISM=false
+    TOKENIZERS_PARALLELISM=false \
+    NLTK_DATA=/home/appuser/nltk_data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

@@ -39,22 +39,39 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Initializing BajajFinsev RAG System...")
 
-    # Initialize components
-    doc_processor = DocumentProcessor()
-    rag_engine = RAGEngine()
+    try:
+        # Initialize components
+        print("📄 Initializing document processor...")
+        doc_processor = DocumentProcessor()
+        print("✅ Document processor initialized")
 
-    # Initialize vector database and models
-    await rag_engine.initialize()
+        print("🧠 Initializing RAG engine...")
+        rag_engine = RAGEngine()
 
-    print("✅ RAG System initialized successfully!")
+        # Initialize vector database and models
+        print("🗄️ Initializing vector database...")
+        await rag_engine.initialize()
+        print("✅ Vector database initialized")
+
+        print("✅ RAG System initialized successfully!")
+
+    except Exception as e:
+        print(f"❌ Failed to initialize RAG System: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise
 
     yield
 
     # Cleanup
     print("🔄 Shutting down RAG System...")
-    if rag_engine:
-        await rag_engine.cleanup()
-    print("✅ Shutdown complete!")
+    try:
+        if rag_engine:
+            await rag_engine.cleanup()
+        print("✅ Shutdown complete!")
+    except Exception as e:
+        print(f"⚠️ Error during shutdown: {str(e)}")
 
 
 # Create FastAPI app
