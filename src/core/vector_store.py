@@ -1,6 +1,5 @@
 """
-Vector store implementation using LanceDB for high-performance similarity search
-Fixed for Docker container compatibility with proper vector schema
+Vector store implementation using LanceDB with DataFrame approach for Docker compatibility
 """
 
 import logging
@@ -9,7 +8,7 @@ from typing import List, Dict, Any, Tuple, Optional
 import numpy as np
 from openai import AsyncOpenAI
 import lancedb
-import pyarrow as pa
+import pandas as pd
 from pathlib import Path
 
 from src.core.config import settings
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class VectorStore:
     """
-    High-performance vector store using LanceDB with proper vector schema
+    High-performance vector store using LanceDB with DataFrame approach for Docker compatibility
     """
 
     def __init__(self):
@@ -61,7 +60,7 @@ class VectorStore:
             raise
 
     async def _create_or_connect_table(self):
-        """Create or connect to the vectors table with proper schema"""
+        """Create or connect to the vectors table using DataFrame approach"""
         table_name = "document_vectors"
 
         try:
@@ -77,26 +76,35 @@ class VectorStore:
             logger.info(f"Table doesn't exist or has issues, creating new one: {str(e)}")
             
             try:
-                # Create with proper schema using PyArrow
-                logger.info("Creating table with proper vector schema...")
+                # Create with dummy data using pandas DataFrame (most reliable approach)
+                logger.info("Creating table with pandas DataFrame approach...")
                 
-                # Define schema with fixed-size list for vectors
-                schema = pa.schema([
-                    pa.field("id", pa.string()),
-                    pa.field("text", pa.string()),
-                    pa.field("vector", pa.list_(pa.float32(), self.dimension)),  # Fixed-size list
-                    pa.field("metadata", pa.string()),
-                    pa.field("chunk_id", pa.string()),
-                    pa.field("page_num", pa.int32()),
-                    pa.field("word_count", pa.int32()),
-                    pa.field("source_url", pa.string()),
-                ])
+                # Create dummy data with proper numpy array for vector
+                dummy_vector = np.array([0.0] * self.dimension, dtype=np.float32)
                 
-                # Create empty table with schema
-                empty_table = pa.table([], schema=schema)
-                self.table = self.db.create_table(table_name, empty_table)
+                dummy_data = {
+                    "id": ["dummy_init"],
+                    "text": ["initialization dummy text"],
+                    "vector": [dummy_vector],  # numpy array - this is key!
+                    "metadata": ["{}"],
+                    "chunk_id": ["init_chunk"],
+                    "page_num": [0],
+                    "word_count": [3],
+                    "source_url": ["init"],
+                }
                 
-                logger.info(f"Created new table with proper schema: {self.table.schema}")
+                # Create DataFrame
+                df = pd.DataFrame(dummy_data)
+                logger.info(f"DataFrame dtypes: {df.dtypes}")
+                logger.info(f"Vector column type: {type(df['vector'].iloc[0])}")
+                
+                # Create table with DataFrame
+                self.table = self.db.create_table(table_name, df)
+                logger.info(f"Created new table with DataFrame approach: {self.table.schema}")
+                
+                # Remove the dummy data immediately
+                self.table.delete("id = 'dummy_init'")
+                logger.info("Removed dummy initialization data")
                 
             except Exception as creation_error:
                 logger.error(f"Failed to create vector table: {creation_error}")
@@ -106,7 +114,7 @@ class VectorStore:
         self, texts: List[str], metadatas: List[Dict[str, Any]]
     ) -> List[str]:
         """
-        Add texts to the vector store with embeddings
+        Add texts to the vector store with embeddings using DataFrame approach
 
         Args:
             texts: List of text chunks
@@ -124,14 +132,23 @@ class VectorStore:
             embeddings = await self._get_embeddings(texts)
             logger.info(f"Generated {len(embeddings)} embeddings")
 
-            # Prepare data for insertion
-            data = []
+            # Prepare data for DataFrame insertion
+            data = {
+                "id": [],
+                "text": [],
+                "vector": [],
+                "metadata": [],
+                "chunk_id": [],
+                "page_num": [],
+                "word_count": [],
+                "source_url": [],
+            }
             doc_ids = []
 
             for i, (text, embedding, metadata) in enumerate(
                 zip(texts, embeddings, metadatas)
             ):
-                doc_id = f"doc_{len(data)}_{hash(text) % 1000000}"
+                doc_id = f"doc_{len(data['id'])}_{hash(text) % 1000000}"
                 doc_ids.append(doc_id)
 
                 # Validate embedding
@@ -143,53 +160,31 @@ class VectorStore:
                         f"Embedding dimension mismatch: got {len(embedding)}, expected {self.dimension}"
                     )
 
-                # Ensure embedding is a proper numpy array with correct dtype and shape
+                # Convert embedding to numpy array with correct dtype
                 embedding_array = np.array(embedding, dtype=np.float32)
                 if embedding_array.shape != (self.dimension,):
                     embedding_array = embedding_array.reshape(self.dimension)
 
-                data.append(
-                    {
-                        "id": doc_id,
-                        "text": text,
-                        "vector": embedding_array.tolist(),  # Convert to list for PyArrow
-                        "metadata": json.dumps(metadata),  # Convert to JSON string
-                        "chunk_id": metadata.get("chunk_id", ""),
-                        "page_num": int(metadata.get("page_num", 0)),
-                        "word_count": int(metadata.get("word_count", 0)),
-                        "source_url": metadata.get("source_url", ""),
-                    }
-                )
+                # Add to data dict
+                data["id"].append(doc_id)
+                data["text"].append(text)
+                data["vector"].append(embedding_array)  # Keep as numpy array
+                data["metadata"].append(json.dumps(metadata))
+                data["chunk_id"].append(metadata.get("chunk_id", ""))
+                data["page_num"].append(int(metadata.get("page_num", 0)))
+                data["word_count"].append(int(metadata.get("word_count", 0)))
+                data["source_url"].append(metadata.get("source_url", ""))
 
-            logger.info(f"Prepared {len(data)} records for insertion")
+            logger.info(f"Prepared {len(data['id'])} records for insertion")
 
-            # Create PyArrow table with proper schema
-            ids = [item["id"] for item in data]
-            texts_list = [item["text"] for item in data]
-            vectors = [item["vector"] for item in data]
-            metadatas_list = [item["metadata"] for item in data]
-            chunk_ids = [item["chunk_id"] for item in data]
-            page_nums = [item["page_num"] for item in data]
-            word_counts = [item["word_count"] for item in data]
-            source_urls = [item["source_url"] for item in data]
+            # Create DataFrame
+            df = pd.DataFrame(data)
+            logger.info(f"DataFrame created with dtypes: {df.dtypes}")
+            logger.info(f"Vector column sample type: {type(df['vector'].iloc[0])}")
 
-            logger.info("Creating PyArrow table with proper vector format...")
-
-            # Create PyArrow table with explicit schema
-            pa_table = pa.table({
-                "id": pa.array(ids, type=pa.string()),
-                "text": pa.array(texts_list, type=pa.string()),
-                "vector": pa.array(vectors, type=pa.list_(pa.float32(), self.dimension)),
-                "metadata": pa.array(metadatas_list, type=pa.string()),
-                "chunk_id": pa.array(chunk_ids, type=pa.string()),
-                "page_num": pa.array(page_nums, type=pa.int32()),
-                "word_count": pa.array(word_counts, type=pa.int32()),
-                "source_url": pa.array(source_urls, type=pa.string()),
-            })
-
-            logger.info("Adding data to LanceDB...")
-            # Add to LanceDB
-            self.table.add(pa_table)
+            logger.info("Adding DataFrame to LanceDB...")
+            # Add to LanceDB using DataFrame
+            self.table.add(df)
 
             logger.info(f"Successfully added {len(texts)} texts to vector store")
 
@@ -236,9 +231,9 @@ class VectorStore:
             # Ensure query vector is proper numpy array
             query_vector = np.array(query_vector, dtype=np.float32)
 
-            # Perform vector search with explicit vector column name
+            # Perform vector search
             logger.info(f"Performing vector search with query vector shape: {query_vector.shape}")
-            results = self.table.search(query_vector, vector_column_name="vector").limit(k).to_pandas()
+            results = self.table.search(query_vector).limit(k).to_pandas()
 
             # Convert results to DocumentChunk objects
             chunks_with_scores = []
