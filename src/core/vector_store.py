@@ -79,33 +79,27 @@ class VectorStore:
             logger.info(f"Table doesn't exist or has issues, creating new one: {str(e)}")
             
             try:
-                # Create with dummy data to ensure proper schema
-                dummy_data = [
-                    {
-                        "id": "dummy_init",
-                        "text": "initialization dummy text",
-                        "vector": [0.0] * self.dimension,
-                        "metadata": "{}",
-                        "chunk_id": "init_chunk",
-                        "page_num": 0,
-                        "word_count": 3,
-                        "source_url": "init",
-                    }
-                ]
+                # Create with dummy data using proper vector format
+                import numpy as np
                 
-                # Convert to PyArrow table with explicit schema
-                pa_table = pa.table({
-                    "id": pa.array([item["id"] for item in dummy_data], type=pa.string()),
-                    "text": pa.array([item["text"] for item in dummy_data], type=pa.string()),
-                    "vector": pa.array([item["vector"] for item in dummy_data], type=pa.list_(pa.float32())),
-                    "metadata": pa.array([item["metadata"] for item in dummy_data], type=pa.string()),
-                    "chunk_id": pa.array([item["chunk_id"] for item in dummy_data], type=pa.string()),
-                    "page_num": pa.array([item["page_num"] for item in dummy_data], type=pa.int32()),
-                    "word_count": pa.array([item["word_count"] for item in dummy_data], type=pa.int32()),
-                    "source_url": pa.array([item["source_url"] for item in dummy_data], type=pa.string()),
-                })
-
-                self.table = self.db.create_table(table_name, pa_table)
+                dummy_vector = np.array([0.0] * self.dimension, dtype=np.float32)
+                
+                dummy_data = [{
+                    "id": "dummy_init",
+                    "text": "initialization dummy text",
+                    "vector": dummy_vector,
+                    "metadata": "{}",
+                    "chunk_id": "init_chunk",
+                    "page_num": 0,
+                    "word_count": 3,
+                    "source_url": "init",
+                }]
+                
+                # Create table with pandas DataFrame first
+                import pandas as pd
+                df = pd.DataFrame(dummy_data)
+                
+                self.table = self.db.create_table(table_name, df)
                 logger.info(f"Created new table with schema: {self.table.schema}")
                 
                 # Remove the dummy data immediately
@@ -189,25 +183,25 @@ class VectorStore:
 
             logger.info("Creating PyArrow table...")
 
-            # Create PyArrow table with explicit column data
-            pa_table = pa.table(
-                {
-                    "id": pa.array(ids, type=pa.string()),
-                    "text": pa.array(texts, type=pa.string()),
-                    "vector": pa.array(
-                        vectors, type=pa.list_(pa.float32())
-                    ),  # Remove dimension constraint
-                    "metadata": pa.array(metadatas, type=pa.string()),
-                    "chunk_id": pa.array(chunk_ids, type=pa.string()),
-                    "page_num": pa.array(page_nums, type=pa.int32()),
-                    "word_count": pa.array(word_counts, type=pa.int32()),
-                    "source_url": pa.array(source_urls, type=pa.string()),
-                }
-            )
+            # Create DataFrame first, then convert to PyArrow
+            import pandas as pd
+            
+            df_data = {
+                "id": ids,
+                "text": texts,
+                "vector": [np.array(v, dtype=np.float32) for v in vectors],  # Convert to numpy arrays
+                "metadata": metadatas,
+                "chunk_id": chunk_ids,
+                "page_num": page_nums,
+                "word_count": word_counts,
+                "source_url": source_urls,
+            }
+            
+            df = pd.DataFrame(df_data)
 
             logger.info("Adding data to LanceDB...")
-            # Add to LanceDB
-            self.table.add(pa_table)
+            # Add to LanceDB using DataFrame
+            self.table.add(df)
 
             logger.info(f"Successfully added {len(texts)} texts to vector store")
 
