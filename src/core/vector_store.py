@@ -8,7 +8,6 @@ from typing import List, Dict, Any, Tuple, Optional
 import numpy as np
 from openai import AsyncOpenAI
 import lancedb
-import pyarrow as pa
 from pathlib import Path
 
 from src.core.config import settings
