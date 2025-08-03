@@ -271,7 +271,10 @@ class RAGEngine:
     async def _index_chunks(self, chunks: List[DocumentChunk], document_url: str):
         """Index chunks in both vector store and BM25"""
         if document_url in self.chunk_cache:
+            logger.info(f"Document {document_url} already indexed, skipping...")
             return  # Already indexed
+
+        logger.info(f"Indexing {len(chunks)} chunks for document: {document_url}")
 
         # Prepare texts for indexing
         texts = [chunk.text for chunk in chunks]
@@ -286,10 +289,43 @@ class RAGEngine:
             for chunk in chunks
         ]
 
+        # Check if vector store already has data for this document
+        try:
+            existing_stats = await self.vector_store.get_stats()
+            if existing_stats.get("total_vectors", 0) > 0:
+                logger.info(f"Vector store already has {existing_stats['total_vectors']} vectors, checking if document exists...")
+                
+                # Try a test search to see if the table is working
+                test_results = await self.vector_store.similarity_search("test query", k=1)
+                if test_results:
+                    logger.info("Vector store is working, document may already be indexed")
+                    # Still proceed with BM25 indexing for this session
+                    tokenized_texts = [self._tokenize_for_bm25(text) for text in texts]
+                    self.bm25_index = BM25Okapi(tokenized_texts)
+                    
+                    # Cache chunk information
+                    self.chunk_cache[document_url] = {
+                        "chunks": chunks,
+                        "texts": texts,
+                        "tokenized_texts": tokenized_texts,
+                        "metadatas": metadatas,
+                    }
+                    return
+        except Exception as e:
+            logger.warning(f"Error checking existing vectors: {str(e)}")
+
         # Index in vector store
-        await self.vector_store.add_texts(texts, metadatas)
+        try:
+            logger.info("Adding texts to vector store...")
+            await self.vector_store.add_texts(texts, metadatas)
+            logger.info("Successfully added texts to vector store")
+        except Exception as e:
+            logger.error(f"Error adding texts to vector store: {str(e)}")
+            # Continue with BM25 even if vector store fails
+            pass
 
         # Create BM25 index
+        logger.info("Creating BM25 index...")
         tokenized_texts = [self._tokenize_for_bm25(text) for text in texts]
         self.bm25_index = BM25Okapi(tokenized_texts)
 
