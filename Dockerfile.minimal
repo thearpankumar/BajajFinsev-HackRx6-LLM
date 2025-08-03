@@ -1,0 +1,73 @@
+# ==============================================================================
+# Ultra-Minimal Docker Image for BajajFinsev RAG System
+# Target size: ~300-400MB (vs 2GB+ original)
+# ==============================================================================
+
+FROM python:3.12-slim
+
+# Minimal environment setup
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app \
+    FAST_MODE=true \
+    PARALLEL_PROCESSING=true
+
+# Install only curl for health checks
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
+
+# Create non-root user
+RUN useradd --system --uid 1001 --create-home appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy and install minimal requirements (compiled with pip-compile)
+COPY requirements.minimal.txt .
+RUN pip install --no-cache-dir -r requirements.minimal.txt && \
+    pip cache purge
+
+# Download only essential NLTK data
+RUN python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('stopwords', quiet=True)" && \
+    find /root -name "*.zip" -delete 2>/dev/null || true
+
+# Create directories and set permissions
+RUN mkdir -p /app/vector_db /tmp/embedding_cache && \
+    chown -R appuser:appuser /app /tmp/embedding_cache /home/appuser
+
+# Copy application (only essential files)
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser .env* ./
+
+# Switch to non-root user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8000/api/v1/hackrx/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Start application
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# ==============================================================================
+# Size Optimizations:
+# - Single stage build
+# - Minimal system packages (only curl)
+# - Reduced Python dependencies (no torch, transformers, etc.)
+# - No pre-downloaded models
+# - Minimal NLTK data
+# - No development tools
+# - Aggressive cleanup
+# 
+# Trade-offs:
+# - No cross-encoder re-ranking (uses simple ranking)
+# - No SpaCy (uses NLTK for text processing)
+# - Models downloaded on first use (slight startup delay)
+# - Smaller feature set but core functionality intact
+# ==============================================================================
