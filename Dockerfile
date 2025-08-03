@@ -67,10 +67,11 @@ ENV FAST_MODE=true \
     QUESTION_BATCH_SIZE=10 \
     PYTHONPATH=/app \
     TOKENIZERS_PARALLELISM=false \
-    NLTK_DATA=/home/appuser/nltk_data
+    NLTK_DATA=/home/appuser/nltk_data \
+    VECTOR_DB_PATH=/app/vector_db
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+# Health check - updated to be more lenient during startup
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
     CMD curl -f http://localhost:8000/api/v1/hackrx/health || exit 1
 
 # Expose port
@@ -90,6 +91,7 @@ CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "
 # 6. Cleaned package caches
 # 7. Removed unnecessary files
 # 8. Optimized layer structure
+# 9. Extended health check start period for proper initialization
 # 
 # Expected size reduction: ~70% smaller (from 2GB+ to ~600MB)
 # ==============================================================================
