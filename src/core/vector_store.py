@@ -236,9 +236,9 @@ class VectorStore:
             # Ensure query vector is proper numpy array
             query_vector = np.array(query_vector, dtype=np.float32)
 
-            # Perform vector search
+            # Perform vector search with explicit vector column name
             logger.info(f"Performing vector search with query vector shape: {query_vector.shape}")
-            results = self.table.search(query_vector).limit(k).to_pandas()
+            results = self.table.search(query_vector, vector_column_name="vector").limit(k).to_pandas()
 
             # Convert results to DocumentChunk objects
             chunks_with_scores = []
