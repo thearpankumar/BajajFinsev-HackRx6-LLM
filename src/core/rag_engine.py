@@ -1,11 +1,13 @@
 """
 Advanced RAG Engine with hybrid search and high accuracy focus
 Combines dense and sparse retrieval with re-ranking for maximum accuracy
+Now using Qdrant for improved Docker compatibility and performance
 """
 
 import asyncio
 import time
 import logging
+import json
 from typing import List, Dict, Any, Tuple
 import numpy as np
 try:
@@ -23,7 +25,7 @@ import re
 
 from src.core.config import settings
 from src.core.document_processor import DocumentProcessor, DocumentChunk
-from src.core.vector_store import VectorStore
+from src.core.qdrant_vector_store import QdrantVectorStore  # NEW: Using Qdrant instead of LanceDB
 from src.core.prompt_templates import PromptTemplates
 
 # Initialize OpenAI client after importing settings
@@ -74,18 +76,122 @@ class RAGEngine:
             "avg_generation_time": 0,
         }
 
+    async def _rebuild_caches_from_qdrant(self):
+        """Rebuild in-memory caches from existing Qdrant data"""
+        try:
+            logger.info("🔄 Rebuilding in-memory caches from Qdrant data...")
+            
+            # Get all points from Qdrant
+            try:
+                # Scroll through all points in the collection
+                scroll_result = self.vector_store.qdrant_client.scroll(
+                    collection_name=self.vector_store.collection_name,
+                    limit=10000,  # Adjust based on your data size
+                    with_payload=True,
+                    with_vectors=False
+                )
+                
+                # Handle the scroll result properly
+                if isinstance(scroll_result, tuple):
+                    points = scroll_result[0]  # First element is the points list
+                else:
+                    points = scroll_result
+                    
+            except Exception as e:
+                logger.error(f"Failed to scroll Qdrant collection: {str(e)}")
+                return
+            
+            if not points:
+                logger.warning("No points found in Qdrant collection")
+                return
+            
+            logger.info(f"Found {len(points)} points in Qdrant")
+            
+            # Group points by source URL
+            documents_by_source = {}
+            for point in points:
+                try:
+                    payload = point.payload
+                    source_url = payload.get('source_url', 'unknown')
+                    
+                    if source_url not in documents_by_source:
+                        documents_by_source[source_url] = []
+                    
+                    # Recreate DocumentChunk from payload
+                    chunk = DocumentChunk(
+                        text=payload.get('text', ''),
+                        page_num=payload.get('page_num', 0),
+                        chunk_id=payload.get('chunk_id', ''),
+                        metadata=json.loads(payload.get('metadata', '{}'))
+                    )
+                    documents_by_source[source_url].append(chunk)
+                    
+                except Exception as e:
+                    logger.warning(f"Error processing point: {str(e)}")
+                    continue
+            
+            if not documents_by_source:
+                logger.warning("No valid documents found in points")
+                return
+            
+            # Rebuild caches for each document
+            for source_url, chunks in documents_by_source.items():
+                logger.info(f"Rebuilding cache for {source_url} ({len(chunks)} chunks)")
+                
+                # Rebuild chunk cache
+                texts = [chunk.text for chunk in chunks]
+                tokenized_texts = [self._tokenize_for_bm25(text) for text in texts]
+                
+                self.chunk_cache[source_url] = {
+                    "chunks": chunks,
+                    "texts": texts,
+                    "tokenized_texts": tokenized_texts,
+                }
+                
+                # Rebuild document cache (basic metadata)
+                self.document_cache[source_url] = (chunks, {
+                    "type": "rebuilt_from_qdrant",
+                    "source_url": source_url,
+                    "num_chunks": len(chunks),
+                    "size": sum(len(chunk.text) for chunk in chunks)
+                })
+            
+            # Rebuild BM25 index for the most recent document (or just pick the first one)
+            if documents_by_source:
+                # Use the first document for BM25 index
+                first_source = list(documents_by_source.keys())[0]
+                first_tokenized = self.chunk_cache[first_source]["tokenized_texts"]
+                
+                if first_tokenized and all(first_tokenized):  # Make sure we have valid tokens
+                    self.bm25_index = BM25Okapi(first_tokenized)
+                    logger.info(f"Rebuilt BM25 index for {first_source}")
+                else:
+                    logger.warning("Could not rebuild BM25 index - no valid tokens")
+            
+            logger.info(f"✅ Successfully rebuilt caches for {len(documents_by_source)} documents")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to rebuild caches: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Don't let this break the initialization
+            logger.info("Continuing without cache rebuild...")
+
     async def initialize(self):
         """Initialize the RAG engine components"""
         logger.info("Initializing RAG Engine...")
 
-        # Initialize vector store
-        self.vector_store = VectorStore()
+        # Initialize Qdrant vector store (NEW: Using Qdrant instead of LanceDB)
+        self.vector_store = QdrantVectorStore()
         await self.vector_store.initialize()
+
+        # Skip cache rebuild for now - it will be built when documents are processed
+        logger.info("Skipping cache rebuild - will be built on first document processing")
 
         # Don't initialize cross-encoder here - it's slow and optional
         # It will be lazy-loaded only if re-ranking is needed
         logger.info(
-            "RAG Engine initialized successfully! (Cross-encoder will be loaded on demand)"
+            "RAG Engine initialized successfully with Qdrant! (Cross-encoder will be loaded on demand)"
         )
 
     def _get_cross_encoder(self):
@@ -292,39 +398,19 @@ class RAGEngine:
         # Check if vector store already has data for this document
         try:
             existing_stats = await self.vector_store.get_stats()
-            if existing_stats.get("total_vectors", 0) > 0:
-                logger.info(f"Vector store already has {existing_stats['total_vectors']} vectors, checking if document exists...")
-                
-                # Try a test search to see if the table is working
-                test_results = await self.vector_store.similarity_search("test query", k=1)
-                if test_results:
-                    logger.info("Vector store is working, document may already be indexed")
-                    # Still proceed with BM25 indexing for this session
-                    tokenized_texts = [self._tokenize_for_bm25(text) for text in texts]
-                    self.bm25_index = BM25Okapi(tokenized_texts)
-                    
-                    # Cache chunk information
-                    self.chunk_cache[document_url] = {
-                        "chunks": chunks,
-                        "texts": texts,
-                        "tokenized_texts": tokenized_texts,
-                        "metadatas": metadatas,
-                    }
-                    return
-        except Exception as e:
-            logger.warning(f"Error checking existing vectors: {str(e)}")
-
-        # Index in vector store
-        try:
+            logger.info(f"Vector store has {existing_stats.get('total_vectors', 0)} existing vectors")
+            
+            # Always try to add new chunks to vector store
             logger.info("Adding texts to vector store...")
             await self.vector_store.add_texts(texts, metadatas)
             logger.info("Successfully added texts to vector store")
+            
         except Exception as e:
             logger.error(f"Error adding texts to vector store: {str(e)}")
             # Continue with BM25 even if vector store fails
             pass
 
-        # Create BM25 index
+        # Create BM25 index (always create for new documents)
         logger.info("Creating BM25 index...")
         tokenized_texts = [self._tokenize_for_bm25(text) for text in texts]
         self.bm25_index = BM25Okapi(tokenized_texts)
@@ -337,6 +423,7 @@ class RAGEngine:
         }
 
         logger.info(f"Indexed {len(chunks)} chunks for {document_url}")
+        logger.info(f"BM25 index now available with {len(tokenized_texts)} documents")
 
     def _tokenize_for_bm25(self, text: str) -> List[str]:
         """Tokenize text for BM25 indexing"""
@@ -364,9 +451,9 @@ class RAGEngine:
 
         retrieval_time = time.time() - retrieval_start
 
-        # Step 2: Re-ranking (disabled by default for speed)
+        # Step 2: Re-ranking (configurable via settings)
         reranked_chunks = await self._rerank_chunks(
-            question, relevant_chunks, use_reranking=False
+            question, relevant_chunks, use_reranking=settings.ENABLE_RERANKING
         )
 
         # Step 3: Generate answer
@@ -389,47 +476,117 @@ class RAGEngine:
     ) -> List[Tuple[DocumentChunk, float]]:
         """
         Enhanced hybrid retrieval combining dense (vector) and sparse (BM25) search
-        Optimized for speed while maintaining good accuracy
+        Optimized for large documents with better query processing
         """
-        # In fast mode, use simpler query processing
-        if settings.FAST_MODE:
-            search_query = query  # Skip expensive query expansion
-        else:
+        logger.info(f"🔍 Starting hybrid retrieval for query: '{query}'")
+        
+        # Enhanced query processing for better retrieval (configurable)
+        if settings.FAST_MODE and settings.USE_ENHANCED_QUERY:
+            search_query = self._enhance_query_for_large_docs(query)
+        elif not settings.FAST_MODE:
             search_query = self._expand_query(query)
+        else:
+            search_query = query  # No enhancement
+        
+        logger.info(f"Enhanced query: '{search_query}'")
 
-        # Dense retrieval using vector similarity
+        # Dense retrieval using vector similarity with higher k for large docs
+        retrieval_k = min(settings.TOP_K_RETRIEVAL * 2, 50)  # Increase for large docs
+        logger.info(f"Performing dense retrieval with k={retrieval_k}")
+        
         dense_results = await self.vector_store.similarity_search(
             search_query,
-            k=settings.TOP_K_RETRIEVAL,  # Use configured limit
+            k=retrieval_k,
         )
+        
+        logger.info(f"Dense retrieval found {len(dense_results)} results")
+        if dense_results:
+            logger.info(f"Top dense result score: {dense_results[0][1]:.4f}")
+            logger.info(f"Top dense result preview: {dense_results[0][0].text[:200]}...")
+        else:
+            logger.warning("❌ No dense results found!")
 
         # Sparse retrieval using BM25 (only if we have BM25 index)
         sparse_results = []
         if self.bm25_index and document_url in self.chunk_cache:
-            # Use original query for BM25 (faster than expanded)
-            original_tokens = self._tokenize_for_bm25(query)
-            original_scores = self.bm25_index.get_scores(original_tokens)
+            logger.info("Performing sparse (BM25) retrieval...")
+            
+            # Use enhanced query for BM25 as well
+            enhanced_tokens = self._tokenize_for_bm25(search_query)
+            enhanced_scores = self.bm25_index.get_scores(enhanced_tokens)
 
             chunks = self.chunk_cache[document_url]["chunks"]
 
-            # Get top BM25 results
-            top_indices = np.argsort(original_scores)[::-1][: settings.TOP_K_RETRIEVAL]
+            # Get top BM25 results with lower threshold for specific terms
+            top_indices = np.argsort(enhanced_scores)[::-1][:retrieval_k]
+            min_score_threshold = 0.5  # Lower threshold to catch more results
 
             for idx in top_indices:
-                if original_scores[idx] > 0:  # Only include positive scores
-                    sparse_results.append((chunks[idx], float(original_scores[idx])))
-
-        # Use simpler RRF in fast mode
-        if settings.FAST_MODE:
-            combined_results = self._simple_reciprocal_rank_fusion(
-                dense_results, sparse_results
-            )
+                if enhanced_scores[idx] > min_score_threshold:
+                    sparse_results.append((chunks[idx], float(enhanced_scores[idx])))
+            
+            logger.info(f"Sparse retrieval found {len(sparse_results)} results above threshold")
+            if sparse_results:
+                logger.info(f"Top sparse result score: {sparse_results[0][1]:.4f}")
+                logger.info(f"Top sparse result preview: {sparse_results[0][0].text[:200]}...")
+            else:
+                logger.warning("❌ No sparse results found above threshold!")
+                # Show top results even if below threshold for debugging
+                if enhanced_scores.max() > 0:
+                    best_idx = np.argmax(enhanced_scores)
+                    logger.info(f"Best BM25 score: {enhanced_scores[best_idx]:.4f}")
+                    logger.info(f"Best BM25 text: {chunks[best_idx].text[:200]}...")
         else:
-            combined_results = self._enhanced_reciprocal_rank_fusion(
+            logger.info("⚠️ BM25 index not available - using vector search only")
+
+        # Use enhanced RRF for large documents (configurable)
+        if settings.USE_ENHANCED_RRF and sparse_results:
+            # Only use enhanced RRF if we have sparse results
+            combined_results = self._enhanced_reciprocal_rank_fusion_for_large_docs(
                 dense_results, sparse_results, query
             )
+        else:
+            # Use dense results only when no sparse results
+            logger.info("Using dense results only (no BM25 available)")
+            combined_results = [(chunk, score) for chunk, score in dense_results]
 
-        return combined_results[: settings.TOP_K_RETRIEVAL]
+        # Return top results with better filtering
+        final_results = combined_results[:settings.TOP_K_RETRIEVAL]
+        logger.info(f"Final hybrid retrieval: {len(final_results)} results")
+        
+        # Fallback: If no good results, try with lower thresholds
+        if len(final_results) < 3:
+            logger.warning("⚠️ Few results found, trying fallback search with lower thresholds...")
+            
+            # Try with much lower similarity threshold and more results
+            fallback_dense = await self.vector_store.similarity_search(
+                query,  # Use original query
+                k=50,  # Get more results
+            )
+            
+            logger.info(f"Fallback search found {len(fallback_dense)} results")
+            
+            # Add fallback results if we still don't have enough
+            for chunk, score in fallback_dense[:15]:  # Take top 15
+                if len(final_results) >= settings.TOP_K_RETRIEVAL:
+                    break
+                # Avoid duplicates
+                if not any(existing_chunk.chunk_id == chunk.chunk_id for existing_chunk, _ in final_results):
+                    final_results.append((chunk, score * 0.8))  # Slightly lower score for fallback
+            
+            logger.info(f"Added {len(fallback_dense)} fallback results")
+        
+        # If still no results, there's a real problem
+        if not final_results:
+            logger.error("❌ No results found even with fallback search!")
+            logger.error("This suggests the vector database might be empty or disconnected")
+        
+        # Debug: Show final results
+        for i, (chunk, score) in enumerate(final_results[:3]):
+            logger.info(f"Final result {i+1}: Score={score:.4f}")
+            logger.info(f"  Text: {chunk.text[:150]}...")
+        
+        return final_results
 
     def _simple_reciprocal_rank_fusion(
         self,
@@ -458,6 +615,179 @@ class RAGEngine:
             chunk_scores[chunk_id] = chunk_scores.get(chunk_id, 0) + rrf_score
 
         # Create combined results
+        combined_results = [
+            (chunk_map[chunk_id], score)
+            for chunk_id, score in sorted(
+                chunk_scores.items(), key=lambda x: x[1], reverse=True
+            )
+        ]
+
+        return combined_results
+
+    def _enhance_query_for_large_docs(self, query: str) -> str:
+        """Enhanced query processing for multi-domain large documents"""
+        key_terms = []
+        query_lower = query.lower()
+        
+        # Multi-domain expansions
+        domain_expansions = {
+            # Insurance domain - Enhanced for specific terms
+            "grace period": "grace period premium payment delay extension time allowed",
+            "grace": "grace period premium payment delay extension",
+            "premium payment": "premium payment due date grace period installment",
+            "policy": "policy insurance coverage plan benefit document",
+            "premium": "premium payment cost fee amount installment",
+            "coverage": "coverage benefit protection insurance plan",
+            "claim": "claim request application reimbursement settlement",
+            "deductible": "deductible excess copay out-of-pocket amount",
+            "waiting": "waiting period delay time eligibility qualification",
+            "exclusion": "exclusion exception limitation restriction not covered",
+            "maternity": "maternity pregnancy childbirth delivery benefit",
+            "pre-existing": "pre-existing prior existing previous condition disease",
+            "mediclaim": "mediclaim medical insurance health coverage policy",
+            "national": "national insurance company policy provider",
+            "parivar": "parivar family insurance policy coverage plan",
+            
+            # Legal domain
+            "contract": "contract agreement document terms conditions",
+            "jurisdiction": "jurisdiction court legal authority",
+            "liability": "liability responsibility obligation duty",
+            "breach": "breach violation infringement default",
+            "damages": "damages compensation remedy relief",
+            "clause": "clause provision section article term",
+            
+            # HR domain
+            "employee": "employee worker staff personnel",
+            "employment": "employment job work position role",
+            "benefits": "benefits compensation package perks",
+            "leave": "leave absence vacation sick time",
+            "performance": "performance evaluation review assessment",
+            "termination": "termination dismissal separation end",
+            
+            # Compliance domain
+            "regulation": "regulation rule requirement standard",
+            "audit": "audit review inspection examination",
+            "compliance": "compliance adherence conformity following",
+            "violation": "violation breach infringement non-compliance",
+            "reporting": "reporting disclosure notification filing",
+            
+            # Philosophy domain
+            "ethics": "ethics moral philosophy principles values",
+            "logic": "logic reasoning argument inference",
+            "truth": "truth reality fact knowledge belief",
+            "justice": "justice fairness equity rights",
+            "virtue": "virtue character excellence moral",
+            
+            # Science domain
+            "newton": "newton isaac principia physics mechanics",
+            "gravity": "gravity gravitational force attraction",
+            "motion": "motion movement dynamics kinematics",
+            "force": "force forces mechanics dynamics",
+            "law": "law laws principle theorem rule",
+            "experiment": "experiment test observation study",
+            "theory": "theory hypothesis explanation model",
+            "evidence": "evidence proof data observation",
+        }
+        
+        # Add relevant expansions based on query content
+        for term, expansion in domain_expansions.items():
+            if term in query_lower:
+                key_terms.append(expansion)
+        
+        # Also add general academic/professional terms
+        academic_terms = {
+            "definition": "definition meaning explanation description",
+            "procedure": "procedure process method steps protocol",
+            "requirement": "requirement condition necessity obligation",
+            "document": "document paper record file form",
+            "section": "section part chapter clause provision",
+            "amount": "amount sum total cost price value",
+            "time": "time period duration timeframe deadline",
+            "condition": "condition requirement state situation",
+        }
+        
+        for term, expansion in academic_terms.items():
+            if term in query_lower:
+                key_terms.append(expansion)
+        
+        # Combine original query with relevant expansions
+        if key_terms:
+            # Limit expansions to avoid query bloat
+            selected_expansions = key_terms[:3]  # Max 3 expansions
+            enhanced_query = query + " " + " ".join(selected_expansions)
+            return enhanced_query
+        
+        return query
+
+    def _enhanced_reciprocal_rank_fusion_for_large_docs(
+        self,
+        dense_results: List[Tuple[DocumentChunk, float]],
+        sparse_results: List[Tuple[DocumentChunk, float]],
+        original_query: str,
+    ) -> List[Tuple[DocumentChunk, float]]:
+        """
+        Enhanced RRF optimized for large multi-domain documents
+        Works across insurance, legal, HR, compliance, philosophy, and science domains
+        """
+        chunk_scores = {}
+        chunk_map = {}
+        
+        # Extract query keywords for relevance boosting (domain-agnostic)
+        query_keywords = set(word.lower() for word in original_query.split() if len(word) > 2)
+        
+        # Process dense results with relevance boosting
+        for rank, (chunk, score) in enumerate(dense_results):
+            chunk_id = chunk.chunk_id
+            chunk_map[chunk_id] = chunk
+            
+            # Base RRF score with higher weight for dense results in large docs
+            rrf_score = 0.8 / (60 + rank + 1)  # Increased weight for vector similarity
+            
+            # Domain-agnostic keyword matching boost
+            chunk_words = set(word.lower() for word in chunk.text.split() if len(word) > 2)
+            keyword_matches = len(query_keywords.intersection(chunk_words))
+            if keyword_matches > 0:
+                # Scale boost based on query length to avoid over-boosting short queries
+                boost_factor = min(0.3, 0.1 * keyword_matches)
+                rrf_score *= (1 + boost_factor)
+            
+            # Boost for informative chunks (domain-agnostic)
+            if chunk.word_count > 50:  # Reasonable threshold for all domains
+                rrf_score *= 1.1
+            
+            # Boost for chunks with professional/academic language patterns
+            professional_indicators = [
+                'shall', 'pursuant', 'accordance', 'provision', 'section',
+                'definition', 'requirement', 'condition', 'procedure', 'policy',
+                'regulation', 'compliance', 'standard', 'principle', 'theory'
+            ]
+            
+            chunk_lower = chunk.text.lower()
+            professional_matches = sum(1 for indicator in professional_indicators if indicator in chunk_lower)
+            if professional_matches > 0:
+                rrf_score *= (1 + 0.05 * professional_matches)  # Small boost for professional language
+            
+            chunk_scores[chunk_id] = chunk_scores.get(chunk_id, 0) + rrf_score
+
+        # Process sparse results with keyword focus
+        for rank, (chunk, score) in enumerate(sparse_results):
+            chunk_id = chunk.chunk_id
+            chunk_map[chunk_id] = chunk
+            
+            # Base RRF score for sparse results
+            rrf_score = 0.4 / (60 + rank + 1)  # Lower base weight for BM25
+            
+            # Boost based on BM25 score strength (domain-agnostic)
+            if score > 10.0:  # Very high BM25 score
+                rrf_score *= 1.8
+            elif score > 5.0:  # High BM25 score
+                rrf_score *= 1.4
+            elif score > 2.0:  # Moderate BM25 score
+                rrf_score *= 1.2
+            
+            chunk_scores[chunk_id] = chunk_scores.get(chunk_id, 0) + rrf_score
+
+        # Create combined results sorted by enhanced scores
         combined_results = [
             (chunk_map[chunk_id], score)
             for chunk_id, score in sorted(
@@ -661,7 +991,7 @@ class RAGEngine:
         if not relevant_chunks:
             return "I couldn't find any relevant information in the document to answer this question."
 
-        # Limit chunks for faster processing
+        # Limit chunks for faster processing (configurable)
         max_chunks = (
             settings.MAX_CHUNKS_FOR_GENERATION
             if settings.FAST_MODE
@@ -680,26 +1010,34 @@ class RAGEngine:
 
         context = "\n\n".join(context_parts)
 
-        # Concise prompt for short answers
-        prompt = f"""Based on the document sections below, provide a direct and concise answer to the question in 2-3 sentences maximum.
+        # Enhanced prompt for better accuracy while keeping 2-3 sentences
+        prompt = f"""Based on the document sections below, provide a precise answer to the question in exactly 2-3 sentences.
 
 DOCUMENT SECTIONS:
 {context}
 
 QUESTION: {question}
 
-Provide a clear, factual answer in 2-3 sentences using specific information from the document:"""
+INSTRUCTIONS:
+- Answer in exactly 2-3 sentences like a knowledgeable human would in conversation
+- Use ONLY information from the document sections above
+- If the answer is not in the sections, say "The document does not contain information about [specific topic]"
+- Include specific numbers, dates, and terms from the document
+- Be precise, factual, and conversational in tone
+- Write as if you're explaining to a colleague or friend
+
+Answer:"""
 
         try:
-            # Generate answer using OpenAI
+            # Generate answer using OpenAI (configurable parameters)
             response = await self.openai_client.chat.completions.create(
                 model=settings.OPENAI_GENERATION_MODEL,
                 messages=[
                     {"role": "system", "content": self._get_concise_system_prompt()},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=150,  # Limit tokens for concise responses
-                temperature=0.1,
+                max_tokens=settings.MAX_GENERATION_TOKENS,  # Configurable
+                temperature=settings.GENERATION_TEMPERATURE,  # Configurable
                 timeout=15,
             )
 
@@ -712,14 +1050,14 @@ Provide a clear, factual answer in 2-3 sentences using specific information from
 
     def _get_concise_system_prompt(self) -> str:
         """System prompt optimized for concise responses"""
-        return """You are a document analyst that provides precise, factual answers in 2-3 sentences maximum. 
+        return """You are a knowledgeable document analysis expert who explains complex information in a clear, human-like manner. 
 
 REQUIREMENTS:
-- Answer in exactly 2-3 sentences
+- Answer in exactly 2-3 sentences like a helpful colleague would in conversation
 - Use specific facts, numbers, and terms from the document
-- Be direct and factual
-- No introductory phrases or explanations
-- Include exact figures, percentages, timeframes when mentioned"""
+- Be conversational yet professional - write as if explaining to a friend or colleague
+- Include exact figures, percentages, timeframes when mentioned
+- Use natural, human language while maintaining accuracy"""
 
     def _get_enhanced_system_prompt(self) -> str:
         """Enhanced system prompt for human-like, accurate responses"""

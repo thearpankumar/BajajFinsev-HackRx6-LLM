@@ -4,9 +4,11 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python)](https://python.org)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o--mini-orange?logo=openai)](https://openai.com)
+[![Qdrant](https://img.shields.io/badge/Qdrant-Vector_DB-red?logo=qdrant)](https://qdrant.tech)
+[![LlamaIndex](https://img.shields.io/badge/LlamaIndex-RAG_Framework-purple)](https://llamaindex.ai)
 [![Performance](https://img.shields.io/badge/Performance-5.2x_Faster-brightgreen)](https://github.com)
 
-A **high-performance, enterprise-grade API** for deep analysis of business documents, specializing in **Insurance, Legal, HR, and Compliance** domains. Features advanced **parallel processing**, **hybrid search**, and **optimized RAG pipeline** for lightning-fast document analysis.
+A **high-performance, enterprise-grade API** for deep analysis of business documents, specializing in **Insurance, Legal, HR, and Compliance** domains. Features advanced **parallel processing**, **hybrid search**, and **optimized RAG pipeline** with **Qdrant vector database** and **LlamaIndex framework** for lightning-fast document analysis.
 
 ## 🚀 Key Features
 
@@ -16,22 +18,26 @@ A **high-performance, enterprise-grade API** for deep analysis of business docum
 - **Up to 40 questions processed simultaneously** in batches of 10
 - **Optimized for speed** while maintaining high accuracy
 
-### 🧠 **Advanced RAG Pipeline**
+### 🧠 **Advanced RAG Pipeline with Qdrant + LlamaIndex**
+- **Qdrant Vector Database**: High-performance, production-ready vector storage
+- **LlamaIndex Integration**: Advanced document processing and retrieval
 - **Hybrid Search**: Combines semantic (OpenAI embeddings) + keyword (BM25) search
 - **Smart Re-ranking**: Optional cross-encoder re-ranking for maximum relevance
-- **Hierarchical Processing**: Intelligent handling of large documents (>20MB)
+- **Dynamic Similarity Threshold**: Adaptive filtering for optimal results
 - **Rich Metadata Extraction**: Entities, concepts, categories, and keywords
 
 ### 🎯 **Domain Expertise**
 - **Specialized for**: Insurance policies, Legal contracts, HR documents, Compliance materials
+- **Multi-domain Query Enhancement**: Intelligent query expansion for each domain
 - **Concise Responses**: 2-3 sentence answers with specific facts and figures
 - **Context-Aware**: Deep understanding of domain-specific terminology
 
 ### 🔧 **Production Ready**
-- **Docker deployment** with Nginx reverse proxy
+- **Docker deployment** with Qdrant and Nginx reverse proxy
 - **Health monitoring** and performance metrics
-- **Configurable performance modes** (Fast vs Accurate)
+- **Configurable accuracy settings** (Fast vs Accurate modes)
 - **Horizontal scaling** support with load balancing
+- **Robust error handling** with automatic fallbacks
 
 ## 📊 Performance Benchmarks
 
@@ -45,9 +51,9 @@ A **high-performance, enterprise-grade API** for deep analysis of business docum
 
 ```mermaid
 graph TB
-    A[Document URL] --> B[Document Processor]
-    B --> C[Chunk Extraction]
-    C --> D[Vector Store<br/>LanceDB]
+    A[Document URL] --> B[LlamaIndex Document Processor]
+    B --> C[Enhanced Chunk Extraction]
+    C --> D[Qdrant Vector Store<br/>Production Ready]
     C --> E[BM25 Index]
     
     F[Questions] --> G{Parallel Processing?}
@@ -59,7 +65,7 @@ graph TB
     J --> D
     J --> E
     
-    J --> K[Reciprocal Rank Fusion]
+    J --> K[Enhanced RRF Algorithm]
     K --> L{Re-ranking Enabled?}
     L -->|Yes| M[Cross-Encoder Re-ranking]
     L -->|No| N[Skip Re-ranking]
@@ -88,11 +94,12 @@ cp .env.example .env
 
 ### 2. Docker Deployment
 ```bash
-# Quick start with Docker Compose
+# Quick start with Docker Compose (includes Qdrant)
 docker-compose up -d
 
 # Check health
 curl http://localhost:8000/api/v1/hackrx/health
+curl http://localhost:6333/health  # Qdrant health
 ```
 
 ### 3. Test the API
@@ -154,6 +161,31 @@ curl -X POST "http://localhost:8000/api/v1/hackrx/performance/mode" -d "accurate
 - ✅ **Full context processing**
 - ✅ **Enhanced query expansion**
 - ⚠️ **Slower processing** (~2x)
+
+### Accuracy Control Settings
+
+#### 🎛️ **Easy Control Script**
+```bash
+python toggle_accuracy.py
+# Choose: 1=Max Accuracy, 2=Balanced, 3=Max Speed
+```
+
+#### 🔧 **Manual Configuration (.env)**
+```bash
+# Accuracy Settings
+ENABLE_RERANKING=true          # Enable cross-encoder re-ranking
+USE_ENHANCED_QUERY=true        # Enhanced query processing
+USE_ENHANCED_RRF=true          # Advanced ranking algorithm
+SIMILARITY_THRESHOLD=0.1       # Vector similarity threshold
+MAX_CHUNKS_FOR_GENERATION=8    # Context size for answers
+MAX_GENERATION_TOKENS=180      # Answer length (2-3 sentences)
+GENERATION_TEMPERATURE=0.05    # Answer consistency
+
+# Performance Settings
+PARALLEL_PROCESSING=true
+MAX_PARALLEL_QUESTIONS=40
+QUESTION_BATCH_SIZE=10
+```
 
 ### Parallel Processing Configuration
 ```bash
@@ -329,6 +361,28 @@ curl -X POST "http://localhost:8000/api/v1/hackrx/performance/parallel" \
   -d '{"max_parallel": 20, "batch_size": 5}'
 ```
 
+#### Vector Database Issues
+```bash
+# Check Qdrant health
+curl http://localhost:6333/health
+
+# Check collection status
+curl http://localhost:6333/collections/bajaj_documents
+
+# Run diagnostics
+python diagnose_vector_db.py
+```
+
+#### "No dense results found" Error
+```bash
+# Check similarity threshold
+# Edit .env file:
+SIMILARITY_THRESHOLD=0.1  # Lower threshold for more results
+
+# Or disable threshold temporarily
+SIMILARITY_THRESHOLD=0.0
+```
+
 #### API Key Issues
 ```bash
 # Verify environment variables
@@ -339,7 +393,8 @@ docker exec fastapi-app-container env | grep API_KEY
 
 ### Core Technologies
 - **Backend**: FastAPI (Python 3.12+)
-- **Vector Database**: LanceDB (high-performance, local)
+- **Vector Database**: Qdrant (high-performance, production-ready)
+- **RAG Framework**: LlamaIndex (advanced document processing)
 - **AI Models**: 
   - OpenAI GPT-4o-mini (generation)
   - OpenAI text-embedding-3-small (embeddings)
@@ -349,7 +404,8 @@ docker exec fastapi-app-container env | grep API_KEY
 
 ### Key Libraries
 - `uvicorn` - ASGI server
-- `lancedb` - Vector database
+- `qdrant-client` - Vector database client
+- `llama-index` - RAG framework
 - `sentence-transformers` - Cross-encoder re-ranking
 - `rank_bm25` - Sparse retrieval
 - `PyMuPDF` - PDF processing
@@ -388,4 +444,38 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 The BajajFinsev RAG System is optimized for **high-performance document analysis** with **parallel processing**, **intelligent caching**, and **enterprise-grade reliability**. Deploy with confidence! 🚀
 
-**Performance**: 5.2x faster | **Accuracy**: Domain-specialized | **Scale**: Production-ready
+**Performance**: 5.2x faster | **Accuracy**: Domain-specialized | **Scale**: Production-ready | **Database**: Qdrant Vector DB
+
+### 🆘 Support
+
+#### Documentation
+- [Docker Deployment Guide](DOCKER_DEPLOYMENT.md)
+- [API Documentation](http://localhost:8000/docs) (when running)
+- [Performance Tuning Guide](docs/performance.md)
+
+#### Getting Help
+1. Check the [troubleshooting section](#-troubleshooting)
+2. Review logs: `docker-compose logs -f fastapi-app`
+3. Test health: `curl http://localhost:8000/api/v1/hackrx/health`
+4. Check Qdrant: `curl http://localhost:6333/health`
+5. Run diagnostics: `python diagnose_vector_db.py`
+6. Check performance: `curl http://localhost:8000/api/v1/hackrx/performance`
+
+#### Quick Commands
+```bash
+# View service status
+docker-compose ps
+
+# Check logs
+docker-compose logs -f fastapi-app
+docker-compose logs -f qdrant
+
+# Restart services
+docker-compose restart
+
+# Test accuracy settings
+python toggle_accuracy.py
+
+# Run diagnostics
+python diagnose_vector_db.py
+```
