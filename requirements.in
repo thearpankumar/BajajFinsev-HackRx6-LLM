@@ -22,11 +22,16 @@ datasets
 # AI & Machine Learning Clients/Libraries
 google-generativeai
 openai
-lancedb
+lancedb  # Keep for backward compatibility
 sentence-transformers
 rank-bm25
 numpy
 scikit-learn
+
+# LlamaIndex and Qdrant (NEW)
+llama-index
+llama-index-vector-stores-qdrant
+qdrant-client
 
 # Document Parsing
 PyMuPDF
