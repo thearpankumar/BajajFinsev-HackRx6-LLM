@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # Accuracy Control Settings
     ENABLE_RERANKING: bool = True
     FAST_MODE: bool = True
-    MAX_CHUNKS_FOR_GENERATION: int = 8
+    MAX_CHUNKS_FOR_GENERATION: int = 12
     USE_ENHANCED_QUERY: bool = True
     USE_ENHANCED_RRF: bool = True
     ENABLE_QUESTION_DECOMPOSITION: bool = True  # NEW: Handle complex multi-part questions
@@ -62,16 +62,16 @@ class Settings(BaseSettings):
     
     # Generation Settings
     MAX_GENERATION_TOKENS: int = 180
-    GENERATION_TEMPERATURE: float = 0.05
+    GENERATION_TEMPERATURE: float = 0.0
 
     # Retrieval Configuration
-    TOP_K_RETRIEVAL: int = 20
-    RERANK_TOP_K: int = 10
-    SIMILARITY_THRESHOLD: float = 0.1
+    TOP_K_RETRIEVAL: int = 50
+    RERANK_TOP_K: int = 15
+    SIMILARITY_THRESHOLD: float = 0.05
 
     # Hybrid Search Configuration
-    DENSE_WEIGHT: float = 0.7
-    SPARSE_WEIGHT: float = 0.3
+    DENSE_WEIGHT: float = 0.8
+    SPARSE_WEIGHT: float = 0.2
 
     class Config:
         env_file = ".env"
