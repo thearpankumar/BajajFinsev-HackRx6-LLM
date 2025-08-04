@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # Accuracy Control Settings
     ENABLE_RERANKING: bool = True
     FAST_MODE: bool = True
-    MAX_CHUNKS_FOR_GENERATION: int = 12
+    MAX_CHUNKS_FOR_GENERATION: int = 10
     USE_ENHANCED_QUERY: bool = True
     USE_ENHANCED_RRF: bool = True
     ENABLE_QUESTION_DECOMPOSITION: bool = True  # NEW: Handle complex multi-part questions
@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     GENERATION_TEMPERATURE: float = 0.0
 
     # Retrieval Configuration
-    TOP_K_RETRIEVAL: int = 50
+    TOP_K_RETRIEVAL: int = 30
     RERANK_TOP_K: int = 15
     SIMILARITY_THRESHOLD: float = 0.05
 
