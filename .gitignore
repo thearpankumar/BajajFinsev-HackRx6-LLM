@@ -507,6 +507,8 @@ scripts/staging/
 .cursh 
 .crush/**
 .ruff**
+document_cache/
+notes.txt
 # ==============================================================================
 # NOTES:
 # 

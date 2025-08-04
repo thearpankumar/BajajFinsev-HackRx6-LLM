@@ -8,17 +8,24 @@ from typing import List, Dict, Any, Tuple
 from io import BytesIO
 
 try:
-    from llama_index.readers import PDFReader, DocxReader
-    from llama_index.node_parser import SentenceWindowNodeParser, SimpleNodeParser
-    from llama_index.schema import Document as LlamaDocument
+    from llama_index.readers.file import PDFReader, DocxReader
+    from llama_index.core.node_parser import SentenceWindowNodeParser, SimpleNodeParser
+    from llama_index.core.schema import Document as LlamaDocument
     LLAMA_INDEX_AVAILABLE = True
 except ImportError:
-    LLAMA_INDEX_AVAILABLE = False
-    PDFReader = None
-    DocxReader = None
-    SentenceWindowNodeParser = None
-    SimpleNodeParser = None
-    LlamaDocument = None
+    try:
+        # Fallback to older import structure
+        from llama_index.readers import PDFReader, DocxReader
+        from llama_index.node_parser import SentenceWindowNodeParser, SimpleNodeParser
+        from llama_index.schema import Document as LlamaDocument
+        LLAMA_INDEX_AVAILABLE = True
+    except ImportError:
+        LLAMA_INDEX_AVAILABLE = False
+        PDFReader = None
+        DocxReader = None
+        SentenceWindowNodeParser = None
+        SimpleNodeParser = None
+        LlamaDocument = None
 
 from src.core.document_processor import DocumentProcessor, DocumentChunk
 from src.core.config import settings

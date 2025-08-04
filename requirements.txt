@@ -6,6 +6,8 @@
 #
 --extra-index-url https://download.pytorch.org/whl/cpu
 
+aiofiles==24.1.0
+    # via -r requirements.in
 aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.12.14
@@ -290,7 +292,9 @@ llama-index-program-openai==0.3.2
 llama-index-question-gen-openai==0.3.1
     # via llama-index
 llama-index-readers-file==0.4.8
-    # via llama-index
+    # via
+    #   -r requirements.in
+    #   llama-index
 llama-index-readers-llama-parse==0.4.0
     # via llama-index
 llama-index-vector-stores-qdrant==0.6.1

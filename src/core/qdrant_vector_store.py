@@ -17,7 +17,7 @@ from qdrant_client.models import (
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 from src.core.config import settings
-from src.core.document_processor import DocumentChunk
+from src.core.enhanced_document_processor import DocumentChunk
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +382,184 @@ class QdrantVectorStore:
 
         except Exception as e:
             logger.error(f"Error deleting by source: {str(e)}")
+
+    async def document_exists(self, source_url: str) -> bool:
+        """
+        Check if document exists in vector database
+        
+        Args:
+            source_url: URL of the document to check
+            
+        Returns:
+            True if document exists, False otherwise
+        """
+        try:
+            if not self.qdrant_client:
+                logger.warning("Qdrant client not initialized")
+                return False
+            
+            # Check if collection exists
+            try:
+                collection_info = self.qdrant_client.get_collection(self.collection_name)
+                if collection_info.points_count == 0:
+                    return False
+            except Exception:
+                return False
+            
+            # Search for any point with this source URL
+            filter_condition = Filter(
+                must=[
+                    FieldCondition(
+                        key="source_url",
+                        match=MatchValue(value=source_url)
+                    )
+                ]
+            )
+            
+            # Use scroll to check existence (more efficient than search)
+            scroll_result = self.qdrant_client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=filter_condition,
+                limit=1,  # We only need to know if at least one exists
+                with_payload=False,
+                with_vectors=False
+            )
+            
+            # Handle scroll result
+            if isinstance(scroll_result, tuple):
+                points = scroll_result[0]
+            else:
+                points = scroll_result
+            
+            exists = len(points) > 0
+            logger.info(f"Document {source_url} {'exists' if exists else 'does not exist'} in vector database")
+            return exists
+            
+        except Exception as e:
+            logger.error(f"Error checking document existence for {source_url}: {str(e)}")
+            return False
+
+    async def get_document_chunks_from_db(self, source_url: str) -> List[Tuple[DocumentChunk, float]]:
+        """
+        Retrieve all chunks for a document from vector database
+        
+        Args:
+            source_url: URL of the document
+            
+        Returns:
+            List of (DocumentChunk, score) tuples
+        """
+        try:
+            if not self.qdrant_client:
+                logger.warning("Qdrant client not initialized")
+                return []
+            
+            # Create filter for source URL
+            filter_condition = Filter(
+                must=[
+                    FieldCondition(
+                        key="source_url",
+                        match=MatchValue(value=source_url)
+                    )
+                ]
+            )
+            
+            # Scroll through all points for this document
+            all_chunks = []
+            offset = None
+            
+            while True:
+                scroll_result = self.qdrant_client.scroll(
+                    collection_name=self.collection_name,
+                    scroll_filter=filter_condition,
+                    limit=100,  # Process in batches
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                
+                # Handle scroll result
+                if isinstance(scroll_result, tuple):
+                    points, next_offset = scroll_result
+                else:
+                    points = scroll_result
+                    next_offset = None
+                
+                if not points:
+                    break
+                
+                # Convert points to DocumentChunk objects
+                for point in points:
+                    try:
+                        payload = point.payload
+                        
+                        # Parse metadata
+                        try:
+                            metadata = json.loads(payload.get("metadata", "{}"))
+                        except (json.JSONDecodeError, TypeError):
+                            metadata = {}
+                        
+                        # Create DocumentChunk
+                        chunk = DocumentChunk(
+                            text=payload.get("text", ""),
+                            page_num=payload.get("page_num", 0),
+                            chunk_id=payload.get("chunk_id", ""),
+                            metadata=metadata,
+                        )
+                        
+                        # Use a default score of 1.0 since we're not doing similarity search
+                        all_chunks.append((chunk, 1.0))
+                        
+                    except Exception as e:
+                        logger.warning(f"Error processing point: {str(e)}")
+                        continue
+                
+                # Check if we have more data
+                if not next_offset:
+                    break
+                offset = next_offset
+            
+            logger.info(f"Retrieved {len(all_chunks)} chunks for document {source_url} from vector database")
+            return all_chunks
+            
+        except Exception as e:
+            logger.error(f"Error retrieving document chunks for {source_url}: {str(e)}")
+            return []
+
+    async def get_document_metadata_from_db(self, source_url: str) -> Dict[str, Any]:
+        """
+        Get document metadata from vector database
+        
+        Args:
+            source_url: URL of the document
+            
+        Returns:
+            Dictionary with document metadata
+        """
+        try:
+            chunks = await self.get_document_chunks_from_db(source_url)
+            
+            if not chunks:
+                return {}
+            
+            # Calculate metadata from chunks
+            total_chunks = len(chunks)
+            total_size = sum(len(chunk.text) for chunk, _ in chunks)
+            pages = set(chunk.page_num for chunk, _ in chunks)
+            
+            return {
+                'source': 'vector_database',
+                'type': 'reconstructed_from_vector_db',
+                'num_chunks': total_chunks,
+                'size': total_size,
+                'pages': len(pages),
+                'source_url': source_url,
+                'reconstructed': True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting document metadata for {source_url}: {str(e)}")
+            return {}
 
     async def get_stats(self) -> Dict[str, Any]:
         """
