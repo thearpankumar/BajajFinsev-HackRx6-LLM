@@ -42,7 +42,6 @@ services:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
-      - TOKENIZERS_PARALLELISM=false
       
     expose:
       - "8000"
