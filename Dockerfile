@@ -61,32 +61,15 @@ COPY --chown=appuser:appuser payloads/ ./payloads/
 USER appuser
 
 # Set performance environment variables (optimized defaults)
-ENV FAST_MODE=true \
-    ENABLE_RERANKING=false \
-    MAX_CHUNKS_FOR_GENERATION=5 \
-    PARALLEL_PROCESSING=true \
-    MAX_PARALLEL_QUESTIONS=40 \
-    QUESTION_BATCH_SIZE=10 \
-    PYTHONPATH=/app \
-    TOKENIZERS_PARALLELISM=false \
+ENV PYTHONPATH=/app \
     NLTK_DATA=/home/appuser/nltk_data \
     VECTOR_DB_PATH=/app/vector_db \
     QDRANT_HOST=qdrant \
     QDRANT_PORT=6333 \
     QDRANT_COLLECTION_NAME=bajaj_documents \
-    ENABLE_PERSISTENT_DOCUMENT_CACHE=true \
     DOCUMENT_CACHE_PATH=/app/document_cache \
-    CHECK_VECTOR_DB_BEFORE_DOWNLOAD=true \
-    SKIP_DUPLICATE_DOCUMENTS=true \
-    ENABLE_QUESTION_DECOMPOSITION=true \
-    FAST_COMPLEX_QUESTIONS=true \
-    ENABLE_QUERY_ENHANCEMENT=true \
-    COMPLEX_QUESTION_MAX_TOKENS=250 \
-    USE_ENHANCED_QUERY=true \
-    USE_ENHANCED_RRF=true \
-    SIMILARITY_THRESHOLD=0.1 \
-    GOOGLE_MODEL=gemini-2.5-flash-lite
-
+    CHECK_VECTOR_DB_BEFORE_DOWNLOAD=true 
+    
 # Health check - updated to be more lenient during startup
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
     CMD curl -f http://localhost:8000/api/v1/hackrx/health || exit 1
