@@ -2,6 +2,7 @@
 Configuration settings for BajajFinsev RAG System
 """
 
+import os
 from typing import Optional
 from pydantic_settings import BaseSettings
 
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
 
     # Google AI Configuration
     GOOGLE_API_KEY: str
-    GOOGLE_MODEL: str = "gemini-2.0-flash-exp"
+    GOOGLE_MODEL: str = "gemini-2.5-flash-lite"
 
     # Qdrant Vector Database Configuration
     QDRANT_HOST: str = "localhost"
@@ -34,6 +35,14 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 200
     MAX_DOCUMENT_SIZE_MB: int = 100
 
+    # Document Caching Configuration
+    ENABLE_PERSISTENT_DOCUMENT_CACHE: bool = True
+    DOCUMENT_CACHE_PATH: str = "/app/document_cache" if os.path.exists("/app") else "./document_cache"
+    DOCUMENT_CACHE_TTL_HOURS: int = 168  # 7 days
+    CHECK_VECTOR_DB_BEFORE_DOWNLOAD: bool = True
+    SKIP_DUPLICATE_DOCUMENTS: bool = True
+    DOCUMENT_HASH_ALGORITHM: str = "sha256"
+
     # Parallel Processing Configuration
     MAX_PARALLEL_QUESTIONS: int = 40
     QUESTION_BATCH_SIZE: int = 10
@@ -45,6 +54,10 @@ class Settings(BaseSettings):
     MAX_CHUNKS_FOR_GENERATION: int = 8
     USE_ENHANCED_QUERY: bool = True
     USE_ENHANCED_RRF: bool = True
+    ENABLE_QUESTION_DECOMPOSITION: bool = True  # NEW: Handle complex multi-part questions
+    COMPLEX_QUESTION_MAX_TOKENS: int = 250  # NEW: More tokens for complex questions
+    FAST_COMPLEX_QUESTIONS: bool = True  # NEW: Use fast processing for complex questions
+    ENABLE_QUERY_ENHANCEMENT: bool = True  # NEW: Enhance queries for better retrieval
     
     # Generation Settings
     MAX_GENERATION_TOKENS: int = 180

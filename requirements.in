@@ -11,6 +11,7 @@ python-dotenv
 
 # HTTP Client
 aiohttp
+aiofiles
 httpx
 
 # AI & Machine Learning Core
@@ -31,6 +32,7 @@ scikit-learn
 # LlamaIndex and Qdrant (NEW)
 llama-index
 llama-index-vector-stores-qdrant
+llama-index-readers-file  # Enhanced document processing with PDF/DOCX readers
 qdrant-client
 
 # Document Parsing

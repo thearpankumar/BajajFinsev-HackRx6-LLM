@@ -24,8 +24,9 @@ from nltk.corpus import stopwords
 import re
 
 from src.core.config import settings
-from src.core.document_processor import DocumentProcessor, DocumentChunk
+from src.core.enhanced_document_processor import EnhancedDocumentProcessor, DocumentChunk
 from src.core.qdrant_vector_store import QdrantVectorStore  # NEW: Using Qdrant instead of LanceDB
+from src.core.document_cache_manager import DocumentCacheManager  # NEW: Document caching
 from src.core.prompt_templates import PromptTemplates
 
 # Initialize OpenAI client after importing settings
@@ -51,8 +52,9 @@ class RAGEngine:
     """
 
     def __init__(self):
-        self.document_processor = DocumentProcessor()
+        self.document_processor = EnhancedDocumentProcessor()
         self.vector_store = None
+        self.document_cache_manager = DocumentCacheManager()  # NEW: Document cache manager
         self.bm25_index = None
         self.cross_encoder = None
         self.prompt_templates = PromptTemplates()
@@ -181,6 +183,11 @@ class RAGEngine:
         """Initialize the RAG engine components"""
         logger.info("Initializing RAG Engine...")
 
+        # Initialize document cache manager first
+        logger.info("📁 Initializing document cache manager...")
+        await self.document_cache_manager.initialize()
+        logger.info("✅ Document cache manager initialized")
+
         # Initialize Qdrant vector store (NEW: Using Qdrant instead of LanceDB)
         self.vector_store = QdrantVectorStore()
         await self.vector_store.initialize()
@@ -191,7 +198,7 @@ class RAGEngine:
         # Don't initialize cross-encoder here - it's slow and optional
         # It will be lazy-loaded only if re-ranking is needed
         logger.info(
-            "RAG Engine initialized successfully with Qdrant! (Cross-encoder will be loaded on demand)"
+            "RAG Engine initialized successfully with Qdrant and document caching! (Cross-encoder will be loaded on demand)"
         )
 
     def _get_cross_encoder(self):
@@ -209,6 +216,103 @@ class RAGEngine:
                 logger.error(f"Failed to load cross-encoder: {e}")
                 return None
         return self.cross_encoder
+
+    async def _decompose_complex_question(self, question: str) -> List[str]:
+        """
+        Fast decomposition of complex multi-part questions
+        Uses rule-based approach for speed with better pattern recognition
+        """
+        # Quick rule-based decomposition for common patterns
+        question_lower = question.lower()
+        
+        # Pattern 1: "while X, also Y, and Z" -> Extract each distinct part
+        if "while" in question_lower and ("also" in question_lower or "simultaneously" in question_lower):
+            parts = []
+            
+            # Extract the main "while" clause
+            while_part = question.split("while")[1].split(",")[0].strip() if "while" in question else ""
+            if while_part and len(while_part) > 15:
+                parts.append(while_part + "?")
+            
+            # Extract "also" parts
+            remaining = question.lower()
+            if "also" in remaining:
+                also_parts = question.split("also")[1:]
+                for part in also_parts:
+                    clean_part = part.split(",")[0].split("and")[0].strip()
+                    if clean_part and len(clean_part) > 15:
+                        parts.append(clean_part + "?")
+            
+            # Extract "provide" or "confirm" parts
+            if "provide" in question_lower:
+                provide_parts = [p.strip() for p in question.split("provide")[1:]]
+                for part in provide_parts:
+                    clean_part = part.split(",")[0].split(".")[0].strip()
+                    if clean_part and len(clean_part) > 10:
+                        parts.append(f"What is {clean_part}?")
+            
+            if len(parts) >= 2:
+                return parts[:3]  # Limit to 3 for speed
+        
+        # Pattern 2: "For X, what Y, how Z, and can W" -> Split on question words
+        question_words = ["what", "how", "can", "when", "where", "why", "which"]
+        if any(f", {word}" in question_lower for word in question_words):
+            parts = []
+            
+            # Split on commas and look for question patterns
+            comma_parts = [p.strip() for p in question.split(",")]
+            current_question = ""
+            
+            for part in comma_parts:
+                part_lower = part.lower()
+                if any(part_lower.startswith(word) for word in question_words):
+                    if current_question:
+                        parts.append(current_question + "?")
+                    current_question = part
+                else:
+                    if current_question:
+                        current_question += ", " + part
+                    else:
+                        current_question = part
+            
+            if current_question:
+                parts.append(current_question + "?")
+            
+            if len(parts) >= 2:
+                return parts[:3]
+        
+        # Pattern 3: "simultaneously" or "at the same time" patterns
+        if "simultaneously" in question_lower or "at the same time" in question_lower:
+            # Split on these phrases
+            split_phrases = ["simultaneously", "at the same time"]
+            for phrase in split_phrases:
+                if phrase in question_lower:
+                    parts = question.split(phrase)
+                    if len(parts) == 2:
+                        return [parts[0].strip() + "?", parts[1].strip() + "?"]
+        
+        # Pattern 4: Multiple questions with "and" - more sophisticated splitting
+        if question.count(" and ") >= 2 and len(question) > 100:
+            # Look for natural break points
+            parts = []
+            sentences = question.replace(" and ", " AND ").split(" AND ")
+            
+            current_part = sentences[0]
+            for i, sentence in enumerate(sentences[1:], 1):
+                if len(current_part) > 50 and any(word in sentence.lower() for word in ["what", "how", "can", "provide", "confirm"]):
+                    parts.append(current_part.strip() + "?")
+                    current_part = sentence
+                else:
+                    current_part += " and " + sentence
+            
+            if current_part:
+                parts.append(current_part.strip() + "?")
+            
+            if len(parts) >= 2:
+                return parts[:3]
+        
+        # If no patterns match, return original question
+        return [question]
 
     async def analyze_document(
         self, document_url: str, questions: List[str]
@@ -361,26 +465,117 @@ class RAGEngine:
     async def _get_or_process_document(
         self, document_url: str
     ) -> Tuple[List[DocumentChunk], Dict[str, Any]]:
-        """Get document from cache or process it"""
+        """
+        Get document from cache or process it with intelligent caching strategy
+        
+        Priority order:
+        1. Memory cache (fastest)
+        2. Persistent document cache (fast)
+        3. Vector database reconstruction (medium)
+        4. Download and process (slowest)
+        """
+        logger.info(f"🔍 Getting document: {document_url}")
+        
+        # Step 1: Check memory cache first (fastest)
         if document_url in self.document_cache:
+            logger.info("✅ Found document in memory cache")
             self.stats["cache_hits"] += 1
             return self.document_cache[document_url]
 
-        # Process document
-        chunks, metadata = await self.document_processor.process_document(document_url)
+        # Step 2: Check persistent document cache (fast)
+        if settings.ENABLE_PERSISTENT_DOCUMENT_CACHE:
+            logger.info("🔍 Checking persistent document cache...")
+            cached_result = await self.document_cache_manager.get_cached_document(document_url)
+            if cached_result:
+                chunks, metadata = cached_result
+                logger.info(f"✅ Found document in persistent cache with {len(chunks)} chunks")
+                
+                # Store in memory cache for faster future access
+                self.document_cache[document_url] = (chunks, metadata)
+                self.stats["cache_hits"] += 1
+                return chunks, metadata
 
-        # Cache results
-        self.document_cache[document_url] = (chunks, metadata)
+        # Step 3: Check if document exists in vector database (medium speed)
+        if settings.CHECK_VECTOR_DB_BEFORE_DOWNLOAD:
+            logger.info("🔍 Checking if document exists in vector database...")
+            if await self.vector_store.document_exists(document_url):
+                logger.info("✅ Found document in vector database, reconstructing...")
+                
+                # Get chunks from vector database
+                chunks_with_scores = await self.vector_store.get_document_chunks_from_db(document_url)
+                if chunks_with_scores:
+                    chunks = [chunk for chunk, _ in chunks_with_scores]
+                    metadata = await self.vector_store.get_document_metadata_from_db(document_url)
+                    
+                    logger.info(f"✅ Reconstructed document from vector DB with {len(chunks)} chunks")
+                    
+                    # Cache in memory and persistent storage
+                    self.document_cache[document_url] = (chunks, metadata)
+                    if settings.ENABLE_PERSISTENT_DOCUMENT_CACHE:
+                        await self.document_cache_manager.cache_document(document_url, chunks, metadata)
+                    
+                    self.stats["cache_hits"] += 1
+                    return chunks, metadata
+                else:
+                    logger.warning("⚠️ Document exists in vector DB but couldn't retrieve chunks")
 
-        return chunks, metadata
+        # Step 4: Download and process document (slowest)
+        logger.info("📥 Document not found in any cache, downloading and processing...")
+        
+        # Check if we should skip duplicate processing
+        if settings.SKIP_DUPLICATE_DOCUMENTS and document_url in self.document_cache:
+            logger.info("⚠️ Document processing already in progress, using existing result")
+            return self.document_cache[document_url]
+
+        try:
+            # Process document from URL
+            chunks, metadata = await self.document_processor.process_document(document_url)
+            logger.info(f"✅ Processed document with {len(chunks)} chunks")
+
+            # Add processing metadata
+            metadata.update({
+                'source': 'downloaded_and_processed',
+                'cache_hit': False,
+                'processing_method': 'full_download'
+            })
+
+            # Cache in memory
+            self.document_cache[document_url] = (chunks, metadata)
+
+            # Cache in persistent storage
+            if settings.ENABLE_PERSISTENT_DOCUMENT_CACHE:
+                cache_success = await self.document_cache_manager.cache_document(document_url, chunks, metadata)
+                if cache_success:
+                    logger.info("✅ Document cached persistently")
+                else:
+                    logger.warning("⚠️ Failed to cache document persistently")
+
+            return chunks, metadata
+
+        except Exception as e:
+            logger.error(f"❌ Failed to process document {document_url}: {str(e)}")
+            raise
 
     async def _index_chunks(self, chunks: List[DocumentChunk], document_url: str):
-        """Index chunks in both vector store and BM25"""
+        """Index chunks in both vector store and BM25 with smart duplicate detection"""
+        logger.info(f"🔍 Checking indexing status for document: {document_url}")
+        
+        # Check memory cache first
         if document_url in self.chunk_cache:
-            logger.info(f"Document {document_url} already indexed, skipping...")
-            return  # Already indexed
+            logger.info(f"✅ Document {document_url} already indexed in memory, skipping...")
+            return
 
-        logger.info(f"Indexing {len(chunks)} chunks for document: {document_url}")
+        # Check if document already exists in vector database
+        if settings.CHECK_VECTOR_DB_BEFORE_DOWNLOAD:
+            if await self.vector_store.document_exists(document_url):
+                logger.info(f"✅ Document {document_url} already exists in vector database")
+                
+                # Just rebuild memory caches without re-adding to vector store
+                logger.info("🔄 Rebuilding memory caches from existing data...")
+                await self._rebuild_memory_cache_for_document(document_url, chunks)
+                return
+
+        logger.info(f"📝 Indexing {len(chunks)} chunks for document: {document_url}")
 
         # Prepare texts for indexing
         texts = [chunk.text for chunk in chunks]
@@ -395,35 +590,53 @@ class RAGEngine:
             for chunk in chunks
         ]
 
-        # Check if vector store already has data for this document
+        # Add to vector store (only if not already there)
         try:
             existing_stats = await self.vector_store.get_stats()
             logger.info(f"Vector store has {existing_stats.get('total_vectors', 0)} existing vectors")
             
-            # Always try to add new chunks to vector store
-            logger.info("Adding texts to vector store...")
+            logger.info("📤 Adding texts to vector store...")
             await self.vector_store.add_texts(texts, metadatas)
-            logger.info("Successfully added texts to vector store")
+            logger.info("✅ Successfully added texts to vector store")
             
         except Exception as e:
-            logger.error(f"Error adding texts to vector store: {str(e)}")
+            logger.error(f"❌ Error adding texts to vector store: {str(e)}")
             # Continue with BM25 even if vector store fails
             pass
 
-        # Create BM25 index (always create for new documents)
-        logger.info("Creating BM25 index...")
-        tokenized_texts = [self._tokenize_for_bm25(text) for text in texts]
-        self.bm25_index = BM25Okapi(tokenized_texts)
+        # Build memory caches
+        await self._rebuild_memory_cache_for_document(document_url, chunks)
 
-        # Cache chunk information
-        self.chunk_cache[document_url] = {
-            "chunks": chunks,
-            "texts": texts,
-            "tokenized_texts": tokenized_texts,
-        }
+        logger.info(f"✅ Indexed {len(chunks)} chunks for {document_url}")
 
-        logger.info(f"Indexed {len(chunks)} chunks for {document_url}")
-        logger.info(f"BM25 index now available with {len(tokenized_texts)} documents")
+    async def _rebuild_memory_cache_for_document(self, document_url: str, chunks: List[DocumentChunk]):
+        """Rebuild memory caches for a document"""
+        try:
+            logger.info(f"🔄 Rebuilding memory cache for {document_url}")
+            
+            # Prepare texts for BM25
+            texts = [chunk.text for chunk in chunks]
+            tokenized_texts = [self._tokenize_for_bm25(text) for text in texts]
+            
+            # Create BM25 index (always create for new documents)
+            if tokenized_texts and all(tokenized_texts):
+                self.bm25_index = BM25Okapi(tokenized_texts)
+                logger.info("✅ BM25 index created successfully")
+            else:
+                logger.warning("⚠️ Could not create BM25 index - no valid tokens")
+
+            # Cache chunk information in memory
+            self.chunk_cache[document_url] = {
+                "chunks": chunks,
+                "texts": texts,
+                "tokenized_texts": tokenized_texts,
+            }
+
+            logger.info(f"✅ Memory cache rebuilt for {document_url} with {len(chunks)} chunks")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to rebuild memory cache for {document_url}: {str(e)}")
+            raise
 
     def _tokenize_for_bm25(self, text: str) -> List[str]:
         """Tokenize text for BM25 indexing"""
@@ -443,33 +656,283 @@ class RAGEngine:
     ) -> str:
         """
         Answer a single question using hybrid retrieval and generation
+        Handles complex multi-part questions by decomposing them
         """
         retrieval_start = time.time()
 
-        # Step 1: Hybrid Retrieval
-        relevant_chunks = await self._hybrid_retrieval(question, document_url)
+        # Step 0: Check if this is a complex multi-part question (if enabled)
+        if settings.ENABLE_QUESTION_DECOMPOSITION:
+            sub_questions = await self._decompose_complex_question(question)
+        else:
+            sub_questions = [question]
+        
+        if len(sub_questions) > 1 and settings.FAST_COMPLEX_QUESTIONS:
+            # Use fast processing for complex questions
+            return await self._fast_process_complex_question(question, sub_questions, document_url, retrieval_start)
+        elif len(sub_questions) > 1:
+            # Handle multi-part question with optimized processing
+            logger.info(f"Processing multi-part question with {len(sub_questions)} parts")
+            
+            # Process sub-questions in parallel for speed
+            if settings.PARALLEL_PROCESSING and len(sub_questions) > 2:
+                logger.info("Processing sub-questions in parallel for speed")
+                
+                async def process_sub_question(sub_q):
+                    relevant_chunks = await self._hybrid_retrieval(sub_q, document_url)
+                    reranked_chunks = await self._rerank_chunks(
+                        sub_q, relevant_chunks, use_reranking=False  # Skip reranking for speed
+                    )
+                    return await self._generate_answer(sub_q, reranked_chunks)
+                
+                # Process all sub-questions in parallel
+                sub_answers = await asyncio.gather(*[
+                    process_sub_question(sub_q) for sub_q in sub_questions
+                ])
+                
+            else:
+                # Sequential processing for smaller sets
+                sub_answers = []
+                for i, sub_question in enumerate(sub_questions):
+                    logger.info(f"Processing sub-question {i+1}: {sub_question[:50]}...")
+                    
+                    relevant_chunks = await self._hybrid_retrieval(sub_question, document_url)
+                    reranked_chunks = await self._rerank_chunks(
+                        sub_question, relevant_chunks, use_reranking=False  # Skip reranking for speed
+                    )
+                    sub_answer = await self._generate_answer(sub_question, reranked_chunks)
+                    sub_answers.append(sub_answer)
+            
+            # Fast combination - just join with connecting words
+            combined_answer = await self._fast_combine_answers(question, sub_questions, sub_answers)
+            
+            retrieval_time = time.time() - retrieval_start
+            self.stats["avg_retrieval_time"] = (
+                self.stats["avg_retrieval_time"] + retrieval_time
+            ) / 2
+            
+            return combined_answer
+        
+        else:
+            # Handle single-part question (original logic)
+            # Step 1: Hybrid Retrieval
+            relevant_chunks = await self._hybrid_retrieval(question, document_url)
 
+            retrieval_time = time.time() - retrieval_start
+
+            # Step 2: Re-ranking (configurable via settings)
+            reranked_chunks = await self._rerank_chunks(
+                question, relevant_chunks, use_reranking=settings.ENABLE_RERANKING
+            )
+
+            # Step 3: Generate answer
+            generation_start = time.time()
+            answer = await self._generate_answer(question, reranked_chunks)
+            generation_time = time.time() - generation_start
+
+            # Update stats
+            self.stats["avg_retrieval_time"] = (
+                self.stats["avg_retrieval_time"] + retrieval_time
+            ) / 2
+            self.stats["avg_generation_time"] = (
+                self.stats["avg_generation_time"] + generation_time
+            ) / 2
+
+        return answer
+
+    async def _combine_sub_answers(
+        self, original_question: str, sub_questions: List[str], sub_answers: List[str]
+    ) -> str:
+        """
+        Combine multiple sub-answers into a comprehensive response for complex questions
+        """
+        try:
+            # Create a structured response that addresses all parts
+            combination_prompt = f"""
+            You are an insurance policy expert. You were asked a complex question that was broken down into parts. 
+            Combine the individual answers into one comprehensive, well-structured response that fully addresses the original question.
+            
+            Original question: {original_question}
+            
+            Sub-questions and their answers:
+            """
+            
+            for i, (sub_q, sub_a) in enumerate(zip(sub_questions, sub_answers), 1):
+                combination_prompt += f"\n{i}. {sub_q}\nAnswer: {sub_a}\n"
+            
+            combination_prompt += """
+            
+            Instructions for combining:
+            1. Provide a comprehensive answer that addresses ALL aspects of the original question
+            2. Maintain the specific policy details and references from each sub-answer
+            3. Structure the response logically to cover each part of the original question
+            4. Keep it detailed but concise (3-4 sentences maximum)
+            5. If some information is not available in the policy, clearly state that
+            6. Use specific policy section references when available
+            7. Ensure the answer flows naturally and addresses the question completely
+            
+            Combined comprehensive answer:
+            """
+            
+            response = await self.openai_client.chat.completions.create(
+                model=settings.OPENAI_GENERATION_MODEL,
+                messages=[{"role": "user", "content": combination_prompt}],
+                max_tokens=settings.COMPLEX_QUESTION_MAX_TOKENS,  # Use dedicated setting for complex questions
+                temperature=settings.GENERATION_TEMPERATURE
+            )
+            
+            combined_answer = response.choices[0].message.content.strip()
+            logger.info("Successfully combined sub-answers into comprehensive response")
+            return combined_answer
+            
+        except Exception as e:
+            logger.warning(f"Failed to combine sub-answers: {str(e)}")
+            # Fallback: create a structured combination manually
+            combined_parts = []
+            for i, (sub_q, sub_a) in enumerate(zip(sub_questions, sub_answers)):
+                if i == 0:
+                    combined_parts.append(sub_a)
+                else:
+                    # Add connecting words for subsequent parts
+                    combined_parts.append(f"Additionally, {sub_a.lower()}")
+            
+            return " ".join(combined_parts)
+
+    async def _fast_combine_answers(
+        self, original_question: str, sub_questions: List[str], sub_answers: List[str]
+    ) -> str:
+        """
+        Fast combination of sub-answers without AI processing for speed
+        Creates natural flow without repetitive connecting words
+        """
+        if len(sub_answers) == 1:
+            return sub_answers[0]
+        
+        # Analyze the original question to determine combination style
+        question_lower = original_question.lower()
+        
+        # For questions asking multiple specific things, use structured approach
+        if "also" in question_lower or "simultaneously" in question_lower or "and" in question_lower:
+            combined_parts = []
+            
+            for i, answer in enumerate(sub_answers):
+                if i == 0:
+                    combined_parts.append(answer)
+                elif i == 1:
+                    # Use different connectors based on content
+                    if "document does not contain" in answer.lower():
+                        combined_parts.append(f"Regarding the second part, {answer.lower()}")
+                    else:
+                        combined_parts.append(f"For the second aspect, {answer}")
+                elif i == 2:
+                    if "document does not contain" in answer.lower():
+                        combined_parts.append(f"As for the third part, {answer.lower()}")
+                    else:
+                        combined_parts.append(f"Finally, {answer}")
+                else:
+                    combined_parts.append(answer)
+            
+            return " ".join(combined_parts)
+        
+        # For other complex questions, use simple joining
+        else:
+            # Remove redundant phrases and create smooth flow
+            cleaned_answers = []
+            for answer in sub_answers:
+                # Remove common redundant starts
+                cleaned = answer
+                if cleaned.startswith("The document does not contain information about"):
+                    cleaned = "The document doesn't specify " + cleaned[47:]
+                elif cleaned.startswith("According to the document"):
+                    cleaned = cleaned[25:]
+                
+                cleaned_answers.append(cleaned)
+            
+            return " ".join(cleaned_answers)
+
+    async def _fast_process_complex_question(
+        self, question: str, sub_questions: List[str], document_url: str, retrieval_start: float
+    ) -> str:
+        """
+        Fast processing for complex questions - optimized for speed over perfect accuracy
+        """
+        logger.info(f"Fast processing {len(sub_questions)} sub-questions")
+        
+        # Process sub-questions in parallel for maximum speed
+        async def fast_process_sub_question(sub_q):
+            # Enhance query for better retrieval if enabled
+            if settings.ENABLE_QUERY_ENHANCEMENT:
+                enhanced_query = await self._enhance_query_for_retrieval(sub_q)
+            else:
+                enhanced_query = sub_q
+            
+            # Temporarily lower similarity threshold for complex questions
+            original_threshold = settings.SIMILARITY_THRESHOLD
+            settings.SIMILARITY_THRESHOLD = max(0.05, original_threshold * 0.5)  # Lower threshold
+            
+            try:
+                # Use fewer chunks for speed but better query
+                relevant_chunks = await self._hybrid_retrieval(enhanced_query, document_url)
+                # Skip reranking for speed
+                top_chunks = [chunk for chunk, _ in relevant_chunks[:5]]  # Take top 5 only
+                return await self._generate_answer(sub_q, top_chunks)
+            finally:
+                # Restore original threshold
+                settings.SIMILARITY_THRESHOLD = original_threshold
+        
+        # Process all sub-questions in parallel
+        sub_answers = await asyncio.gather(*[
+            fast_process_sub_question(sub_q) for sub_q in sub_questions
+        ])
+        
+        # Fast combination without AI
+        combined_answer = await self._fast_combine_answers(question, sub_questions, sub_answers)
+        
         retrieval_time = time.time() - retrieval_start
-
-        # Step 2: Re-ranking (configurable via settings)
-        reranked_chunks = await self._rerank_chunks(
-            question, relevant_chunks, use_reranking=settings.ENABLE_RERANKING
-        )
-
-        # Step 3: Generate answer
-        generation_start = time.time()
-        answer = await self._generate_answer(question, reranked_chunks)
-        generation_time = time.time() - generation_start
-
-        # Update stats
         self.stats["avg_retrieval_time"] = (
             self.stats["avg_retrieval_time"] + retrieval_time
         ) / 2
-        self.stats["avg_generation_time"] = (
-            self.stats["avg_generation_time"] + generation_time
-        ) / 2
+        
+        return combined_answer
 
-        return answer
+    async def _enhance_query_for_retrieval(self, query: str) -> str:
+        """
+        Fast query enhancement for better retrieval without AI calls
+        """
+        query_lower = query.lower()
+        
+        # Add relevant insurance terms based on query content
+        enhancements = []
+        
+        # Dental-related queries
+        if "dental" in query_lower:
+            enhancements.extend(["dental treatment", "dental surgery", "dental claim", "OPD dental"])
+        
+        # Claim-related queries
+        if any(word in query_lower for word in ["claim", "submit", "documents"]):
+            enhancements.extend(["claim process", "documentation", "TPA", "reimbursement"])
+        
+        # Dependent-related queries
+        if any(word in query_lower for word in ["dependent", "child", "spouse", "parent"]):
+            enhancements.extend(["dependent eligibility", "family member", "coverage"])
+        
+        # Process-related queries
+        if any(word in query_lower for word in ["process", "procedure", "steps"]):
+            enhancements.extend(["procedure", "requirements", "notification"])
+        
+        # Hospital-related queries
+        if any(word in query_lower for word in ["hospital", "network", "cashless"]):
+            enhancements.extend(["network hospital", "cashless facility", "pre-authorization"])
+        
+        # Contact-related queries
+        if any(word in query_lower for word in ["email", "contact", "phone", "grievance"]):
+            enhancements.extend(["contact details", "customer service", "grievance redressal"])
+        
+        # Combine original query with enhancements
+        if enhancements:
+            enhanced = f"{query} {' '.join(enhancements[:3])}"  # Limit to 3 enhancements
+            return enhanced
+        
+        return query
 
     async def _hybrid_retrieval(
         self, query: str, document_url: str
