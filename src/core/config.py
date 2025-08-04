@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     MAX_PARALLEL_QUESTIONS: int = 40
     QUESTION_BATCH_SIZE: int = 10
     PARALLEL_PROCESSING: bool = True
+    MAX_CONCURRENT_OPERATIONS: int = 15  # NEW: Limit concurrent operations (increased for better performance)
 
     # Accuracy Control Settings
     ENABLE_RERANKING: bool = True

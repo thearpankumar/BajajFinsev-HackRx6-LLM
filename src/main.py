@@ -3,10 +3,23 @@ BajajFinsev RAG System - Main FastAPI Application
 High-accuracy document analysis for Insurance, Legal, HR, and Compliance domains
 """
 
+import os
 import time
 import json
+import warnings
 from typing import Optional
 from contextlib import asynccontextmanager
+
+# Suppress multiprocessing warnings if needed
+if os.getenv('SUPPRESS_MULTIPROCESSING_WARNINGS', 'false').lower() == 'true':
+    warnings.filterwarnings("ignore", category=UserWarning, module="multiprocessing.resource_tracker")
+
+# Set multiprocessing start method to reduce semaphore leaks
+import multiprocessing
+try:
+    multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+    pass  # Already set
 
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -68,8 +81,17 @@ async def lifespan(app: FastAPI):
     print("🔄 Shutting down RAG System...")
     try:
         if rag_engine:
-            await rag_engine.cleanup()
+            # Use asyncio.wait_for to prevent hanging
+            import asyncio
+            await asyncio.wait_for(rag_engine.cleanup(), timeout=10.0)
+        
+        # Simple garbage collection
+        import gc
+        gc.collect()
+        
         print("✅ Shutdown complete!")
+    except asyncio.TimeoutError:
+        print("⚠️ Cleanup timed out, forcing shutdown")
     except Exception as e:
         print(f"⚠️ Error during shutdown: {str(e)}")
 
@@ -249,7 +271,7 @@ async def stream_analysis(
 
 
 @app.get("/api/v1/hackrx/health", response_model=HealthResponse)
-async def health_check(api_key: str = Depends(verify_api_key)):
+async def health_check():
     """Health check endpoint"""
     try:
         print("\n🏥 HEALTH CHECK")

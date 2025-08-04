@@ -77,6 +77,9 @@ class RAGEngine:
             "avg_retrieval_time": 0,
             "avg_generation_time": 0,
         }
+        
+        # Resource management - use a simpler approach
+        self._shutdown = False
 
     async def _rebuild_caches_from_qdrant(self):
         """Rebuild in-memory caches from existing Qdrant data"""
@@ -178,6 +181,36 @@ class RAGEngine:
             logger.error(f"Traceback: {traceback.format_exc()}")
             # Don't let this break the initialization
             logger.info("Continuing without cache rebuild...")
+
+    async def cleanup(self):
+        """
+        Cleanup resources to prevent semaphore leaks
+        """
+        try:
+            self._shutdown = True
+            
+            # Close OpenAI client gracefully
+            try:
+                if hasattr(self.openai_client, 'close'):
+                    await self.openai_client.close()
+            except Exception as e:
+                logger.warning(f"Error closing OpenAI client: {str(e)}")
+            
+            # Cleanup vector store
+            try:
+                if self.vector_store and hasattr(self.vector_store, 'close'):
+                    await self.vector_store.close()
+            except Exception as e:
+                logger.warning(f"Error closing vector store: {str(e)}")
+            
+            # Clear caches
+            self.document_cache.clear()
+            self.chunk_cache.clear()
+            
+            logger.info("RAG Engine cleanup completed")
+            
+        except Exception as e:
+            logger.warning(f"Error during cleanup: {str(e)}")
 
     async def initialize(self):
         """Initialize the RAG engine components"""
@@ -394,24 +427,29 @@ class RAGEngine:
             f"Processing {len(questions_to_process)} questions with parallel processing"
         )
 
-        # Create semaphore to limit concurrent operations
-        semaphore = asyncio.Semaphore(settings.QUESTION_BATCH_SIZE)
+        # Create semaphore to limit concurrent operations - use 15 for better performance
+        semaphore = asyncio.Semaphore(min(settings.QUESTION_BATCH_SIZE, 15))  # Limit to 15 concurrent
 
         async def process_single_question_with_semaphore(
             question: str, index: int
         ) -> Tuple[int, str]:
             """Process a single question with semaphore control"""
-            async with semaphore:
-                try:
+            try:
+                async with semaphore:
+                    if self._shutdown:
+                        return (index, "Processing interrupted")
+                        
                     logger.info(
                         f"Processing question {index + 1}/{len(questions_to_process)}: {question[:50]}..."
                     )
                     answer = await self._answer_question(question, chunks, document_url)
                     logger.info(f"Completed question {index + 1}")
                     return (index, answer)
-                except Exception as e:
-                    logger.error(f"Error processing question {index + 1}: {str(e)}")
-                    return (index, f"Error processing question: {str(e)}")
+            except asyncio.CancelledError:
+                return (index, "Question processing was cancelled")
+            except Exception as e:
+                logger.error(f"Error processing question {index + 1}: {str(e)}")
+                return (index, f"Error processing question: {str(e)}")
 
         # Create tasks for all questions
         tasks = [
@@ -419,9 +457,24 @@ class RAGEngine:
             for i, question in enumerate(questions_to_process)
         ]
 
-        # Execute all tasks concurrently
+        # Execute all tasks concurrently with timeout
         start_time = time.time()
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=300.0  # 5 minute timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error("Parallel processing timed out, falling back to sequential")
+            # Fallback to sequential processing
+            results = []
+            for i, question in enumerate(questions_to_process):
+                try:
+                    answer = await self._answer_question(question, chunks, document_url)
+                    results.append((i, answer))
+                except Exception as ex:
+                    results.append((i, f"Error: {str(ex)}"))
+        
         parallel_time = time.time() - start_time
 
         logger.info(f"Parallel processing completed in {parallel_time:.2f} seconds")
@@ -859,6 +912,9 @@ class RAGEngine:
         
         # Process sub-questions in parallel for maximum speed
         async def fast_process_sub_question(sub_q):
+            if self._shutdown:
+                return "Processing interrupted"
+                
             # Enhance query for better retrieval if enabled
             if settings.ENABLE_QUERY_ENHANCEMENT:
                 enhanced_query = await self._enhance_query_for_retrieval(sub_q)
@@ -882,10 +938,18 @@ class RAGEngine:
         # Process all sub-questions in parallel
         sub_answers = await asyncio.gather(*[
             fast_process_sub_question(sub_q) for sub_q in sub_questions
-        ])
+        ], return_exceptions=True)
+        
+        # Handle any exceptions in sub-answers
+        processed_answers = []
+        for answer in sub_answers:
+            if isinstance(answer, Exception):
+                processed_answers.append(f"Error processing sub-question: {str(answer)}")
+            else:
+                processed_answers.append(answer)
         
         # Fast combination without AI
-        combined_answer = await self._fast_combine_answers(question, sub_questions, sub_answers)
+        combined_answer = await self._fast_combine_answers(question, sub_questions, processed_answers)
         
         retrieval_time = time.time() - retrieval_start
         self.stats["avg_retrieval_time"] = (
@@ -1677,14 +1741,3 @@ ACCURACY REQUIREMENTS:
             return bool(response.choices)
         except Exception:
             return False
-
-    async def cleanup(self):
-        """Cleanup resources"""
-        if self.vector_store:
-            await self.vector_store.close()
-
-        # Clear caches
-        self.document_cache.clear()
-        self.chunk_cache.clear()
-
-        logger.info("RAG Engine cleanup completed")
