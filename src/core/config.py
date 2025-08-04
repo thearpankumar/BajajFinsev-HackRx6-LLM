@@ -65,9 +65,9 @@ class Settings(BaseSettings):
     GENERATION_TEMPERATURE: float = 0.0
 
     # Retrieval Configuration
-    TOP_K_RETRIEVAL: int = 30
-    RERANK_TOP_K: int = 15
-    SIMILARITY_THRESHOLD: float = 0.05
+    TOP_K_RETRIEVAL: int = 25
+    RERANK_TOP_K: int = 10
+    SIMILARITY_THRESHOLD: float = 0.1
 
     # Hybrid Search Configuration
     DENSE_WEIGHT: float = 0.8
