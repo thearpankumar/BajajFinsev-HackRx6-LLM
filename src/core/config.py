@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     
     # Generation Settings
     MAX_GENERATION_TOKENS: int = 180
-    GENERATION_TEMPERATURE: float = 0.0
+    GENERATION_TEMPERATURE: float = 0.1
 
     # Retrieval Configuration
     TOP_K_RETRIEVAL: int = 25
