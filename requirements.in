@@ -4,6 +4,7 @@ fastapi
 uvicorn[standard]
 pydantic
 pydantic-settings
+ruff
 
 # AI and ML services
 openai

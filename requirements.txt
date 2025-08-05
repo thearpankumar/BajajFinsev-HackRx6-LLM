@@ -484,6 +484,8 @@ rsa==4.9.1
     # via
     #   google-auth
     #   python-jose
+ruff==0.12.7
+    # via -r requirements.in
 safetensors==0.5.3
     # via transformers
 scikit-image==0.25.2
