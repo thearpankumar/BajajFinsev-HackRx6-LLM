@@ -509,6 +509,7 @@ scripts/staging/
 .ruff**
 document_cache/
 notes.txt
+cache
 # ==============================================================================
 # NOTES:
 # 

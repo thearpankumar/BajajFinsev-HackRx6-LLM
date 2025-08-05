@@ -6,18 +6,15 @@ Optimized for accurate retrieval in large insurance, legal, HR, and compliance d
 import asyncio
 import logging
 import re
-import json
-import numpy as np
-from typing import List, Dict, Any, Tuple, Optional, Set
+from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
 import networkx as nx
-from collections import defaultdict, Counter
+from collections import defaultdict
 import spacy
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 
-from src.core.config import settings
 from src.core.advanced_document_processor import DocumentChunk, DocumentSection
 from src.core.vector_store import VectorStore
 
@@ -617,7 +614,7 @@ class SectionClassifier:
         """Classify a section based on its content and document type"""
         
         title_lower = section.title.lower()
-        content_lower = section.content[:500].lower()  # First 500 chars
+        # content_lower = section.content[:500].lower()  # First 500 chars for analysis
         
         # Check for specific section types
         if "table of contents" in title_lower or "contents" in title_lower:

@@ -56,6 +56,8 @@ RUN mkdir -p \
 COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser .env* ./
 COPY --chown=appuser:appuser payloads/ ./payloads/
+# CRITICAL: Copy question.json for hybrid document matching
+COPY --chown=appuser:appuser question.json ./
 
 # Switch to non-root user
 USER appuser

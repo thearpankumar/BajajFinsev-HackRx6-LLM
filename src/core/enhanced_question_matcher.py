@@ -8,11 +8,9 @@ import asyncio
 import random
 import time
 import os
-import re
 from typing import List, Dict, Any, Optional
 from difflib import SequenceMatcher
 from urllib.parse import urlparse, unquote
-import requests
 
 # Import LLM components from the original RAG system
 try:
@@ -211,7 +209,7 @@ class EnhancedQuestionMatcher:
         Main method to analyze document and answer questions
         Uses JSON first, then LLM fallback for unmatched questions
         """
-        print(f"\n🔍 ANALYZING DOCUMENT WITH ENHANCED QUESTION MATCHER")
+        print("\n🔍 ANALYZING DOCUMENT WITH ENHANCED QUESTION MATCHER")
         print(f"Document URL: {document_url}")
         print(f"Number of questions: {len(questions)}")
         
@@ -241,7 +239,7 @@ class EnhancedQuestionMatcher:
                 json_matches += 1
             else:
                 # Fallback to LLM
-                print(f"🤖 No JSON match, using LLM fallback...")
+                print("🤖 No JSON match, using LLM fallback...")
                 answer = await self.get_llm_answer(document_url, question)
                 llm_fallbacks += 1
             
@@ -259,7 +257,7 @@ class EnhancedQuestionMatcher:
             "timestamp": time.time()
         }
         
-        print(f"\n✅ ANALYSIS COMPLETE")
+        print("\n✅ ANALYSIS COMPLETE")
         print(f"Generated {len(answers)} answers in {delay:.1f} seconds")
         print(f"JSON matches: {json_matches}, LLM fallbacks: {llm_fallbacks}")
         
@@ -269,7 +267,7 @@ class EnhancedQuestionMatcher:
         """
         Streaming analysis - returns quick initial answers
         """
-        print(f"\n🌊 STREAMING ANALYSIS WITH ENHANCED QUESTION MATCHER")
+        print("\n🌊 STREAMING ANALYSIS WITH ENHANCED QUESTION MATCHER")
         
         document_name, document_key = self.extract_document_name_from_url(document_url)
         

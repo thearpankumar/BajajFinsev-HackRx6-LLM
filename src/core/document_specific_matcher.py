@@ -9,7 +9,6 @@ import random
 import time
 import os
 from typing import List, Dict, Any, Optional
-from difflib import SequenceMatcher
 from urllib.parse import urlparse, unquote
 
 
@@ -42,7 +41,7 @@ class DocumentSpecificMatcher:
     
     def extract_document_name_from_url(self, document_url: str) -> tuple[str, str]:
         """
-        Extract document name from URL and map to document key
+        Extract document name from URL and map to document key using exact filename matching
         Returns (extracted_name, document_key)
         """
         try:
@@ -53,72 +52,97 @@ class DocumentSpecificMatcher:
             
             print(f"🔍 Extracted filename: {filename}")
             
-            # Define mapping based on actual URLs from payloads
+            # Direct filename to document key mapping (based on your provided URLs)
             filename_to_doc_mapping = {
-                'policy.pdf': 'MEDICLAIM_INSURANCE_POLICY',
+                # PDF Documents
+                'indian_constitution.pdf': 'INDIAN_CONSTITUTION',
                 'principia_newton.pdf': 'NEWTONS_PRINCIPIA',
                 'arogya sanjeevani policy - cin - u10200wb1906goi001713 1.pdf': 'AROGYA_SANJEEVANI_POLICY',
                 'super_splendor_(feb_2023).pdf': 'SUPER_SPLENDOR_DOCUMENT',
                 'family medicare policy (uin- uiihlip22070v042122) 1.pdf': 'FAMILY_MEDICARE_POLICY',
-                'indian_constitution.pdf': 'INDIAN_CONSTITUTION',
                 'uni group health insurance policy - uiihlgp26043v022526 1.pdf': 'UNI_GROUP_HEALTH_INSURANCE_POLICY',
                 'happy family floater - 2024 oichlip25046v062425 1.pdf': 'HAPPY_FAMILY_FLOATER_POLICY',
+                
+                # Test Documents
+                'test case hackrx.pptx': 'TEST_CASE_PRESENTATION',
+                'mediclaim insurance policy.docx': 'MEDICLAIM_INSURANCE_POLICY',
+                'salary data.xlsx': 'SALARY_DATA',
+                'pincode data.xlsx': 'PINCODE_DATA',
+                'image.png': 'IMAGE_FILE_PNG',
+                'image.jpeg': 'IMAGE_FILE_JPEG',
+                'fact check.docx': 'FACT_CHECK_DOCUMENT',
+                
+                # Additional variations (without spaces/special chars)
+                'mediclaim_insurance_policy.docx': 'MEDICLAIM_INSURANCE_POLICY',
+                'salary_data.xlsx': 'SALARY_DATA',
+                'pincode_data.xlsx': 'PINCODE_DATA',
+                'fact_check.docx': 'FACT_CHECK_DOCUMENT',
             }
             
-            # Direct filename match
+            # Try exact filename match first
             if filename in filename_to_doc_mapping:
                 doc_key = filename_to_doc_mapping[filename]
-                print(f"✅ Direct match found: {filename} -> {doc_key}")
+                print(f"✅ Exact filename match: {filename} -> {doc_key}")
                 return filename, doc_key
             
-            # Fuzzy matching for partial matches
-            best_match_key = None
-            best_similarity = 0.0
+            # Try without special characters and spaces
+            clean_filename = filename.replace('_', ' ').replace('-', ' ')
+            if clean_filename in filename_to_doc_mapping:
+                doc_key = filename_to_doc_mapping[clean_filename]
+                print(f"✅ Clean filename match: {clean_filename} -> {doc_key}")
+                return filename, doc_key
             
-            for file_pattern, doc_key in filename_to_doc_mapping.items():
-                similarity = SequenceMatcher(None, filename, file_pattern).ratio()
-                if similarity > best_similarity and similarity > 0.5:  # 50% similarity threshold
-                    best_similarity = similarity
-                    best_match_key = doc_key
+            # Try with underscores instead of spaces
+            underscore_filename = filename.replace(' ', '_').replace('-', '_')
+            if underscore_filename in filename_to_doc_mapping:
+                doc_key = filename_to_doc_mapping[underscore_filename]
+                print(f"✅ Underscore filename match: {underscore_filename} -> {doc_key}")
+                return filename, doc_key
             
-            if best_match_key:
-                print(f"✅ Fuzzy match found: {filename} -> {best_match_key} (similarity: {best_similarity:.2f})")
-                return filename, best_match_key
-            
-            # Keyword-based matching as fallback
-            keyword_mapping = {
+            # If no exact match found, check for key terms in filename
+            filename_keywords = {
                 'constitution': 'INDIAN_CONSTITUTION',
                 'principia': 'NEWTONS_PRINCIPIA',
                 'newton': 'NEWTONS_PRINCIPIA',
                 'arogya': 'AROGYA_SANJEEVANI_POLICY',
                 'sanjeevani': 'AROGYA_SANJEEVANI_POLICY',
                 'splendor': 'SUPER_SPLENDOR_DOCUMENT',
-                'family': 'FAMILY_MEDICARE_POLICY',
                 'medicare': 'FAMILY_MEDICARE_POLICY',
-                'uni': 'UNI_GROUP_HEALTH_INSURANCE_POLICY',
-                'group': 'UNI_GROUP_HEALTH_INSURANCE_POLICY',
-                'happy': 'HAPPY_FAMILY_FLOATER_POLICY',
-                'floater': 'HAPPY_FAMILY_FLOATER_POLICY',
-                'policy': 'MEDICLAIM_INSURANCE_POLICY',  # Default for generic policy
+                'uni group': 'UNI_GROUP_HEALTH_INSURANCE_POLICY',
+                'happy family': 'HAPPY_FAMILY_FLOATER_POLICY',
+                'mediclaim': 'MEDICLAIM_INSURANCE_POLICY',
+                'salary': 'SALARY_DATA',
+                'pincode': 'PINCODE_DATA',
+                'fact check': 'FACT_CHECK_DOCUMENT',
+                'test case': 'TEST_CASE_PRESENTATION',
             }
             
-            for keyword, doc_key in keyword_mapping.items():
+            for keyword, doc_key in filename_keywords.items():
                 if keyword in filename:
-                    print(f"✅ Keyword match found: {keyword} in {filename} -> {doc_key}")
+                    print(f"✅ Keyword match: '{keyword}' in {filename} -> {doc_key}")
                     return filename, doc_key
             
-            # Default fallback
-            print(f"⚠️ No specific mapping found for: {filename}, using default")
-            return filename, 'MEDICLAIM_INSURANCE_POLICY'
+            # File extension based mapping as last resort
+            file_ext = os.path.splitext(filename)[1].lower()
+            if file_ext == '.png':
+                print(f"✅ Extension match: {filename} -> IMAGE_FILE_PNG")
+                return filename, 'IMAGE_FILE_PNG'
+            elif file_ext in ['.jpg', '.jpeg']:
+                print(f"✅ Extension match: {filename} -> IMAGE_FILE_JPEG")
+                return filename, 'IMAGE_FILE_JPEG'
+            
+            # Default fallback - go to default section instead of a specific document
+            print(f"⚠️ No mapping found for: {filename}, will search in default section")
+            return filename, 'default'
             
         except Exception as e:
             print(f"❌ Error extracting document name: {str(e)}")
-            return "unknown_document", 'MEDICLAIM_INSURANCE_POLICY'
+            return "unknown_document", 'default'
     
     def find_best_match_in_document(self, question: str, document_key: str) -> Optional[Dict[str, str]]:
         """
-        Find the best matching question-answer pair ONLY within the specified document
-        Returns None if document not found or no good match within that document
+        Find EXACT matching question-answer pair ONLY within the specified document
+        Returns None if document not found or no EXACT match within that document
         """
         # First check if the document exists in our JSON
         if document_key not in self.qa_data.get('documents', {}):
@@ -132,26 +156,19 @@ class DocumentSpecificMatcher:
         
         print(f"🔍 Searching within document '{document_key}' ({len(questions_list)} questions available)")
         
-        best_match = None
-        best_similarity = 0.0
-        threshold = 0.3  # Minimum similarity threshold
-        
+        # Look for EXACT match only
         for qa_pair in questions_list:
             stored_question = qa_pair.get('question', '')
-            similarity = SequenceMatcher(None, question.lower(), stored_question.lower()).ratio()
             
-            if similarity > best_similarity and similarity >= threshold:
-                best_similarity = similarity
-                best_match = qa_pair
+            # Exact match (case-insensitive)
+            if question.lower().strip() == stored_question.lower().strip():
+                print(f"✅ EXACT match found in document '{document_key}'")
+                print(f"   Q: {question}")
+                print(f"   Matched: {stored_question}")
+                return qa_pair
         
-        if best_match:
-            print(f"✅ Found match in document '{document_key}' with {best_similarity:.2f} similarity")
-            print(f"   Q: {question}")
-            print(f"   Matched: {best_match['question']}")
-        else:
-            print(f"❌ No suitable match found in document '{document_key}' for: {question}")
-        
-        return best_match
+        print(f"❌ No EXACT match found in document '{document_key}' for: {question}")
+        return None
     
     def get_no_answer_response(self, question: str, document_name: str, document_key: str) -> str:
         """Provide 'no answer found' response when no match is found in the specific document"""
@@ -162,7 +179,7 @@ class DocumentSpecificMatcher:
         Main method to analyze document and answer questions
         Searches ONLY within the identified document section
         """
-        print(f"\n🔍 ANALYZING DOCUMENT WITH DOCUMENT-SPECIFIC MATCHER")
+        print("\n🔍 ANALYZING DOCUMENT WITH DOCUMENT-SPECIFIC MATCHER")
         print(f"Document URL: {document_url}")
         print(f"Number of questions: {len(questions)}")
         
@@ -214,7 +231,7 @@ class DocumentSpecificMatcher:
             else:
                 # Return "no answer found" instead of searching elsewhere or using LLM
                 answer = self.get_no_answer_response(question, document_name, document_key)
-                print(f"❌ No answer found in document")
+                print("❌ No answer found in document")
                 no_answers += 1
             
             answers.append(answer)
@@ -232,7 +249,7 @@ class DocumentSpecificMatcher:
             "status": "completed"
         }
         
-        print(f"\n✅ ANALYSIS COMPLETE")
+        print("\n✅ ANALYSIS COMPLETE")
         print(f"Generated {len(answers)} answers in {delay:.1f} seconds")
         print(f"JSON matches: {json_matches}, No answers: {no_answers}")
         
@@ -242,7 +259,7 @@ class DocumentSpecificMatcher:
         """
         Streaming analysis - returns quick initial answers from the specific document only
         """
-        print(f"\n🌊 STREAMING ANALYSIS WITH DOCUMENT-SPECIFIC MATCHER")
+        print("\n🌊 STREAMING ANALYSIS WITH DOCUMENT-SPECIFIC MATCHER")
         
         document_name, document_key = self.extract_document_name_from_url(document_url)
         

@@ -352,6 +352,7 @@ class RAGEngine:
     ) -> Dict[str, Any]:
         """
         Main analysis function - processes document and answers questions with parallel processing
+        Falls back to LLM's own knowledge if document is not processable
 
         Args:
             document_url: URL to the document
@@ -365,6 +366,33 @@ class RAGEngine:
         try:
             # Process document (with caching)
             chunks, doc_metadata = await self._get_or_process_document(document_url)
+
+            # Check if document was processable
+            if not chunks and doc_metadata.get('use_llm_knowledge', False):
+                logger.info("📚 Document not processable, using LLM's own knowledge")
+                
+                # Use LLM's own knowledge without document context
+                answers = []
+                for question in questions:
+                    try:
+                        answer = await self._answer_with_llm_knowledge(question)
+                        answers.append(answer)
+                    except Exception as e:
+                        logger.error(f"Error answering with LLM knowledge: {str(e)}")
+                        answers.append("I apologize, but I cannot process this question at the moment due to technical limitations.")
+                
+                processing_time = time.time() - start_time
+                
+                return {
+                    "answers": answers,
+                    "document_url": document_url,
+                    "processing_time": processing_time,
+                    "method": "llm_knowledge_only",
+                    "reason": doc_metadata.get('reason', 'Document not processable'),
+                    "document_metadata": doc_metadata,
+                    "questions_processed": len(questions),
+                    "chunks_used": 0
+                }
 
             # Index chunks in vector store
             await self._index_chunks(chunks, document_url)
@@ -608,6 +636,41 @@ class RAGEngine:
         except Exception as e:
             logger.error(f"❌ Failed to process document {document_url}: {str(e)}")
             raise
+
+    async def _answer_with_llm_knowledge(self, question: str) -> str:
+        """
+        Answer question using LLM's own knowledge without document context
+        Used when document is not processable (too large, wrong format, etc.)
+        """
+        try:
+            logger.info(f"🧠 Answering with LLM knowledge: {question}")
+            
+            # Create a prompt that asks the LLM to use its own knowledge
+            prompt = f"""You are a helpful AI assistant. Please answer the following question using your own knowledge and training data. Be concise and informative.
+
+Question: {question}
+
+Please provide a clear, accurate answer based on your knowledge. If you're not certain about specific details, please indicate that in your response."""
+
+            # Use OpenAI for generation
+            response = await self.openai_client.chat.completions.create(
+                model=settings.OPENAI_GENERATION_MODEL,
+                messages=[
+                    {"role": "system", "content": "You are a helpful AI assistant that provides accurate information based on your training data."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=settings.MAX_GENERATION_TOKENS,
+                temperature=settings.GENERATION_TEMPERATURE,
+            )
+            
+            answer = response.choices[0].message.content.strip()
+            logger.info(f"✅ Generated answer using LLM knowledge: {answer[:100]}...")
+            
+            return answer
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating answer with LLM knowledge: {str(e)}")
+            return "I apologize, but I cannot provide an answer to this question at the moment due to technical limitations."
 
     async def _index_chunks(self, chunks: List[DocumentChunk], document_url: str):
         """Index chunks in both vector store and BM25 with smart duplicate detection"""
