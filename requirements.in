@@ -1,54 +1,53 @@
-# Web Framework & Server
-ruff
+# Core web framework
 fastapi
 uvicorn[standard]
-python-multipart
-
-# Data Validation & Configuration
 pydantic
 pydantic-settings
-python-dotenv
 
-# HTTP Client
-aiohttp
-aiofiles
-httpx
-
-# AI & Machine Learning Core
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
-transformers
-datasets
-
-# AI & Machine Learning Clients/Libraries
-google-generativeai
+# AI and ML services
 openai
-lancedb  # Keep for backward compatibility
+google-generativeai
 sentence-transformers
-rank-bm25
-numpy
-scikit-learn
 
-# LlamaIndex and Qdrant (NEW)
-llama-index
-llama-index-vector-stores-qdrant
-llama-index-readers-file  # Enhanced document processing with PDF/DOCX readers
+# Vector database
 qdrant-client
 
-# Document Parsing
+# Document processing - Core
 PyMuPDF
 python-docx
+pypdf
 
-# NLP Libraries
+# Document processing - Enhanced (LlamaIndex)
+llama-index
+llama-index-readers-file
+llama-index-embeddings-openai
+llama-index-llms-openai
+
+# Excel and CSV processing
+pandas
+openpyxl
+xlrd
+
+# OCR and Image processing
+easyocr
+Pillow
+opencv-python-headless
+pytesseract
+
+# Text processing and search
 nltk
 spacy
+rank-bm25
 
-# Evaluation Framework
-ragas
+# HTTP and async operations
+aiohttp
+httpx
+aiofiles
 
-# System Monitoring
-psutil
+# Data processing
+numpy
 
-# Additional dependencies for RAG system
-pyarrow
-pandas
+# Utilities
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]

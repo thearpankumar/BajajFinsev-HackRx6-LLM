@@ -3,11 +3,9 @@ Domain-Aware Answer Generator with context-aware prompts
 Optimized for 95% accuracy in insurance, legal, HR, and compliance domains
 """
 
-import asyncio
 import logging
 import re
-import json
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
 import time
@@ -17,7 +15,6 @@ import google.generativeai as genai
 
 from src.core.config import settings
 from src.core.advanced_retrieval_engine import SearchResult, QueryType
-from src.core.smart_indexing_engine import IndexedChunk
 
 logger = logging.getLogger(__name__)
 

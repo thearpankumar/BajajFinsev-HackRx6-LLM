@@ -3,15 +3,12 @@ Advanced Retrieval Engine with multi-stage search and domain-specific optimizati
 Optimized for 95% accuracy on 600+ page documents in insurance, legal, HR, and compliance domains
 """
 
-import asyncio
 import logging
 import numpy as np
-from typing import List, Dict, Any, Tuple, Optional, Set
+from typing import List, Dict, Any, Optional
 import re
 from enum import Enum
 from dataclasses import dataclass
-import json
-from collections import defaultdict
 import time
 
 from rank_bm25 import BM25Okapi
@@ -29,7 +26,6 @@ except ImportError:
     FAISS_AVAILABLE = False
     faiss = None
 
-from src.core.config import settings
 from src.core.document_processor import DocumentChunk
 from src.core.vector_store import VectorStore
 

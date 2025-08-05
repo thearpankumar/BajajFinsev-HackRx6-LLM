@@ -12,9 +12,8 @@ import nltk
 from typing import List, Dict, Any, Tuple, Optional
 from io import BytesIO
 import logging
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-import hashlib
-import json
+from concurrent.futures import ThreadPoolExecutor
+# import hashlib  # Commented out - not currently used
 from dataclasses import dataclass
 from enum import Enum
 
@@ -159,7 +158,8 @@ class AdvancedDocumentProcessor:
             download_task = asyncio.create_task(self._download_document(document_url))
             
             # Step 2: Prepare processing pipeline while downloading
-            doc_hash = hashlib.md5(document_url.encode()).hexdigest()
+            # Generate document hash for caching (if needed in future)
+            # doc_hash = hashlib.md5(document_url.encode()).hexdigest()
             
             # Step 3: Download completion
             document_data, content_type = await download_task
@@ -529,7 +529,8 @@ class AdvancedDocumentProcessor:
 
     def _detect_document_type(self, text: str, metadata: Dict[str, Any]) -> DocumentType:
         """Detect document type based on content patterns"""
-        text_lower = text.lower()
+        # Convert to lowercase for pattern matching
+        # text_lower = text.lower()
         
         # Count domain-specific terms
         type_scores = {}
@@ -655,7 +656,8 @@ class AdvancedDocumentProcessor:
         self, section: DocumentSection, doc_type: DocumentType
     ) -> List[Dict[str, Any]]:
         """Create semantic chunks within a section based on document type"""
-        chunks = []
+        # Initialize chunks list (will be populated based on document type)
+        # chunks = []
         text = section.content
         
         # Get domain-specific sentence patterns

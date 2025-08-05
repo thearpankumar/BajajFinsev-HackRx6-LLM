@@ -119,7 +119,7 @@ class QuestionMatcher:
         Main method to analyze document and answer questions
         Simulates processing time with random delay
         """
-        print(f"\n🔍 ANALYZING DOCUMENT WITH QUESTION MATCHER")
+        print("\n🔍 ANALYZING DOCUMENT WITH QUESTION MATCHER")
         print(f"Document URL: {document_url}")
         print(f"Number of questions: {len(questions)}")
         
@@ -145,7 +145,7 @@ class QuestionMatcher:
                 print(f"✅ Answer found: {answer[:100]}...")
             else:
                 answer = self.get_fallback_answer(question)
-                print(f"⚠️ Using fallback answer")
+                print("⚠️ Using fallback answer")
             
             answers.append(answer)
         
@@ -158,7 +158,7 @@ class QuestionMatcher:
             "timestamp": time.time()
         }
         
-        print(f"\n✅ ANALYSIS COMPLETE")
+        print("\n✅ ANALYSIS COMPLETE")
         print(f"Generated {len(answers)} answers in {delay:.1f} seconds")
         
         return result
@@ -167,7 +167,7 @@ class QuestionMatcher:
         """
         Streaming analysis - returns quick initial answers
         """
-        print(f"\n🌊 STREAMING ANALYSIS WITH QUESTION MATCHER")
+        print("\n🌊 STREAMING ANALYSIS WITH QUESTION MATCHER")
         
         document_key = self.extract_document_identifier(document_url)
         

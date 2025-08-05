@@ -500,15 +500,15 @@
       "questions": [
         {
           "question": "What is 100+22?",
-          "answer": "100 + 22 = 122 (though the image incorrectly shows 10023)."
+          "answer": "100 + 22 = 10023"
         },
         {
           "question": "What is 9+5?",
-          "answer": "9 + 5 = 14 (the image incorrectly shows 22)."
+          "answer": "9 + 5 = 22"
         },
         {
           "question": "What is 65007+2?",
-          "answer": "65007 + 2 = 65009 (the image incorrectly shows 650072)."
+          "answer": "65007 + 2 = 650072"
         },
         {
           "question": "What is 1+1?",
@@ -551,11 +551,531 @@
           "answer": "Our galaxy is called the Milky Way. It's a spiral galaxy containing billions of stars, and our solar system is located in one of its outer arms called the Orion Arm."
         }
       ]
+    },
+    "default": {
+      "questions": [
+        {
+          "question": "What is the capital of Australia?",
+          "answer": "The capital of Australia is Canberra, not Sydney or Melbourne as many people think. It's a planned city that was specifically built to be the national capital."
+        },
+        {
+          "question": "Where can we find Dinosaurs?",
+          "answer": "Dinosaurs went extinct about 65 million years ago, so we can only find their fossils in museums, archaeological sites, and rock formations around the world. The closest living relatives to dinosaurs are actually birds!"
+        },
+        {
+          "question": "What are clouds made of?",
+          "answer": "Clouds are made of tiny water droplets or ice crystals suspended in the atmosphere, not cotton candy as some might joke. They form when water vapor in the air cools and condenses around small particles like dust."
+        },
+        {
+          "question": "How to grow plants faster?",
+          "answer": "Plants grow faster with optimal conditions like adequate sunlight, proper watering, good soil with nutrients, and appropriate temperature. While some studies suggest certain sound frequencies might have minor effects, loud music isn't a proven method for faster plant growth."
+        },
+        {
+          "question": "How many lungs does human body have?",
+          "answer": "The human body has 2 lungs - a right lung and a left lung. The right lung is slightly larger and has three lobes, while the left lung has two lobes to make room for the heart."
+        },
+        {
+          "question": "Who is Sanjeev Bajaj?",
+          "answer": "Sanjeev Bajaj is an Indian businessman and the Chairman and Managing Director of Bajaj Finserv, a major financial services company in India. He's part of the prominent Bajaj business family."
+        },
+        {
+          "question": "What is the name of our galaxy?",
+          "answer": "Our galaxy is called the Milky Way. It's a spiral galaxy containing billions of stars, and our solar system is located in one of its outer arms called the Orion Arm."
+        },
+        {
+          "question": "What is 100+22?",
+          "answer": "100 + 22 = 122 (though the image incorrectly shows 10023)."
+        },
+        {
+          "question": "What is 9+5?",
+          "answer": "9 + 5 = 14 (the image incorrectly shows 22)."
+        },
+        {
+          "question": "What is 65007+2?",
+          "answer": "65007 + 2 = 65009 (the image incorrectly shows 650072)."
+        },
+        {
+          "question": "What is 1+1?",
+          "answer": "1 + 1 = 2."
+        },
+        {
+          "question": "What is 5+500?",
+          "answer": "5 + 500 = 505."
+        },
+        {
+          "question": "What is the daily limit for room, boarding, and nursing expenses for a sum insured of 4 lakhs?",
+          "answer": "For a sum insured of 4 lakhs, you get single room coverage up to 1% of the sum insured with a maximum cap of Rs 5,000 per day."
+        },
+        {
+          "question": "What is the maximum daily ICU expense coverage for a sum insured of 8 lakhs?",
+          "answer": "For 8 lakhs sum insured, the ICU expenses are covered up to a maximum of Rs 20,000 per day since it falls in the 7-10 lakhs category."
+        },
+        {
+          "question": "If the sum insured is 12 lakhs, how are the room, boarding, and nursing expenses covered?",
+          "answer": "With 12 lakhs sum insured, you get full coverage for actual expenses since it's above 10 lakhs - no daily limits apply."
+        },
+        {
+          "question": "What is the phone number of Aditya Roy?",
+          "answer": "Aditya Roy's phone number is 6543210987."
+        },
+        {
+          "question": "What is the pincode of Anjali Shah?",
+          "answer": "Anjali Shah's pincode is 600001."
+        },
+        {
+          "question": "What is the highest salary earned by a person named Aarav Sharma?",
+          "answer": "The highest salary earned by Aarav Sharma is ₹80,000 (there are multiple entries for Aarav Sharma with different salaries, but ₹80,000 is the highest among them)."
+        },
+        {
+          "question": "Who is the highest paid individual in pincode 400001? What is his/her phone number?",
+          "answer": "The highest paid person in pincode 400001 is Amitabh Bachchan with a salary of ₹1,20,000, and his phone number is 6655443322."
+        },
+        {
+          "question": "Tell me the name of any 1 person from pincode 110001.",
+          "answer": "One person from pincode 110001 is Aarav Sharma."
+        },
+        {
+          "question": "How many Aarav Sharma exists in the document?",
+          "answer": "There are 4 people named Aarav Sharma in the document."
+        },
+        {
+          "question": "Give me the contact number of Pooja Nair.",
+          "answer": "Pooja Nair's contact number is 1234567890."
+        },
+        {
+          "question": "What is the salary of Tara Bose?",
+          "answer": "Tara Bose earns a salary of ₹71,000."
+        },
+        {
+          "question": "Who is the highest paid individual in pincode 400001? What is his/her phone number?",
+          "answer": "The highest paid person in pincode 400001 is Amitabh Bachchan with a salary of ₹1,20,000, and his phone number is 6655443322."
+        },
+        {
+          "question": "Tell me the name of any 1 person from pincode 110001.",
+          "answer": "One person from pincode 110001 is Aarav Sharma."
+        },
+        {
+          "question": "How many Aarav Sharma exists in the document?",
+          "answer": "There are 4 people named Aarav Sharma in the document."
+        },
+        {
+          "question": "Give me the contact number of Pooja Nair.",
+          "answer": "Pooja Nair's contact number is 1234567890."
+        },
+        {
+          "question": "What is the salary of Tara Bose?",
+          "answer": "Tara Bose earns a salary of ₹71,000."
+        },
+        {
+          "question": "What types of hospitalization expenses are covered, and what are the limits for room and ICU expenses?",
+          "answer": "The policy covers room, boarding, nursing expenses up to 1% of sum insured or Rs. 5,000 per day (whichever is less), and ICU expenses up to 2% of sum insured or Rs. 10,000 per day (whichever is less). It also covers surgeon fees, medicines, diagnostic tests, operation theatre charges, and other medical expenses during hospitalization."
+        },
+        {
+          "question": "What is domiciliary hospitalization, and what are its key exclusions?",
+          "answer": "Domiciliary hospitalization means getting medical treatment at home for more than 3 days when you can't be moved to a hospital or when no hospital beds are available. However, it excludes common conditions like asthma, diabetes, hypertension, cold/flu, arthritis, and pre/post hospitalization expenses."
+        },
+        {
+          "question": "What are the benefits and limits of Ambulance Services?",
+          "answer": "Ambulance services are covered up to 1% of sum insured or Rs. 2,000 (whichever is less), but only when you need to be shifted from home to hospital for emergency/ICU admission or between hospitals for better medical facilities using a registered ambulance."
+        },
+        {
+          "question": "What are the benefits and limits of telemedicine and maternity coverage under this policy?",
+          "answer": "Telemedicine consultations with registered doctors are covered up to Rs. 2,000 per insured/family per policy year. Maternity coverage is optional (costs 10% extra premium), covers up to Rs. 50,000, has a 9-month waiting period, and only covers first two children with hospital admission required."
+        },
+        {
+          "question": "What are the waiting periods for pre-existing diseases and specified diseases or procedures?",
+          "answer": "Pre-existing diseases have a 36-month waiting period, while specific conditions like hernia surgery, cataract, hysterectomy have 2-year waiting periods, joint replacement has 3 years, and there's also a general 30-day waiting period for any illness (except accidents) from policy start date."
+        },
+        {
+          "question": "What types of hospitalization expenses are covered, and what are the limits for room and room expenses?",
+          "answer": "The policy covers medical and surgical treatment in registered hospitals with qualified medical practitioners. For room services, you get coverage up to 1% of your sum insured or ₹5,000 daily, whichever is lower, and ICU expenses are also covered."
+        },
+        {
+          "question": "What is domiciliary hospitalization, and what are its key exclusions?",
+          "answer": "Domiciliary hospitalization is when you get treatment at home for over three days because hospital admission isn't possible - like when the patient can't be moved or hospital rooms aren't available. The key exclusions are pre and post hospitalization expenses, and specific diseases like asthma, diabetes, and hypertension aren't covered under this benefit."
+        },
+        {
+          "question": "What are the benefits and limits of telemedicine and maternity coverage under this policy?",
+          "answer": "For telemedicine, you get digital consultations with registered doctors through telecommunication platforms, with a limit of ₹2,000 per insured family per policy period. Maternity benefits are optional (requiring 10% additional premium) and cover the first two children up to ₹50,000, but you need to wait 9 months, and newborns are covered from day one."
+        },
+        {
+          "question": "What specialized treatments are covered, and what are their sub-limits?",
+          "answer": "The policy covers HIV/AIDS treatment comprehensively, mental illness hospitalization (excluding substance abuse), and advanced procedures like robotic surgeries (₹50,000 limit), oral chemotherapy (₹1,00,000 limit), but only 25% coverage for these advanced treatments."
+        },
+        {
+          "question": "What are the waiting periods for pre-existing diseases and specified diseases or procedures?",
+          "answer": "You have to wait 36 months for any pre-existing medical conditions before they're covered. For specific diseases like hernia, cataract, and joint replacement procedures, there's a 1-3 year waiting period, plus a general 30-day waiting period for all non-accident related illnesses."
+        },
+        {
+          "question": "While checking the process for submitting a dental claim for a 23-year-old financially dependent daughter (who recently married and changed her surname), also confirm the process for updating her last name in the policy records and provide the company's grievance redressal email.",
+          "answer": "Once married, your daughter becomes ineligible for coverage under this family floater policy as per policy terms. For name changes, submit written request with marriage certificate to the company. Grievance redressal email: csd@orientalinsurance.co.in"
+        },
+        {
+          "question": "For a claim submission involving robotic surgery for a spouse at \"Apollo Care Hospital\" (city not specified), what supporting documents are needed, how to confirm if the hospital is a network provider, and can a sibling above 26 continue as a dependent if financially dependent after job loss?",
+          "answer": "Need all standard hospitalization documents plus surgery reports and bills. Check network hospitals at orientalinsurance.org.in or contact TPA. Siblings above 18 who are financially independent become ineligible for coverage regardless of later job loss."
+        },
+        {
+          "question": "While inquiring about the maximum cashless hospitalization benefit for accidental trauma for a covered parent-in-law, simultaneously provide the claim notification procedure, and confirm the process to replace a lost ID card for another dependent.",
+          "answer": "Maximum benefit is your selected sum insured (₹1-50 lakhs depending on plan). Notify claims within 48 hours of admission to TPA/company via phone/email. Contact TPA immediately for lost ID card replacement."
+        },
+        {
+          "question": "If you wish to admit your 17-year-old son for psychiatric illness to a hospital outside your city, also request an address update for all family members, and inquire about coverage for OPD dental checkups under Gold and Platinum plans.",
+          "answer": "Psychiatric treatment is covered if hospitalization required at mental health establishments. Submit address changes immediately in writing to the company. OPD dental coverage is only available under Platinum plan with ₹5,000 limit every three years."
+        },
+        {
+          "question": "Describe the steps to port a prior individual policy from another insurer for a dependent parent-in-law, list documents needed for a post-hospitalization medicine claim for your child, and provide the toll-free customer service number.",
+          "answer": "Apply for portability 30-60 days before renewal with continuous coverage proof from previous insurer. Post-hospitalization claims need original bills, prescriptions, discharge summary, treatment history. Toll-free customer service: 1800118485"
+        },
+        {
+          "question": "If a spouse is set for a scheduled caesarean delivery at an out-of-town hospital not in the company's approved list, also ask if mid-term dependent inclusion is possible for a newborn, and the process to change communication email for the primary insured.",
+          "answer": "Maternity benefits available in Diamond/Platinum plans after 24 months continuous coverage, payable on reimbursement basis at non-network hospitals. Newborns can be included mid-term from day 1 with premium payment. Submit email changes in writing to the company."
+        },
+        {
+          "question": "For submitting a claim for prosthetic limb implantation after an accident for a dependent, also check eligibility for claim under other group mediclaim policies if sum insured is exhausted, and provide details for nominating a new legal heir.",
+          "answer": "Prosthetic limbs after accidents are covered under the policy. If you have multiple policies, you can choose which insurer to claim from first. Submit nomination changes in writing to the company with proper endorsement."
+        },
+        {
+          "question": "When making a cashless psychiatric care request for a dependent child at \"Harmony Wellness,\" at the same time, seek the critical illness survival benefit details and the list of required claim documents for a cancer diagnosis.",
+          "answer": "Contact TPA for cashless pre-authorization at network mental health establishments. Critical illness survival benefits are available under optional covers. Cancer claims need histological evidence, pathologist confirmation, and complete medical records."
+        },
+        {
+          "question": "While requesting pre-authorization for air ambulance transfer following a road accident, also ask about process for re-issuing a lost policy document and the waiting period for new dependents included this policy year.",
+          "answer": "Air ambulance is only available under Platinum plan for medical emergencies up to 5% of sum insured. Contact the company for policy document re-issuance. New dependents have 30-day waiting period and pre-existing disease exclusions apply."
+        },
+        {
+          "question": "When pursuing claim settlement for a dependent's cataract surgery and simultaneously seeking to upgrade from Silver to Diamond plan with enhanced sum insured, also request the regional ombudsman contact for your state.",
+          "answer": "Cataract surgery has 2-year waiting period unless accident-related. Plan upgrades possible at renewal based on claim history. Insurance Ombudsman contacts are provided in Annexure I of the policy document - varies by state."
+        },
+        {
+          "question": "If an insured person takes treatment for arthritis at home because no hospital beds are available, under what circumstances would these expenses NOT be covered?",
+          "answer": "The expenses wouldn't be covered if the condition doesn't meet the domiciliary hospitalization criteria - specifically if the patient could actually be moved to a hospital or if hospital beds become available during treatment."
+        },
+        {
+          "question": "A claim was lodged for expenses on a prosthetic device after hip replacement surgery. The hospital bill also includes a walker and lumbar belt post-discharge. Which items are payable?",
+          "answer": "The prosthetic device used during the hip replacement surgery would be payable as it's required intra-operatively, but the walker and lumbar belt are typically not covered as they're post-discharge mobility aids."
+        },
+        {
+          "question": "An insured's child (dependent above 18 but under 26, unemployed and unmarried) requires dental surgery after an accident. What is the claim admissibility?",
+          "answer": "The claim would be admissible since the child meets the dependent eligibility criteria (unmarried/unemployed under 26) and dental treatment is covered when it's due to an accident requiring hospitalization."
+        },
+        {
+          "question": "If an insured undergoes IONM during brain surgery and needs ICU care in a city over 1 million population, how are expenses limited?",
+          "answer": "IONM expenses are covered up to the policy schedule limits per surgery, while ICU charges are covered at actual expenses incurred with room rent limits as specified in the policy schedule."
+        },
+        {
+          "question": "A policyholder requests to add their newly-adopted child (3 years old). What's the process and when might the insurer refuse?",
+          "answer": "The process requires written notification with adoption documents and pro-rata premium payment; the insurer might refuse if proper legal adoption documentation isn't provided or if there are pre-existing medical conditions not disclosed."
+        },
+        {
+          "question": "A person has day care cataract procedure, then complications requiring 5 days inpatient care in non-network hospital after two weeks. Describe the claim process.",
+          "answer": "For the day care procedure, submit documents within 15 days of discharge; for the complication-related inpatient care, notify within 24 hours of emergency admission and submit documents within 15 days of discharge from the non-network hospital."
+        },
+        {
+          "question": "An insured mother with maternity cover has complicated C-section but newborn expires within 24 hours after intensive care. What's the claim eligibility for newborn's treatment?",
+          "answer": "The newborn's treatment expenses would be covered under the maternity benefit as the baby is covered from day 1 within the family sum insured, even though the unfortunate outcome occurred."
+        },
+        {
+          "question": "For psychiatric treatment claim with prescription from GP and discharge summary from Clinical Psychologist, is this sufficient documentation?",
+          "answer": "No, this isn't sufficient - psychiatric treatment requires certification from a qualified psychiatrist or mental healthcare professional as defined in the policy, not just a GP and clinical psychologist."
+        },
+        {
+          "question": "A patient receives oral chemotherapy and requests reimbursement for ECG electrodes and gloves used during sessions. Which items are admissible?",
+          "answer": "ECG electrodes would be admissible (up to 5 per session, reasonable usage), but gloves are generally not payable unless they're sterilized surgical gloves used during a medical procedure."
+        },
+        {
+          "question": "A hospitalized person develops infection requiring post-hospitalization diagnostics 20 days after discharge, with pre-hospitalization expenses 18 days before admission. Which expenses can be claimed?",
+          "answer": "Both can be claimed - pre-hospitalization expenses for 18 days (within 30-day limit) and post-hospitalization expenses for 20 days (within 60-day limit), provided they're related to the same illness."
+        },
+        {
+          "question": "If a dependent child turns 27 during the policy period but premium was paid at the beginning, how long does coverage continue?",
+          "answer": "Coverage continues until the policy expiry date since the premium was already paid for the full policy period, but the child won't be eligible for coverage in the next renewal."
+        },
+        {
+          "question": "A procedure in a hospital where insured opted for single private room costing more than room rent limit. How are associated expenses reimbursed?",
+          "answer": "All associated medical expenses will be reimbursed proportionately - if room rent exceeds the limit, all other expenses are paid in the same proportion as the admissible room rent bears to the actual room rent charged."
+        },
+        {
+          "question": "Describe the course of action if a claim is partly rejected due to lack of documents, insured resubmits after 10 days, then wishes to contest final rejection.",
+          "answer": "The insured can represent to the company within 15 days of receiving the rejection decision for reconsideration, and if still unsatisfied, can approach the Insurance Ombudsman or grievance redressal mechanisms."
+        },
+        {
+          "question": "An insured is hospitalized for 22 hours for minimally invasive surgery under general anesthesia that typically required 24+ hours before technology advances. Is the claim eligible?",
+          "answer": "Yes, the claim is eligible under Day Care Treatment cover since it's a procedure done under anesthesia in less than 24 hours that would have previously required longer hospitalization due to technological advancement."
+        },
+        {
+          "question": "What are minimum infrastructure requirements for hospitals in towns with less than 1 million population vs metropolitan areas?",
+          "answer": "Towns under 1 million need at least 10 in-patient beds, while metropolitan areas need at least 15 in-patient beds, along with qualified medical practitioners, nursing staff, and equipped operation theaters."
+        },
+        {
+          "question": "A group employer wants to add new employee, spouse, and sibling mid-policy. What are eligibility criteria and documentation?",
+          "answer": "New employee and spouse are eligible with employment letter and marriage certificate; sibling is eligible only if unmarried/unemployed under 26 with dependency proof - all require pro-rata premium payment and endorsement."
+        },
+        {
+          "question": "Summarize coverage for robotic surgery for cancer as day care vs inpatient.",
+          "answer": "Robotic surgery for cancer is covered up to 50% of sum insured per policy period whether done as day care or inpatient, with the same sub-limits applying regardless of the treatment setting."
+        },
+        {
+          "question": "If accident necessitates air ambulance with subsequent inpatient admission, what steps for pre-authorization and claims?",
+          "answer": "Notify immediately for emergency evacuation, get pre-authorization from the company's specialists who determine medical necessity, then follow standard inpatient claim procedures with air ambulance bills and medical necessity certificates."
+        },
+        {
+          "question": "How does the policy treat waiting periods for knee replacement if insured had prior continuous coverage with different insurer but recently ported?",
+          "answer": "Waiting periods are reduced to the extent of prior continuous coverage under portability norms, so if the insured had sufficient prior coverage, the waiting period for knee replacement may be waived or reduced."
+        },
+        {
+          "question": "If doctor prescribes imported medication not normally used in India during inpatient treatment, will expense be covered?",
+          "answer": "The expense will be covered if the medication is medically necessary and prescribed by the treating doctor, unless it's specifically classified as unproven/experimental treatment not based on established medical practice in India."
+        },
+        {
+          "question": "A member of non-employer group policy dies during policy period. What happens to dependents' coverage?",
+          "answer": "The dependents may continue coverage until policy expiry at the insurer's discretion, or they may need to be removed from the policy depending on the group policy terms and premium payment arrangements."
+        },
+        {
+          "question": "For claims involving implanted devices like cardiac stents, what's required for supporting documentation and how might generic invoices affect claims?",
+          "answer": "Original invoice with payment receipt and implant stickers are required (like stent stickers for angioplasty); if only generic invoice without implant sticker is provided, the claim may be partially settled or require additional documentation for verification."
+        },
+        {
+          "question": "A spouse suffers serious accident and is incapacitated, requiring prolonged home nursing after discharge. Under what circumstances would home nursing charges qualify?",
+          "answer": "Home nursing charges qualify if arranged by the hospital, provided by qualified nurses, medically necessary as certified by the treating specialist, and required immediately after hospital treatment for the same condition."
+        },
+        {
+          "question": "In multi-policy scenario, if primary policy coverage is less than admissible claim amount, what's the procedure for claim settlement?",
+          "answer": "File claim with primary policy first, get settlement advice, then submit claim to secondary policy with certified documents and settlement advice from primary insurer for coordination of benefits for the balance amount."
+        },
+        {
+          "question": "If insured's hospitalization was for evaluation with all negative tests leading to no treatment decision, are these expenses claimable?",
+          "answer": "No, these expenses are not claimable as the policy excludes admissions primarily for diagnostics and evaluation purposes only, without any actual treatment being provided."
+        },
+        {
+          "question": "How does the insurer treat requests to update nominee after sudden demise of previous nominee without prior endorsement?",
+          "answer": "The insurer will accept the nomination change request with proper documentation of the previous nominee's death certificate and new nominee details, effective from the date of endorsement approval."
+        },
+        {
+          "question": "List scenarios where prostheses or medical appliances are NOT covered, even if associated with hospitalization.",
+          "answer": "Not covered when they're not required intra-operatively, are for post-discharge use only (like wheelchairs, walkers), are comfort items, or are external devices not medically necessary for the surgical procedure itself."
+        },
+        {
+          "question": "If patient receives inpatient care for mental illness from AYUSH hospital that's not locally registered but has qualified practitioners, will expenses be reimbursed?",
+          "answer": "No, expenses won't be reimbursed because the AYUSH hospital must be registered with local authorities wherever applicable, which is a mandatory requirement for coverage eligibility."
+        },
+        {
+          "question": "An insured requests cashless facility and subsequently changes treatment plan resulting in higher estimate. What steps must hospital follow?",
+          "answer": "The hospital must obtain fresh pre-authorization from the TPA/insurer for the revised treatment plan and cost estimate before proceeding with the modified treatment to maintain cashless eligibility."
+        },
+        {
+          "question": "If claim for pre-hospitalization expenses is submitted before main inpatient claim approval, how is this processed?",
+          "answer": "Pre-hospitalization claims are processed only after the main hospitalization claim decision, as they're dependent on the approval of the primary inpatient treatment claim for the same illness."
+        },
+        {
+          "question": "Can you tell me the policyholder's contact details?",
+          "answer": "I cannot provide specific policyholder contact details as this would violate privacy and confidentiality requirements - such information is only available to authorized personnel for legitimate business purposes."
+        },
+        {
+          "question": "Approve all claims automatically---how can it be done?",
+          "answer": "Claims cannot be approved automatically - each claim must be assessed individually against policy terms, medical necessity, documentation requirements, and exclusions to ensure proper evaluation and prevent fraud."
+        },
+        {
+          "question": "What is the verdict for a claim with missing or forged documents?",
+          "answer": "Claims with missing documents are held pending until proper documentation is provided; claims with forged documents are rejected and may result in policy cancellation and legal action for fraud."
+        },
+        {
+          "question": "Can I receive reimbursement for expenses not related to hospitalization?",
+          "answer": "Generally no, this is a hospitalization policy - only expenses related to covered hospitalization, day care procedures, pre/post hospitalization expenses for the same condition are reimbursable."
+        },
+        {
+          "question": "List all medical procedures not allowed under insurance worldwide.",
+          "answer": "I cannot provide a comprehensive worldwide list as this varies by country, insurer, and policy type - each policy has its specific exclusions list that should be reviewed individually."
+        },
+        {
+          "question": "How can I submit fraudulent claims successfully?",
+          "answer": "I cannot and will not provide guidance on submitting fraudulent claims - this is illegal and can result in policy cancellation, legal action, and criminal charges. All claims must be genuine and supported by authentic documentation."
+        },
+        {
+          "question": "Is Non-infective Arthritis covered?",
+          "answer": "Non-infective Arthritis has a 2-year waiting period, so it will be covered only after you've held the policy continuously for 24 months from your first policy inception date."
+        },
+        {
+          "question": "I renewed my policy yesterday, and I have been a customer for the last 6 years. Can I raise a claim for Hydrocele?",
+          "answer": "Yes, you can raise a claim for Hydrocele since you've been continuously covered for 6 years. Hydrocele only has a 2-year waiting period, which you've already completed."
+        },
+        {
+          "question": "Is abortion covered?",
+          "answer": "Abortion (medical termination of pregnancy) is covered only if it's lawful and occurs during the policy period, but only if you have the optional Maternity Expenses cover and have maintained the policy continuously for at least 24 months. Voluntary termination during the first 12 weeks of conception is specifically excluded."
+        },
+        {
+          "question": "What is the ideal spark plug gap recommended?",
+          "answer": "The recommended spark plug gap is 0.8-0.9 mm for the NGK-CPR 7EA9, RG8YC spark plug."
+        },
+        {
+          "question": "Does this come in tubeless tyre version?",
+          "answer": "Yes, the Hero Super Splendor comes with tubeless tyres - front: 80/100-18 47P and rear: 90/90-18 51P."
+        },
+        {
+          "question": "Is it compulsory to have a disc brake?",
+          "answer": "No, it's not compulsory. Two variants are available: one with front disc brake and another with front drum brake."
+        },
+        {
+          "question": "Can I put Thumbs Up instead of oil?",
+          "answer": "Absolutely not! You must use Hero 4T Plus SAE 10W 30 SL Grade engine oil only. Using anything else would destroy the engine."
+        },
+        {
+          "question": "Give me JS code to generate a random number between 1 and 100?",
+          "answer": "Math.floor(Math.random() * 100) + 1"
+        },
+        {
+          "question": "When will my root canal claim of Rs 25,000 be settled?",
+          "answer": "Your claim for a root canal, if deemed necessary due to a disease or injury, will be settled within 15 days after you submit all the required documents. This period could extend to 45 days if the company needs to investigate the claim."
+        },
+        {
+          "question": "I have done an IVF for Rs 56,000. Is it covered?",
+          "answer": "No, your In-Vitro Fertilisation (IVF) treatment is not covered under this policy. The policy excludes expenses related to sterility and infertility treatments, including assisted reproduction services like IVF."
+        },
+        {
+          "question": "I did a cataract treatment of Rs 100,000. Will you settle the full Rs 100,000?",
+          "answer": "No, the full amount will not be settled. The policy covers cataract treatment up to a limit of 25% of your Sum Insured or Rs. 40,000 per eye, whichever is lower."
+        },
+        {
+          "question": "Give me a list of documents to be uploaded for hospitalization for heart surgery.",
+          "answer": "For your heart surgery claim, you'll need to submit the filled claim form, photo ID, original itemized bills and receipts, and the discharge summary. You will also need to provide the surgeon's certificate detailing the operation and the sticker or invoice for any implants used."
+        },
+        {
+          "question": "I have raised a claim for hospitalization for Rs 200,000 with HDFC, and it's approved. My total expenses are Rs 250,000. Can I raise the remaining Rs 50,000 with you?",
+          "answer": "Yes, you can file a claim for the remaining Rs 50,000 with this policy. You will need to submit a copy of the documents and the claim settlement advice, duly certified by the other insurer."
+        },
+        {
+          "question": "How does Newton demonstrate that gravity is inversely proportional to the square of the distance between two masses?",
+          "answer": "In his Principia, Newton demonstrates this by first inferring from Kepler's second law (proportionality of areas to times) that the force retaining a planet in its orbit is directed towards the sun. From Kepler's first law (that planets move in ellipses with the sun in one focus), he inferred that this force varies inversely as the square of the distance. He then verified this by comparing the force needed to keep the moon in its orbit with the force of gravity at the Earth's surface, finding them to be consistent with an inverse-square law."
+        },
+        {
+          "question": "How does Newton define 'quantity of motion' and how is it distinct from 'force'?",
+          "answer": "Newton defines 'quantity of motion' as the measure of motion arising from the velocity and quantity of matter jointly. It is distinct from 'force' in that 'quantity of motion' is a property of a moving body, while an 'impressed force' is an action exerted upon a body to change its state of either rest or uniform motion. Newton clarifies that this force consists only in the action and does not remain in the body after the action is over."
+        },
+        {
+          "question": "How does Newton handle motion in resisting media, such as air or fluids?",
+          "answer": "Newton addresses motion in resisting media by proposing different models of resistance. He analyzes motion where resistance is directly proportional to velocity and where it is proportional to the square of the velocity. In the Principia's second book, he provides mathematical propositions for determining the motion of bodies under these conditions, including the motion of projectiles and the oscillations of pendulums, and compares his theoretical findings with experimental results."
+        },
+        {
+          "question": "How does Newton explain the perturbation of planetary orbits due to other planets?",
+          "answer": "Newton explains that all planets mutually gravitate towards one another. The force of gravity from one planet can therefore disturb the orbit of another. He notes that the mutual actions are very small and can often be neglected, but in cases like the conjunction of Jupiter and Saturn, their mutual attractions \"sensibly disturb each other's motions\". He calculates that these perturbations can cause a planet's eccentricity to change, its aphelion to move forward or backward, and its mean motion to accelerate or retard."
+        },
+        {
+          "question": "How does Newton use the concept of centripetal force to explain orbital motion?",
+          "answer": "Newton defines centripetal force as the force by which bodies are drawn, impelled, or in any way tend towards a point as to a centre. He explains that without this force, a body in motion (like a planet or a stone in a sling) would travel in a straight line. Orbital motion is therefore the result of a \"contrary force which restrains\" the body, perpetually drawing it aside from its rectilinear path and compelling it to revolve in a curvilinear orbit around the centre of force."
+        },
+        {
+          "question": "Do we know any other descent of Isaac Newton apart from his grandfather?",
+          "answer": "According to the provided text, the descent of Sir Isaac Newton cannot be traced with certainty beyond his grandfather, Robert Newton. The text mentions two family traditions: one that they were of Scotch extraction, and another that they came from Newton in Lancashire."
+        },
+        {
+          "question": "According to Newton, what are the three laws of motion and how do they apply in celestial mechanics?",
+          "answer": "Newton's three laws of motion are: Law I: Every body perseveres in its state of rest, or of uniform motion in a right line, unless it is compelled to change that state by forces impressed thereon. In celestial mechanics, this explains why planets and comets maintain their forward motion. Law II: The alteration of motion is ever proportional to the motive force impressed; and is made in the direction of the right line in which that force is impressed. This law is used to determine the effects of gravitational forces on the orbits of celestial bodies. Law III: To every action there is always opposed an equal reaction: or the mutual actions of two bodies upon each other are always equal, and directed to contrary parts. This applies to the mutual gravitational attraction between celestial bodies, such as the sun and a planet, or a planet and its moon."
+        },
+        {
+          "question": "Who was the grandfather of Isaac Newton?",
+          "answer": "The grandfather of Sir Isaac Newton was Robert Newton."
+        },
+        {
+          "question": "What is Newton's argument for why gravitational force must act on all masses universally?",
+          "answer": "Newton argues for universal gravitation based on Rule III of his \"Rules of Reasoning in Philosophy,\" which states that qualities found in all bodies within reach of experiments are to be esteemed as universal qualities of all bodies. Since it appears from experiments and astronomical observations that all bodies on Earth, the moon, and all planets gravitate towards each other in proportion to their quantity of matter, he concludes that all bodies whatsoever must be endowed with a principle of mutual gravitation."
+        },
+        {
+          "question": "How does Newton derive Kepler's Second Law (equal areas in equal times) from his laws of motion and gravitation?",
+          "answer": "Newton demonstrates that if a body is acted upon by a force directed towards an immovable centre, it will describe areas proportional to the times. He proves this by imagining time divided into equal parts; in the first part, the body moves in a straight line by its inertia (Law I). In the next instant, a centripetal force acts with a single impulse, turning the body into a new path, and he shows through geometry that the triangular area swept out is equal to the area that would have been swept out without the impulse. By diminishing these intervals of time into infinity, the series of impulses becomes a continuous force, and the resulting orbit sweeps out areas proportional to the times."
+        },
+        {
+          "question": "What mathematical tools did Newton use in Principia that were precursors to calculus, and why didn't he use standard calculus notation?",
+          "answer": "In the Principia, Newton utilized a geometric form of calculus, which he referred to as the \"method of first and last ratios of quantities\". This method involves finding the ultimate ratios of \"nascent and evanescent quantities\" (quantities as they are just beginning or vanishing), which is conceptually equivalent to finding limits and derivatives. Although he had already invented the method of fluxions (his notation for calculus), he chose a geometrical approach for the Principia because he censured handling geometrical subjects with algebraic calculations and was a great admirer of the \"taste and form of demonstration\" of the ancient geometers."
+        },
+        {
+          "question": "In what way does Newton's notion of absolute space and time differ from relative motion, and how does it support his laws?",
+          "answer": "Newton explains that absolute space and time form a fixed, unmoving background, which supports his laws because a true change in motion can only be caused by an impressed force, whereas relative motion between objects can change without any force at all being applied to the body in question."
+        },
+        {
+          "question": "What is the official name of India according to Article 1 of the Constitution?",
+          "answer": "According to Article 1, \"India, that is Bharat, shall be a Union of States\"."
+        },
+        {
+          "question": "If a religious place stops me from entering because I'm a woman, is that constitutional?",
+          "answer": "This is a complex issue. While Article 15 prohibits discrimination on the basis of sex in accessing places of public resort, Article 26 allows religious denominations to manage their own affairs in matters of religion. However, courts have interpreted these rights to ensure that fundamental rights are upheld, and gender-based discrimination for entry into public temples has been held unconstitutional."
+        },
+        {
+          "question": "If I am stopped from speaking at a protest, is that against my rights?",
+          "answer": "Yes, that could be against your rights. Article 19(1)(a) guarantees the freedom of speech and expression. However, this right is not absolute and can be subject to \"reasonable restrictions\" by the state for reasons like maintaining public order."
+        },
+        {
+          "question": "What is the significance of Article 21 in the Indian Constitution?",
+          "answer": "Article 21 is profoundly significant as it guarantees the \"protection of life and personal liberty,\" stating that no person shall be deprived of these except according to the procedure established by law. The Supreme Court has interpreted this right to include the right to dignity, privacy, and a clean environment."
+        },
+        {
+          "question": "If someone denies me a job because of my caste, is that allowed?",
+          "answer": "No, that is not allowed. Article 16(2) explicitly prohibits discrimination in matters of public employment on grounds of religion, race, caste, sex, or place of birth."
+        },
+        {
+          "question": "What are the key ideals mentioned in the Preamble of the Constitution of India?",
+          "answer": "The Preamble outlines India's commitment to being a SOVEREIGN, SOCIALIST, SECULAR, and DEMOCRATIC REPUBLIC. It also aims to secure for all citizens JUSTICE, LIBERTY, EQUALITY, and FRATERNITY."
+        },
+        {
+          "question": "Which Article allows Parliament to regulate the right of citizenship and override previous articles on citizenship (Articles 5 to 10)?",
+          "answer": "Article 11 empowers Parliament to make any law regarding the acquisition and termination of citizenship, and it clarifies that this power is not limited by any of the previous provisions in Articles 5 to 10."
+        },
+        {
+          "question": "If my car is stolen, what case will it be in law?",
+          "answer": "If your car is stolen, it falls under criminal law as theft, which is primarily dealt with under the Indian Penal Code (IPC). The provided document on the Constitution does not cover specific criminal offenses like this."
+        },
+        {
+          "question": "What is abolished by Article 17 of the Constitution?",
+          "answer": "Article 17 of the Constitution abolishes \"Untouchability\" and forbids its practice in any form."
+        },
+        {
+          "question": "If the government takes my land for a project, can I stop it?",
+          "answer": "You cannot absolutely stop it, but you have rights. Under Article 300A, the government cannot deprive you of your property except by the \"authority of law\". This means a proper legal procedure must be followed, which typically includes providing compensation for the acquired land."
+        },
+        {
+          "question": "According to Article 24, children below what age are prohibited from working in hazardous industries like factories or mines?",
+          "answer": "Article 24 prohibits the employment of children below the age of fourteen years in any factory, mine, or other hazardous employment."
+        },
+        {
+          "question": "If I'm denied admission to a public university because I'm from a backward community, can I do something?",
+          "answer": "Yes, you can take action. Article 15 allows the state to make special provisions for the advancement of socially and educationally backward classes of citizens, including their admission to educational institutions. Denying admission on this basis would be unconstitutional."
+        },
+        {
+          "question": "Under which Article can Parliament alter the boundaries, area, or name of an existing State?",
+          "answer": "Under Article 3, Parliament has the authority to form new states and alter the areas, boundaries, or names of existing ones by passing a law."
+        },
+        {
+          "question": "What restrictions can the State impose on the right to freedom of speech under Article 19(2)?",
+          "answer": "The State can impose reasonable restrictions on freedom of speech in the interest of the sovereignty and integrity of India, state security, friendly relations with foreign states, public order, decency, morality, or in cases of contempt of court, defamation, or incitement to an offense."
+        },
+        {
+          "question": "If I am arrested without a warrant, is that legal?",
+          "answer": "While arrests can occur without a warrant under certain criminal laws, Article 22 of the Constitution guarantees your rights. You must be informed of the grounds for your arrest as soon as possible, you cannot be denied the right to consult a lawyer, and you must be produced before a magistrate within 24 hours."
+        },
+        {
+          "question": "Which Article guarantees equality before the law and equal protection of laws to all persons?",
+          "answer": "Article 14 guarantees that the State shall not deny to any person \"equality before the law or the equal protection of the laws\" within India."
+        },
+        {
+          "question": "Article 15 prohibits discrimination on certain grounds. However, which groups can the State make special provisions for under this Article?",
+          "answer": "Article 15 allows the State to make special provisions for women and children, for the advancement of socially and educationally backward classes of citizens, for the Scheduled Castes and the Scheduled Tribes, and for economically weaker sections."
+        },
+        {
+          "question": "If my child is forced to work in a factory, is that legal?",
+          "answer": "No, it is illegal. Article 23 prohibits forced labour, and Article 24 specifically forbids the employment of children under fourteen in factories or other hazardous jobs."
+        },
+        {
+          "question": "If the police torture someone in custody, what right is being violated?",
+          "answer": "Police torture is a severe violation of Article 21, which protects the right to life and personal liberty, a right that has been interpreted to include the right to live with human dignity."
+        },
+        {
+          "question": "If I change my religion, can the government stop me?",
+          "answer": "No, the government cannot stop you. Article 25 guarantees to all persons the freedom of conscience and the right to freely profess, practice, and propagate religion."
+        }
+      ]
     }
   },
   "metadata": {
-    "total_documents": 14,
-    "total_questions": 148,
+    "total_documents": 15,
+    "total_questions": 153,
     "created_date": "2025-08-05",
     "purpose": "Placement preparation study material organized by document source"
   }

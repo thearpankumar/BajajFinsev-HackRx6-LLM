@@ -7,10 +7,7 @@ import asyncio
 import time
 import logging
 import hashlib
-import json
-from typing import List, Dict, Any, Tuple, Optional
-import numpy as np
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
 try:
@@ -25,7 +22,6 @@ import aiofiles
 
 from openai import AsyncOpenAI
 import google.generativeai as genai
-from rank_bm25 import BM25Okapi
 
 from src.core.config import settings
 try:
