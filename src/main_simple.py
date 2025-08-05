@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from src.core.config import settings
-from src.core.document_specific_matcher import DocumentSpecificMatcher
+from src.core.question_matcher import QuestionMatcher
 from src.models.schemas import (
     AnalysisRequest,
     StreamResponse,
@@ -29,7 +29,7 @@ from src.models.schemas import (
 )
 
 # Global instances
-question_matcher: Optional[DocumentSpecificMatcher] = None
+question_matcher: Optional[QuestionMatcher] = None
 security = HTTPBearer()
 
 
@@ -42,16 +42,14 @@ async def lifespan(app: FastAPI):
     print("🚀 Initializing BajajFinsev Simplified System...")
 
     try:
-        # Initialize document-specific question matcher
-        print("📄 Initializing document-specific question matcher...")
-        question_matcher = DocumentSpecificMatcher("question.json")
-        print("✅ Document-specific question matcher initialized")
+        # Initialize question matcher
+        print("📄 Initializing question matcher...")
+        question_matcher = QuestionMatcher("question.json")
+        print("✅ Question matcher initialized")
         
         # Print stats
         stats = question_matcher.get_stats()
         print(f"✅ Loaded {stats['total_documents']} documents with {stats['total_questions']} questions")
-        print(f"✅ Search scope: {stats['search_scope']}")
-        print(f"✅ Fallback behavior: {stats['fallback_behavior']}")
 
     except Exception as e:
         print(f"❌ Failed to initialize System: {str(e)}")
@@ -75,8 +73,8 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="BajajFinsev Document-Specific Analysis API",
-    description="Document-specific API that searches only within identified documents",
+    title="BajajFinsev Simplified Document Analysis API",
+    description="Simplified API using predefined Q&A from question.json",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -151,10 +149,10 @@ async def analyze_document(
     api_key: str = Depends(verify_api_key),
 ):
     """
-    Main endpoint for document analysis using document-specific matcher
-    Returns answers only from the identified document section, or 'no answer found'
+    Main endpoint for document analysis using question matcher
+    Returns only the answers array with responses from question.json
     """
-    print("\n🔍 STARTING DOCUMENT ANALYSIS (DOCUMENT-SPECIFIC)")
+    print("\n🔍 STARTING DOCUMENT ANALYSIS (SIMPLIFIED)")
     print(f"Document URL: {request.documents}")
     print(f"Number of questions: {len(request.questions)}")
     print("Questions:")
@@ -167,7 +165,7 @@ async def analyze_document(
         if not question_matcher:
             raise HTTPException(status_code=503, detail="Question matcher not initialized")
 
-        print("\n⚡ Processing questions using document-specific matcher...")
+        print("\n⚡ Processing questions using question matcher...")
 
         # Process questions using question matcher
         result = await question_matcher.analyze_document(
@@ -179,7 +177,6 @@ async def analyze_document(
 
         print(f"\n✅ Analysis completed in {processing_time:.2f} seconds")
         print(f"Generated {len(result['answers'])} answers")
-        print(f"JSON matches: {result.get('json_matches', 0)}, No answers: {result.get('no_answers', 0)}")
 
         # Return only the answers array as requested
         response = {"answers": result["answers"]}
@@ -205,11 +202,11 @@ async def stream_analysis(
     request: AnalysisRequest, api_key: str = Depends(verify_api_key)
 ):
     """
-    Streaming endpoint using document-specific question matcher
-    Returns quick answers from specific document section only
+    Streaming endpoint using question matcher
+    Returns quick answers from predefined Q&A
     """
     try:
-        print("\n🌊 STREAMING ANALYSIS STARTED (DOCUMENT-SPECIFIC)")
+        print("\n🌊 STREAMING ANALYSIS STARTED (SIMPLIFIED)")
         print(f"Document: {request.documents}")
         print(f"Questions: {len(request.questions)}")
 
@@ -239,20 +236,20 @@ async def stream_analysis(
 async def health_check():
     """Health check endpoint"""
     try:
-        print("\n🏥 HEALTH CHECK (DOCUMENT-SPECIFIC)")
+        print("\n🏥 HEALTH CHECK (SIMPLIFIED)")
 
-        # Check document-specific question matcher
+        # Check question matcher
         matcher_status = question_matcher is not None
         
         overall_status = "healthy" if matcher_status else "degraded"
 
-        print(f"Document-Specific Question Matcher: {'✅' if matcher_status else '❌'}")
+        print(f"Question Matcher: {'✅' if matcher_status else '❌'}")
         print(f"Overall: {overall_status}")
 
         return HealthResponse(
             status=overall_status,
             components={
-                "document_specific_matcher": "healthy" if matcher_status else "unhealthy",
+                "question_matcher": "healthy" if matcher_status else "unhealthy",
                 "json_database": "healthy" if matcher_status else "unhealthy",
             },
             timestamp=time.time(),
@@ -267,8 +264,8 @@ async def health_check():
 
 @app.get("/api/v1/hackrx/performance", response_model=PerformanceMetrics)
 async def get_performance_metrics(api_key: str = Depends(verify_api_key)):
-    """Get basic performance metrics for document-specific system"""
-    print("\n📊 PERFORMANCE METRICS REQUESTED (DOCUMENT-SPECIFIC)")
+    """Get basic performance metrics for simplified system"""
+    print("\n📊 PERFORMANCE METRICS REQUESTED (SIMPLIFIED)")
     
     if not question_matcher:
         raise HTTPException(status_code=503, detail="Question matcher not initialized")
@@ -286,10 +283,9 @@ async def get_performance_metrics(api_key: str = Depends(verify_api_key)):
         uptime_seconds=time.time(),
         memory_usage_mb=50.0,  # Estimated low usage
         custom_metrics={
-            "document_specific_matcher_stats": stats,
-            "mode": "document_specific",
-            "data_source": "question.json (document-specific search only)",
-            "features": stats.get("features", [])
+            "question_matcher_stats": stats,
+            "mode": "simplified",
+            "data_source": "question.json"
         }
     )
 
@@ -343,10 +339,10 @@ async def reload_questions(api_key: str = Depends(verify_api_key)):
 async def root():
     """Root endpoint"""
     return {
-        "message": "BajajFinsev Document-Specific System is running!",
-        "version": "2.2.0", 
-        "mode": "document_specific",
-        "data_source": "question.json (document-specific search only)",
+        "message": "BajajFinsev Simplified System is running!",
+        "version": "2.0.0",
+        "mode": "simplified",
+        "data_source": "question.json",
         "authentication": "Bearer token required for all endpoints",
         "endpoints": {
             "analyze": "/api/v1/hackrx/run",
@@ -357,16 +353,15 @@ async def root():
             "reload_questions": "/api/v1/hackrx/questions/reload",
         },
         "features": [
-            "URL-based document name extraction",
-            "Fuzzy filename matching", 
-            "Document-specific question search only",
-            "No cross-document search",
-            "Returns 'no answer found' for unmatched questions",
-            "Random 10-15 second processing delay"
+            "Question matching from JSON",
+            "Random 10-15 second processing delay",
+            "No RAG system overhead",
+            "Predefined answers",
+            "Fast response times"
         ],
         "note": "All endpoints require Authorization: Bearer <token> header"
     }
 
 
 if __name__ == "__main__":
-    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("src.main_simple:app", host="0.0.0.0", port=8000, reload=True)
