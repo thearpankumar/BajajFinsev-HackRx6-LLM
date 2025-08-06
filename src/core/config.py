@@ -50,16 +50,16 @@ class Settings(BaseSettings):
     PARALLEL_PROCESSING: bool = True
     MAX_CONCURRENT_OPERATIONS: int = 15  # NEW: Limit concurrent operations (increased for better performance)
 
-    # Speed-Focused Settings (Updated for maximum speed)
-    ENABLE_RERANKING: bool = False  # Disabled for speed
-    FAST_MODE: bool = True
-    MAX_CHUNKS_FOR_GENERATION: int = 5  # Reduced for speed
-    USE_ENHANCED_QUERY: bool = False  # Disabled for speed
-    USE_ENHANCED_RRF: bool = False  # Disabled for speed
-    ENABLE_QUESTION_DECOMPOSITION: bool = False  # Disabled for speed
-    COMPLEX_QUESTION_MAX_TOKENS: int = 150  # Reduced for speed
-    FAST_COMPLEX_QUESTIONS: bool = True
-    ENABLE_QUERY_ENHANCEMENT: bool = False  # Disabled for speed
+    # Balanced Settings (Good accuracy with reasonable performance)
+    ENABLE_RERANKING: bool = True  # Enable for better accuracy (+3-5s)
+    FAST_MODE: bool = False  # Comprehensive processing (+2-3s)
+    MAX_CHUNKS_FOR_GENERATION: int = 8  # Balanced context (was 5, +1-2s)
+    USE_ENHANCED_QUERY: bool = True  # Enable for better queries (+1-2s)
+    USE_ENHANCED_RRF: bool = False  # Keep disabled for speed (saves 1-2s)
+    ENABLE_QUESTION_DECOMPOSITION: bool = False  # Keep disabled for speed (saves 2-4s)
+    COMPLEX_QUESTION_MAX_TOKENS: int = 200  # Moderate increase (was 150, +0.5-1s)
+    FAST_COMPLEX_QUESTIONS: bool = True  # Keep fast for complex questions
+    ENABLE_QUERY_ENHANCEMENT: bool = True  # Enable for domain enhancement (+1-2s)
     
     # Hybrid System Settings
     ENABLE_FALLBACK_RAG: bool = True  # NEW: Enable RAG fallback for unmatched questions
@@ -70,17 +70,17 @@ class Settings(BaseSettings):
     MIN_RESPONSE_TIME_SECONDS: int = 12  # NEW: Minimum response time
     MAX_RESPONSE_TIME_SECONDS: int = 15  # NEW: Maximum response time for fast processes
     ENABLE_RESPONSE_DELAY: bool = True   # NEW: Enable artificial delay for fast responses
-    MAX_GENERATION_TOKENS: int = 120  # Reduced for speed
-    GENERATION_TEMPERATURE: float = 0.0  # More deterministic and faster
+    MAX_GENERATION_TOKENS: int = 200  # Increased for more detailed answers (was 120)
+    GENERATION_TEMPERATURE: float = 0.1  # Slightly higher for better responses (was 0.0)
 
-    # Retrieval Configuration (Speed optimized)
-    TOP_K_RETRIEVAL: int = 15  # Reduced for speed
-    RERANK_TOP_K: int = 5  # Reduced for speed
-    SIMILARITY_THRESHOLD: float = 0.2  # Lowered for more results
+    # Retrieval Configuration (Balanced for accuracy)
+    TOP_K_RETRIEVAL: int = 25  # Increased for better context (was 15, +1-2s)
+    RERANK_TOP_K: int = 8  # Increased for better reranking (was 5, +1s)
+    SIMILARITY_THRESHOLD: float = 0.15  # Lowered for more relevant results (was 0.2)
 
-    # Hybrid Search Configuration (Speed optimized)
-    DENSE_WEIGHT: float = 0.9  # Favor dense search for speed
-    SPARSE_WEIGHT: float = 0.1  # Reduce sparse search weight
+    # Hybrid Search Configuration (Balanced for accuracy)
+    DENSE_WEIGHT: float = 0.7  # Balanced dense/sparse search (was 0.9)
+    SPARSE_WEIGHT: float = 0.3  # Increased sparse search weight (was 0.1)
     
     # OCR and Multi-format Settings
     OCR_ENGINE: str = "easyocr"  # Fast OCR engine (easyocr, tesseract, paddleocr)

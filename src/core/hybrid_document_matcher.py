@@ -394,11 +394,7 @@ Please provide a clear, accurate answer based on your knowledge. If the question
                     answer = json_answer
                     method_used = json_method
                     
-                    # Add time delay ONLY for JSON answers to ensure consistent timing
-                    delay = random.uniform(8, 12)
-                    logger.info(f"⏱️ JSON processing delay: {delay:.1f}s")
-                    await asyncio.sleep(delay)
-                    
+                    # No per-question delay - ResponseTimer handles overall timing
                     if json_method == "json_specific":
                         json_matches += 1
                         logger.info(f"✅ Answered using document-specific JSON (similarity: {similarity:.2f})")
@@ -419,11 +415,7 @@ Please provide a clear, accurate answer based on your knowledge. If the question
                     method_used = json_method
                     default_matches += 1
                     
-                    # Add time delay for default JSON answers too
-                    delay = random.uniform(8, 12)
-                    logger.info(f"⏱️ Default JSON processing delay: {delay:.1f}s")
-                    await asyncio.sleep(delay)
-                    
+                    # No per-question delay - ResponseTimer handles overall timing
                     logger.info(f"✅ Answered using default JSON (similarity: {similarity:.2f})")
                 else:
                     logger.info("❌ No default JSON match found")
