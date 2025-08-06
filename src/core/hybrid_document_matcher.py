@@ -4,8 +4,6 @@ First tries to match questions in JSON, then falls back to RAG for unmatched que
 Optimized for speed with configurable fallback behavior
 """
 
-import asyncio
-import random
 import time
 import logging
 from typing import List, Dict, Any, Optional, Tuple
