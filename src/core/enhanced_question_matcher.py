@@ -218,8 +218,8 @@ class EnhancedQuestionMatcher:
         print(f"Document name: {document_name}")
         print(f"Mapped to document key: {document_key}")
         
-        # Add random processing delay (10-15 seconds)
-        delay = random.uniform(10, 15)
+        # Add random processing delay (7-10 seconds)
+        delay = random.uniform(7, 10)
         print(f"⏱️ Simulating processing delay: {delay:.1f} seconds")
         await asyncio.sleep(delay)
         
