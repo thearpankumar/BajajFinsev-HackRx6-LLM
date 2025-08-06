@@ -67,8 +67,8 @@ class Settings(BaseSettings):
     ENABLE_MULTI_FORMAT_SUPPORT: bool = True  # NEW: Support Excel, images
     
     # Response Timing Configuration
-    MIN_RESPONSE_TIME_SECONDS: int = 12  # NEW: Minimum response time
-    MAX_RESPONSE_TIME_SECONDS: int = 15  # NEW: Maximum response time for fast processes
+    MIN_RESPONSE_TIME_SECONDS: int = 7  # NEW: Minimum response time
+    MAX_RESPONSE_TIME_SECONDS: int = 10  # NEW: Maximum response time for fast processes
     ENABLE_RESPONSE_DELAY: bool = True   # NEW: Enable artificial delay for fast responses
     MAX_GENERATION_TOKENS: int = 200  # Increased for more detailed answers (was 120)
     GENERATION_TEMPERATURE: float = 0.1  # Slightly higher for better responses (was 0.0)
