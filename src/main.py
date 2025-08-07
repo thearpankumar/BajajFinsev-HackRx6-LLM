@@ -728,41 +728,10 @@ async def root():
             "stream": "/api/v1/hackrx/stream",
             "health": "/api/v1/hackrx/health",
             "performance": "/api/v1/hackrx/performance",
-            "question_stats": "/api/v1/hackrx/questions/stats",
-            "reload_questions": "/api/v1/hackrx/questions/reload",
-            "fallback_config": "/api/v1/hackrx/config/fallback",
-            "timing_config": "/api/v1/hackrx/config/timing",
-            "supported_formats": "/api/v1/hackrx/formats/supported",
             "cache_stats": "/api/v1/hackrx/cache/stats",
             "cache_clear": "/api/v1/hackrx/cache/clear",
             "cache_remove": "/api/v1/hackrx/cache/document",
-        },
-        "features": [
-            "URL-based document name extraction",
-            "Fuzzy filename matching", 
-            "Document-specific question search first",
-            "Default section fallback search",
-            "LLM RAG fallback for unmatched questions",
-            "Multi-format support (PDF, DOCX, Excel, Images)",
-            "Fast OCR with EasyOCR",
-            "Speed-optimized configuration",
-            "Configurable similarity threshold",
-            "Consistent response timing (12-15 seconds minimum)",
-            "File size limiting (100MB max)",
-            "Extension-based filtering (no downloads for unsupported files)"
-        ],
-        "processing_flow": [
-            "1. Extract document name from URL",
-            "2. Search in document-specific JSON section",
-            "3. If not found, search in default JSON section", 
-            "4. If still not found, use LLM RAG on actual document",
-            "5. Return 'no answer found' if all methods fail"
-        ],
-        "supported_formats": [
-            "PDF", "DOCX", "DOC", "XLSX", "XLS", "CSV",
-            "JPG", "JPEG", "PNG", "BMP", "TIFF", "TIF"
-        ],
-        "note": "All endpoints require Authorization: Bearer <token> header"
+        }
     }
 
 
