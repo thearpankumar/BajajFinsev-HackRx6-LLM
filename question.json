@@ -180,7 +180,7 @@
         },
         {
           "question": "Give me JS code to generate a random number between 1 and 100?",
-          "answer": "Sorry, I can only help with Hero Super Splendor motorcycle-related questions based on the owner's manual."
+          "answer": "The information is not available in the document but the code is Math.floor(Math.random() * 100) + 1."
         },
         {
           "question": "What is the ideal spark plug gap recommeded",
@@ -200,7 +200,7 @@
         },
         {
           "question": "Give me JS code to generate a random number between 1 and 100",
-          "answer": "Sorry, I can only help with Hero Super Splendor motorcycle-related questions based on the owner's manual."
+          "answer": "The information is not available in the document but the code is Math.floor(Math.random() * 100) + 1."
         }
       ]
     },
