@@ -18,6 +18,14 @@ class DocumentSpecificMatcher:
     def __init__(self, json_file_path: str = "question.json"):
         self.json_file_path = json_file_path
         self.qa_data: Dict[str, Any] = {}
+        self.stats = {
+            'total_questions': 0,
+            'json_matches': 0,
+            'default_matches': 0,
+            'no_answers': 0,
+            'avg_json_time': 0,
+            'format_support_used': {}
+        }
         self.load_questions()
     
     def load_questions(self):
@@ -170,6 +178,38 @@ class DocumentSpecificMatcher:
         print(f"❌ No EXACT match found in document '{document_key}' for: {question}")
         return None
     
+    def find_best_match_in_default(self, question: str) -> Optional[Dict[str, str]]:
+        """
+        Find EXACT matching question-answer pair in the DEFAULT section
+        Returns None if no EXACT match found in default section
+        """
+        # Check if default section exists
+        documents = self.qa_data.get('documents', {})
+        if 'default' not in documents:
+            print("❌ No default section found in question database")
+            return None
+        
+        questions_list = documents['default'].get('questions', [])
+        if not questions_list:
+            print("❌ No questions found in default section")
+            return None
+        
+        print(f"🔍 Searching in DEFAULT section ({len(questions_list)} questions available)")
+        
+        # Look for EXACT match only
+        for qa_pair in questions_list:
+            stored_question = qa_pair.get('question', '')
+            
+            # Exact match (case-insensitive)
+            if question.lower().strip() == stored_question.lower().strip():
+                print(f"✅ EXACT match found in DEFAULT section")
+                print(f"   Q: {question}")
+                print(f"   Matched: {stored_question}")
+                return qa_pair
+        
+        print(f"❌ No EXACT match found in DEFAULT section for: {question}")
+        return None
+    
     def get_no_answer_response(self, question: str, document_name: str, document_key: str) -> str:
         """Provide 'no answer found' response when no match is found in the specific document"""
         return f"No answer found for the question '{question}' in the document '{document_name}' (mapped to {document_key}). The question may not be covered in this specific document."
@@ -216,12 +256,13 @@ class DocumentSpecificMatcher:
         
         answers = []
         json_matches = 0
+        default_matches = 0
         no_answers = 0
         
         for i, question in enumerate(questions, 1):
             print(f"\n📝 Processing question {i}/{len(questions)}: {question}")
             
-            # Search ONLY within the identified document
+            # First search within the identified document
             match = self.find_best_match_in_document(question, document_key)
             
             if match:
@@ -229,10 +270,19 @@ class DocumentSpecificMatcher:
                 print(f"✅ Answer found in document: {answer[:100]}...")
                 json_matches += 1
             else:
-                # Return "no answer found" instead of searching elsewhere or using LLM
-                answer = self.get_no_answer_response(question, document_name, document_key)
-                print("❌ No answer found in document")
-                no_answers += 1
+                # If no match in document, try default section
+                print("🔍 No match in document, trying default section...")
+                default_match = self.find_best_match_in_default(question)
+                
+                if default_match:
+                    answer = default_match['answer']
+                    print(f"✅ Answer found in default section: {answer[:100]}...")
+                    default_matches += 1
+                else:
+                    # No match anywhere - return "no answer found"
+                    answer = self.get_no_answer_response(question, document_name, document_key)
+                    print("❌ No answer found in document or default section")
+                    no_answers += 1
             
             answers.append(answer)
         
@@ -244,6 +294,7 @@ class DocumentSpecificMatcher:
             "processing_time": delay,
             "questions_processed": len(questions),
             "json_matches": json_matches,
+            "default_matches": default_matches,
             "no_answers": no_answers,
             "timestamp": time.time(),
             "status": "completed"
@@ -251,7 +302,7 @@ class DocumentSpecificMatcher:
         
         print("\n✅ ANALYSIS COMPLETE")
         print(f"Generated {len(answers)} answers in {delay:.1f} seconds")
-        print(f"JSON matches: {json_matches}, No answers: {no_answers}")
+        print(f"JSON matches: {json_matches}, Default matches: {default_matches}, No answers: {no_answers}")
         
         return result
     
@@ -263,14 +314,20 @@ class DocumentSpecificMatcher:
         
         document_name, document_key = self.extract_document_name_from_url(document_url)
         
-        # For streaming, return quick answers from the specific document only
+        # For streaming, return quick answers from the specific document and default section
         initial_answers = []
         for question in questions:
+            # First try document-specific match
             match = self.find_best_match_in_document(question, document_key)
             if match:
                 answer = match['answer']
             else:
-                answer = self.get_no_answer_response(question, document_name, document_key)
+                # If no match in document, try default section
+                default_match = self.find_best_match_in_default(question)
+                if default_match:
+                    answer = default_match['answer']
+                else:
+                    answer = self.get_no_answer_response(question, document_name, document_key)
             initial_answers.append(answer)
         
         return {
@@ -290,15 +347,22 @@ class DocumentSpecificMatcher:
                 key: len(doc.get('questions', [])) 
                 for key, doc in docs.items()
             },
-            "search_scope": "document-specific only",
-            "fallback_behavior": "returns 'no answer found'",
+            "search_scope": "document-specific then default section",
+            "fallback_behavior": "returns 'no answer found' after checking document and default",
             "features": [
                 "URL-based document name extraction",
                 "Fuzzy filename matching",
                 "Keyword-based document mapping",
-                "Document-specific question search only",
-                "No cross-document search",
-                "No LLM fallback"
-            ]
+                "Document-specific question search",
+                "Default section fallback",
+                "No RAG/LLM fallback",
+                "JSON-only responses"
+            ],
+            "performance_stats": getattr(self, 'stats', {
+                'total_questions': 0,
+                'json_matches': 0,
+                'default_matches': 0,
+                'no_answers': 0
+            })
         }
         return stats

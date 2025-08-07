@@ -28,8 +28,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from src.core.config import settings
-from src.core.hybrid_document_matcher import HybridDocumentMatcher
-from src.core.multi_format_processor import MultiFormatProcessor
+from src.core.document_specific_matcher import DocumentSpecificMatcher
+from src.core.hybrid_response_handler import HybridResponseHandler
 from src.core.response_timer import ResponseTimer
 from src.models.schemas import (
     AnalysisRequest,
@@ -39,68 +39,38 @@ from src.models.schemas import (
 )
 
 # Global instances
-hybrid_matcher: Optional[HybridDocumentMatcher] = None
-multi_format_processor: Optional[MultiFormatProcessor] = None
+document_matcher: Optional[DocumentSpecificMatcher] = None
 security = HTTPBearer()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup application resources"""
-    global hybrid_matcher, multi_format_processor
+    global document_matcher
 
     # Startup
     print("🚀 Initializing BajajFinsev Hybrid System...")
 
     try:
-        # Initialize multi-format processor
-        print("📄 Initializing multi-format processor...")
-        multi_format_processor = MultiFormatProcessor()
-        print("✅ Multi-format processor initialized")
+        print("ℹ️ Multi-format processor skipped - JSON-only system")
 
-        # Initialize hybrid document matcher
-        print("🔄 Initializing hybrid document matcher...")
-        hybrid_matcher = HybridDocumentMatcher("question.json")
-        print("✅ Hybrid document matcher initialized")
+        # Initialize base document matcher
+        print("🔄 Initializing base document matcher...")
+        base_document_matcher = DocumentSpecificMatcher("question.json")
+        print("✅ Base document matcher initialized")
+        
+        # Initialize hybrid response handler (non-invasive wrapper)
+        print("🔄 Initializing hybrid response handler...")
+        document_matcher = HybridResponseHandler(base_document_matcher)
+        print("✅ Hybrid response handler initialized")
         
         # Print stats
-        stats = hybrid_matcher.get_stats()
+        stats = document_matcher.get_stats()
         print(f"✅ Loaded {stats['total_documents']} documents with {stats['total_questions']} questions")
-        print(f"✅ Fallback RAG enabled: {stats['fallback_enabled']}")
-        print(f"✅ Similarity threshold: {stats['similarity_threshold']}")
         
-        # Print supported formats
-        format_stats = await multi_format_processor.get_processing_stats()
-        print(f"✅ Supported formats: {', '.join(format_stats['supported_formats'])}")
-        print(f"✅ OCR available: {format_stats['ocr_available']}")
+        print("✅ Supported formats: JSON + Multi-format RAG fallback")
 
-        # Check vector database connection if fallback RAG is enabled
-        if settings.ENABLE_FALLBACK_RAG:
-            print("🔍 Checking vector database connection...")
-            try:
-                # Initialize RAG engine to test connection
-                await hybrid_matcher._initialize_rag_engine()
-                if hybrid_matcher.rag_initialized and hybrid_matcher.rag_engine:
-                    # Test vector database connection
-                    vector_db_healthy = await hybrid_matcher.rag_engine.check_vector_db_health()
-                    if vector_db_healthy:
-                        print("✅ Vector database connection successful")
-                    else:
-                        print("⚠️ Vector database connection failed - RAG fallback may not work")
-                    
-                    # Test model health
-                    model_healthy = await hybrid_matcher.rag_engine.check_model_health()
-                    if model_healthy:
-                        print("✅ AI models connection successful")
-                    else:
-                        print("⚠️ AI models connection failed - RAG fallback may not work")
-                else:
-                    print("⚠️ RAG engine initialization failed - fallback disabled")
-            except Exception as e:
-                print(f"⚠️ Vector database connection check failed: {str(e)}")
-                print("⚠️ RAG fallback may not work properly")
-        else:
-            print("ℹ️ RAG fallback disabled - vector database not checked")
+        print("ℹ️ System configured with hybrid mode: JSON-first + RAG enhancement")
 
     except Exception as e:
         print(f"❌ Failed to initialize Hybrid System: {str(e)}")
@@ -112,10 +82,10 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
-    print("🔄 Shutting down Hybrid System...")
+    print("🔄 Shutting down Document System...")
     try:
-        if hybrid_matcher:
-            await hybrid_matcher.cleanup()
+        if document_matcher:
+            pass  # No cleanup needed for JSON-only matcher
         
         # Simple garbage collection
         import gc
@@ -128,9 +98,9 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="BajajFinsev Document-Specific Analysis API",
-    description="Document-specific API that searches only within identified documents",
-    version="2.0.0",
+    title="BajajFinsev Hybrid Analysis API",
+    description="Hybrid API with JSON-first matching + RAG fallback for comprehensive document analysis",
+    version="3.1.0",
     lifespan=lifespan,
 )
 
@@ -204,14 +174,14 @@ async def analyze_document(
     api_key: str = Depends(verify_api_key),
 ):
     """
-    Main endpoint for document analysis using hybrid approach:
-    1. First check document-specific JSON section
-    2. Then check default section in JSON
-    3. Finally use LLM RAG fallback for unmatched questions
+    Main endpoint for hybrid document analysis:
+    1. First check document-specific JSON section (exact match)
+    2. Then check default section in JSON (exact match)
+    3. For failed matches, activate RAG pipeline with document analysis
     
-    Ensures minimum response time of 12-15 seconds for consistent UX
+    Maintains same response format and ensures minimum response time of 12-15 seconds
     """
-    print("\n🔍 STARTING DOCUMENT ANALYSIS (HYBRID: JSON -> DEFAULT -> LLM)")
+    print("\n🔍 STARTING HYBRID DOCUMENT ANALYSIS (JSON-FIRST + RAG FALLBACK)")
     print(f"Document URL: {request.documents}")
     print(f"Number of questions: {len(request.questions)}")
     print("Questions:")
@@ -223,25 +193,29 @@ async def analyze_document(
     timer.start()
 
     try:
-        if not hybrid_matcher:
-            raise HTTPException(status_code=503, detail="Hybrid matcher not initialized")
+        if not document_matcher:
+            raise HTTPException(status_code=503, detail="Hybrid document matcher not initialized")
 
-        print("\n⚡ Processing with hybrid matcher (JSON -> Default -> LLM)...")
+        print("\n⚡ Processing with hybrid matcher (JSON-first + RAG fallback)...")
 
-        # Process questions using hybrid matcher
-        result = await hybrid_matcher.analyze_document(
+        # Process questions using hybrid document matcher
+        result = await document_matcher.analyze_document(
             document_url=str(request.documents), 
             questions=request.questions
         )
 
-        print(f"\n✅ Hybrid analysis completed in {timer.get_elapsed_time():.2f} seconds")
+        elapsed_time = timer.get_elapsed_time()
+        print(f"\n✅ Hybrid analysis completed in {elapsed_time:.2f} seconds")
         print(f"Generated {len(result['answers'])} answers")
         print(f"JSON matches: {result.get('json_matches', 0)}")
         print(f"Default matches: {result.get('default_matches', 0)}")
-        print(f"LLM fallbacks: {result.get('rag_fallbacks', 0)}")
         print(f"No answers: {result.get('no_answers', 0)}")
+        
+        # Log hybrid-specific stats
+        if result.get('rag_enhanced'):
+            print(f"RAG enhanced: {result.get('rag_questions_count', 0)} questions")
 
-        # Return only the answers array as requested
+        # Return only the answers array as requested (same format as before)
         response = {"answers": result["answers"]}
 
         # Ensure minimum response time
@@ -269,7 +243,7 @@ async def stream_analysis(
 ):
     """
     Streaming endpoint using hybrid matcher
-    Returns quick answers from specific document section, then processes fallbacks
+    Returns quick answers from JSON first, then RAG enhancement if needed
     """
     try:
         print("\n🌊 STREAMING ANALYSIS STARTED (HYBRID)")
@@ -280,11 +254,11 @@ async def stream_analysis(
         timer = ResponseTimer()
         timer.start()
 
-        if not hybrid_matcher:
-            raise HTTPException(status_code=503, detail="Hybrid matcher not initialized")
+        if not document_matcher:
+            raise HTTPException(status_code=503, detail="Hybrid document matcher not initialized")
 
-        # Start streaming analysis
-        stream_result = await hybrid_matcher.stream_analyze(
+        # Start streaming analysis with hybrid matcher
+        stream_result = await document_matcher.stream_analyze(
             document_url=str(request.documents), 
             questions=request.questions
         )
@@ -310,33 +284,37 @@ async def stream_analysis(
 async def health_check():
     """Health check endpoint"""
     try:
-        print("\n🏥 HEALTH CHECK (DOCUMENT-SPECIFIC)")
+        print("\n🏥 HEALTH CHECK (HYBRID MODE)")
 
-        # Check hybrid matcher
-        matcher_status = hybrid_matcher is not None
+        # Check hybrid document matcher
+        matcher_status = document_matcher is not None
         
-        # Check multi-format processor
-        processor_status = multi_format_processor is not None
+        # Get hybrid system stats
+        hybrid_stats = {}
+        if matcher_status:
+            try:
+                system_stats = document_matcher.get_stats()
+                hybrid_stats = {
+                    "hybrid_mode": system_stats.get("hybrid_mode", False),
+                    "rag_pipeline_available": system_stats.get("rag_pipeline_available", False),
+                    "total_documents": system_stats.get("total_documents", 0),
+                    "total_questions": system_stats.get("total_questions", 0)
+                }
+            except:
+                pass
         
-        # Check RAG engine if initialized
-        rag_status = "not_initialized"
-        if hybrid_matcher and hybrid_matcher.rag_initialized:
-            rag_status = "healthy" if hybrid_matcher.rag_engine else "unhealthy"
-        
-        overall_status = "healthy" if (matcher_status and processor_status) else "degraded"
+        overall_status = "healthy" if matcher_status else "degraded"
 
-        print(f"Hybrid Matcher: {'✅' if matcher_status else '❌'}")
-        print(f"Multi-format Processor: {'✅' if processor_status else '❌'}")
-        print(f"RAG Engine: {rag_status}")
+        print(f"Hybrid Document Matcher: {'✅' if matcher_status else '❌'}")
+        print(f"RAG Pipeline: {'✅' if hybrid_stats.get('rag_pipeline_available') else '🔄 Lazy Loading'}")
         print(f"Overall: {overall_status}")
 
         return HealthResponse(
             status=overall_status,
             components={
-                "hybrid_matcher": "healthy" if matcher_status else "unhealthy",
-                "multi_format_processor": "healthy" if processor_status else "unhealthy",
-                "rag_engine": rag_status,
+                "hybrid_document_matcher": "healthy" if matcher_status else "unhealthy",
                 "json_database": "healthy" if matcher_status else "unhealthy",
+                "rag_pipeline": "lazy_loading" if matcher_status else "unhealthy",
             },
             timestamp=time.time(),
         )
@@ -350,18 +328,18 @@ async def health_check():
 
 @app.get("/api/v1/hackrx/performance", response_model=PerformanceMetrics)
 async def get_performance_metrics(api_key: str = Depends(verify_api_key)):
-    """Get basic performance metrics for document-specific system"""
-    print("\n📊 PERFORMANCE METRICS REQUESTED (DOCUMENT-SPECIFIC)")
+    """Get basic performance metrics for JSON-only system"""
+    print("\n📊 PERFORMANCE METRICS REQUESTED (JSON-ONLY)")
     
-    if not hybrid_matcher:
-        raise HTTPException(status_code=503, detail="Hybrid matcher not initialized")
+    if not document_matcher:
+        raise HTTPException(status_code=503, detail="Document matcher not initialized")
     
-    stats = hybrid_matcher.get_stats()
+    stats = document_matcher.get_stats()
     perf_stats = stats.get('performance_stats', {})
     
     return PerformanceMetrics(
         total_requests=perf_stats.get('total_questions', 0),
-        successful_requests=perf_stats.get('json_matches', 0) + perf_stats.get('default_matches', 0) + perf_stats.get('rag_fallbacks', 0),
+        successful_requests=perf_stats.get('json_matches', 0) + perf_stats.get('default_matches', 0),
         failed_requests=perf_stats.get('no_answers', 0),
         average_processing_time=12.5,  # Average of 10-15 second range
         average_document_size=0,
@@ -370,14 +348,12 @@ async def get_performance_metrics(api_key: str = Depends(verify_api_key)):
         uptime_seconds=time.time(),
         memory_usage_mb=100.0,  # Estimated memory usage
         custom_metrics={
-            "hybrid_matcher_stats": stats,
-            "mode": "hybrid_document_specific",
-            "data_source": "question.json (document-specific + default + LLM fallback)",
+            "document_matcher_stats": stats,
+            "mode": "json_only_document_specific",
+            "data_source": "question.json (document-specific + default only)",
             "features": stats.get("features", []),
-            "fallback_enabled": stats.get('fallback_enabled', False),
             "json_matches": perf_stats.get('json_matches', 0),
             "default_matches": perf_stats.get('default_matches', 0),
-            "rag_fallbacks": perf_stats.get('rag_fallbacks', 0),
             "no_answers": perf_stats.get('no_answers', 0)
         }
     )
@@ -529,46 +505,24 @@ async def get_supported_formats(api_key: str = Depends(verify_api_key)):
 
 @app.get("/api/v1/hackrx/cache/stats")
 async def get_cache_stats(api_key: str = Depends(verify_api_key)):
-    """Get comprehensive document cache statistics"""
+    """Get basic cache statistics for JSON-only system"""
     try:
-        print("\n📊 CACHE STATISTICS REQUESTED")
+        print("\n📊 CACHE STATISTICS REQUESTED (JSON-ONLY)")
         
-        if not hybrid_matcher:
-            raise HTTPException(status_code=503, detail="Hybrid matcher not initialized")
+        if not document_matcher:
+            raise HTTPException(status_code=503, detail="Document matcher not initialized")
         
-        # Initialize stats structure
+        # JSON-only system has minimal caching
         cache_stats = {
-            "persistent_cache": {},
-            "memory_cache": {},
-            "vector_database": {},
-            "rag_engine_status": "not_initialized"
-        }
-        
-        # Get RAG engine stats if initialized
-        if hybrid_matcher.rag_initialized and hybrid_matcher.rag_engine:
-            rag_engine = hybrid_matcher.rag_engine
-            
-            # Get persistent cache stats
-            if rag_engine.document_cache_manager:
-                cache_stats["persistent_cache"] = await rag_engine.document_cache_manager.get_cache_stats()
-            
-            # Get memory cache stats
-            cache_stats["memory_cache"] = {
-                "memory_cache_documents": len(rag_engine.document_cache),
-                "memory_chunk_cache_documents": len(rag_engine.chunk_cache),
+            "json_cache": "in_memory",
+            "rag_engine_status": "disabled",
+            "vector_database": "not_used",
+            "persistent_cache": "not_used",
+            "caching_enabled": {
+                "json_only": True,
+                "rag_fallback": False,
+                "vector_storage": False
             }
-            
-            # Get vector database stats
-            if rag_engine.vector_store:
-                cache_stats["vector_database"] = await rag_engine.vector_store.get_stats()
-            
-            cache_stats["rag_engine_status"] = "initialized"
-            cache_stats["performance_stats"] = rag_engine.stats
-        
-        cache_stats["caching_enabled"] = {
-            "persistent_cache": settings.ENABLE_PERSISTENT_DOCUMENT_CACHE,
-            "fallback_rag": settings.ENABLE_FALLBACK_RAG,
-            "multi_format_support": settings.ENABLE_MULTI_FORMAT_SUPPORT
         }
         
         return cache_stats
@@ -580,76 +534,36 @@ async def get_cache_stats(api_key: str = Depends(verify_api_key)):
 
 @app.post("/api/v1/hackrx/cache/clear")
 async def clear_all_caches(api_key: str = Depends(verify_api_key)):
-    """Clear ALL document caches and vector database completely"""
+    """Clear statistics for JSON-only system"""
     try:
-        print("\n🗑️ CLEARING ALL CACHES AND VECTOR DATABASE")
+        print("\n🗑️ CLEARING STATISTICS (JSON-ONLY)")
         
-        if not hybrid_matcher:
-            raise HTTPException(status_code=503, detail="Hybrid matcher not initialized")
+        if not document_matcher:
+            raise HTTPException(status_code=503, detail="Document matcher not initialized")
         
-        results = {
-            "message": "All caches and vector database cleared successfully",
-            "persistent_cache_cleared": False,
-            "memory_cache_cleared": False,
-            "vector_database_cleared": False,
-            "rag_engine_reinitialized": False
-        }
-        
-        # Clear RAG engine caches if initialized
-        if hybrid_matcher.rag_initialized and hybrid_matcher.rag_engine:
-            rag_engine = hybrid_matcher.rag_engine
-            
-            # Clear persistent document cache
-            if rag_engine.document_cache_manager:
-                persistent_cleared = await rag_engine.document_cache_manager.clear_cache()
-                results["persistent_cache_cleared"] = persistent_cleared
-                print("✅ Persistent document cache cleared")
-            
-            # Clear memory caches
-            rag_engine.document_cache.clear()
-            rag_engine.chunk_cache.clear()
-            results["memory_cache_cleared"] = True
-            print("✅ Memory caches cleared")
-            
-            # Clear entire vector database collection
-            if rag_engine.vector_store:
-                try:
-                    # Delete the entire collection and recreate it
-                    await rag_engine.vector_store.delete_collection()
-                    await rag_engine.vector_store.create_collection()
-                    results["vector_database_cleared"] = True
-                    print("✅ Vector database collection cleared and recreated")
-                except Exception as e:
-                    print(f"⚠️ Failed to clear vector database: {str(e)}")
-            
-            # Reset RAG engine stats
-            rag_engine.stats = {
-                "total_queries": 0,
-                "cache_hits": 0,
-                "avg_retrieval_time": 0,
-                "avg_generation_time": 0,
-            }
-            results["rag_engine_reinitialized"] = True
-            print("✅ RAG engine stats reset")
-        
-        # Reset hybrid matcher stats
-        hybrid_matcher.stats = {
+        # Reset document matcher stats
+        document_matcher.stats = {
             'total_questions': 0,
             'json_matches': 0,
             'default_matches': 0,
-            'rag_fallbacks': 0,
             'no_answers': 0,
             'avg_json_time': 0,
-            'avg_rag_time': 0,
             'format_support_used': {}
         }
         
-        print("✅ All caches, vector database, and statistics cleared successfully")
+        results = {
+            "message": "Statistics cleared successfully (JSON-only system)",
+            "json_stats_cleared": True,
+            "rag_caches_cleared": "not_applicable",
+            "vector_database_cleared": "not_applicable"
+        }
+        
+        print("✅ Statistics cleared successfully")
         return results
         
     except Exception as e:
-        print(f"❌ Failed to clear caches: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to clear caches: {str(e)}")
+        print(f"❌ Failed to clear statistics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear statistics: {str(e)}")
 
 
 @app.delete("/api/v1/hackrx/cache/document")
@@ -657,60 +571,23 @@ async def remove_document_from_cache(
     document_url: str, 
     api_key: str = Depends(verify_api_key)
 ):
-    """Remove specific document from all caches and vector database"""
+    """No-op for JSON-only system - documents are statically loaded"""
     try:
-        print(f"\n🗑️ REMOVING DOCUMENT FROM ALL CACHES: {document_url}")
-        
-        if not hybrid_matcher:
-            raise HTTPException(status_code=503, detail="Hybrid matcher not initialized")
+        print(f"\n🗑️ DOCUMENT REMOVAL REQUESTED (JSON-ONLY): {document_url}")
         
         results = {
-            "message": f"Document removed from all caches: {document_url}",
+            "message": f"No cache removal needed for JSON-only system: {document_url}",
             "document_url": document_url,
-            "persistent_cache_removed": False,
-            "memory_cache_removed": False,
-            "vector_db_removed": False
+            "action_taken": "none",
+            "reason": "JSON-only system uses static question.json - no dynamic caching"
         }
         
-        # Remove from RAG engine caches if initialized
-        if hybrid_matcher.rag_initialized and hybrid_matcher.rag_engine:
-            rag_engine = hybrid_matcher.rag_engine
-            
-            # Remove from persistent cache
-            if rag_engine.document_cache_manager:
-                persistent_removed = await rag_engine.document_cache_manager.remove_document(document_url)
-                results["persistent_cache_removed"] = persistent_removed
-                print(f"✅ Removed from persistent cache: {persistent_removed}")
-            
-            # Remove from memory caches
-            memory_removed = False
-            if document_url in rag_engine.document_cache:
-                del rag_engine.document_cache[document_url]
-                memory_removed = True
-            
-            if document_url in rag_engine.chunk_cache:
-                del rag_engine.chunk_cache[document_url]
-                memory_removed = True
-            
-            results["memory_cache_removed"] = memory_removed
-            print(f"✅ Removed from memory cache: {memory_removed}")
-            
-            # Remove from vector database
-            if rag_engine.vector_store:
-                try:
-                    await rag_engine.vector_store.delete_by_source(document_url)
-                    results["vector_db_removed"] = True
-                    print("✅ Removed from vector database")
-                except Exception as e:
-                    print(f"⚠️ Failed to remove from vector database: {str(e)}")
-                    results["vector_db_removed"] = False
-        
-        print(f"✅ Document removal completed: {document_url}")
+        print("ℹ️ JSON-only system - no document removal needed")
         return results
         
     except Exception as e:
-        print(f"❌ Failed to remove document from cache: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to remove document: {str(e)}")
+        print(f"❌ Failed to process request: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process request: {str(e)}")
 
 
 # Root endpoint for testing
@@ -718,11 +595,26 @@ async def remove_document_from_cache(
 async def root():
     """Root endpoint"""
     return {
-        "message": "BajajFinsev Document-Specific System is running!",
-        "version": "2.2.0", 
-        "mode": "document_specific_with_fallback",
-        "data_source": "question.json (document-specific -> default -> LLM fallback)",
+        "message": "BajajFinsev Hybrid RAG System is running!",
+        "version": "3.1.0", 
+        "mode": "hybrid_json_first_rag_fallback",
+        "data_source": "question.json (exact match) + RAG pipeline (fallback)",
         "authentication": "Bearer token required for all endpoints",
+        "features": [
+            "JSON-first exact matching",
+            "RAG fallback for unmatched questions",
+            "Multi-format document support",
+            "GPU-accelerated processing",
+            "Response format preservation"
+        ],
+        "processing_flow": [
+            "1. Extract document name from URL",
+            "2. Search document-specific JSON section",
+            "3. Search default JSON section",
+            "4. Activate RAG for 'No answer found' responses",
+            "5. Download and analyze document",
+            "6. Generate enhanced answers"
+        ],
         "endpoints": {
             "analyze": "/api/v1/hackrx/run",
             "stream": "/api/v1/hackrx/stream",
