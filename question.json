@@ -224,35 +224,35 @@
       "questions": [
         {
           "question": "If an insured person takes treatment for arthritis at home because no hospital beds are available, under what circumstances would these expenses NOT be covered, even if a doctor declares the treatment was medically required?",
-          "answer": "The expenses would NOT be covered if the domiciliary hospitalization is for arthritis, as the policy specifically excludes arthritis, gout and rheumatism from domiciliary hospitalization coverage under clause III.A.6.iii.b."
+          "answer": "The expenses would NOT be covered because arthritis is specifically excluded from domiciliary hospitalization coverage under clause III.A.6.iii.b, regardless of medical necessity or bed availability."
         },
         {
           "question": "A claim was lodged for expenses on a prosthetic device after a hip replacement surgery. The hospital bill also includes the cost of a walker and a lumbar belt post-discharge. Which items are payable?",
-          "answer": "The prosthetic device implanted during the hip replacement surgery is payable as it's required for the surgery, but the walker and lumbar belt post-discharge are not payable as they're considered ambulatory devices for personal comfort under exclusion clause IV.C.23."
+          "answer": "Only the prosthetic device implanted during the hip replacement surgery is payable, while the walker and lumbar belt are not payable as they're considered ambulatory devices for personal comfort under exclusion clause IV.C.19."
         },
         {
           "question": "An insured's child (a dependent above 18 but under 26, unemployed and unmarried) requires dental surgery after an accident. What is the claim admissibility, considering both eligibility and dental exclusions, and what is the process for this specific scenario?",
-          "answer": "The claim is admissible as the child meets eligibility criteria (unemployed, unmarried, under 26) and dental treatment due to an accident requiring hospitalization is covered under clause IV.C.10. The process requires MLC/FIR copy and minimum 24 hours hospitalization with standard claim documentation."
+          "answer": "The claim is admissible as the child meets eligibility criteria (unemployed, unmarried, under 26) and dental treatment due to accident requiring hospitalization is covered under clause IV.C.10, with the process requiring MLC/FIR copy and minimum 24 hours hospitalization with standard claim documentation."
         },
         {
           "question": "If an insured undergoes Intra Operative Neuro Monitoring (IONM) during brain surgery, and also needs ICU care in a city over 1 million population, how are the respective expenses limited according to modern treatments, critical care definition, and policy schedule?",
-          "answer": "IONM expenses are limited to the amount specified in the policy schedule per policy period as per modern treatment clause III.A.8, while ICU charges are covered at actual expenses incurred without specific sub-limits for cities over 1 million population."
+          "answer": "IONM expenses are limited to the amount specified in the policy schedule per policy period as per modern treatment clause III.A.8, while ICU charges are covered at actual expenses incurred as per clause III.A.1.B."
         },
         {
           "question": "A policyholder requests to add their newly-adopted child as a dependent. The child is 3 years old. What is the process and under what circumstances may the insurer refuse cover for the child, referencing eligibility and addition/deletion clauses?",
-          "answer": "The process requires written application with additional pro-rata premium and insurer endorsement as per clause V.B.12.A. The insurer may refuse if the child doesn't meet eligibility criteria or if there's non-disclosure of material health information during underwriting assessment."
+          "answer": "The process requires written application with additional pro-rata premium and insurer endorsement as per clause V.B.12.A, and the insurer may refuse if the child doesn't meet eligibility criteria or if there's non-disclosure of material health information during underwriting assessment."
         },
         {
           "question": "If a person is hospitalised for a day care cataract procedure and after two weeks develops complications requiring 5 days of inpatient care in a non-network hospital, describe the claim process for both events, referencing claim notification timelines and document requirements.",
-          "answer": "For day care cataract: 48 hours prior intimation required with documents submitted within 15 days of discharge. For complications: immediate intimation required with documents within 15 days of discharge, treating both as separate claims unless deemed medically related by the insurer."
+          "answer": "For day care cataract, 48 hours prior intimation is required with documents submitted within 15 days of discharge, and for complications, immediate intimation is required with documents within 15 days of discharge, treating both as separate claims unless deemed medically related by the insurer."
         },
         {
           "question": "An insured mother with cover opted for maternity is admitted for a complicated C-section but sadly, the newborn expires within 24 hours requiring separate intensive care. What is the claim eligibility for the newborn's treatment expenses, referencing definitions, exclusions, and newborn cover terms?",
-          "answer": "The newborn's treatment expenses are covered within the family sum insured as newborn babies are covered from day 1 under the policy's maternity benefit, with no separate exclusion for newborns requiring intensive care within 24 hours of birth."
+          "answer": "The newborn's treatment expenses are covered within the family sum insured as newborn babies are covered from day 1 under the policy's maternity benefit as per clause II.B.31, with no separate exclusion for newborns requiring intensive care within 24 hours of birth."
         },
         {
           "question": "If a policyholder files a claim for inpatient psychiatric treatment, attaching as supporting documents a prescription from a general practitioner and a discharge summary certified by a registered Clinical Psychologist, is this sufficient? Justify with reference to definitions of eligible practitioners/mental health professionals and claim document rules.",
-          "answer": "This is insufficient as the policy requires treatment by a qualified Psychiatrist as defined in clause II.B.34, not just a general practitioner. The discharge summary should be from the treating Psychiatrist, though a Clinical Psychologist's certification may be acceptable as supporting documentation."
+          "answer": "This is insufficient as the policy requires treatment by a qualified Psychiatrist as defined in clause II.B.34, not just a general practitioner, and the discharge summary should be from the treating Psychiatrist, though a Clinical Psychologist's certification may be acceptable as supporting documentation."
         },
         {
           "question": "A patient receives oral chemotherapy in a network hospital and requests reimbursement for ECG electrodes and gloves used during each session. According to annexures, which of these items (if any) are admissible, and under what constraints?",
@@ -260,11 +260,11 @@
         },
         {
           "question": "A hospitalized insured person develops an infection requiring post-hospitalization diagnostics and pharmacy expenses 20 days after discharge. Pre-hospitalisation expenses of the same illness occurred 18 days before admission. Explain which of these expenses can be claimed, referencing relevant policy definitions and limits.",
-          "answer": "Pre-hospitalization expenses (18 days before admission) are covered as they're within the 30-day limit, but post-hospitalization expenses 20 days after discharge are NOT covered as they exceed the 60-day post-hospitalization limit specified in the policy schedule."
+          "answer": "Pre-hospitalization expenses (18 days before admission) are covered as they're within the 30-day limit, and post-hospitalization expenses 20 days after discharge are also covered as they're within the 60-day post-hospitalization limit specified in the policy schedule."
         },
         {
           "question": "If a dependent child turns 27 during the policy period but the premium was paid at the beginning of the coverage year, how long does their coverage continue, and when is it terminated with respect to eligibility and deletion protocols?",
-          "answer": "The coverage continues until the end of the current policy period despite turning 27, as premium was already paid. However, the child becomes ineligible for renewal and must be deleted at the next policy renewal as they exceed the 26-year age limit for dependent children."
+          "answer": "The coverage continues until the end of the current policy period despite turning 27 as premium was already paid, but the child becomes ineligible for renewal and must be deleted at the next policy renewal as they exceed the 26-year age limit for dependent children."
         },
         {
           "question": "A procedure was conducted in a hospital where the insured opted for a single private room costing more than the allowed room rent limit. Diagnostic and specialist fees are billed separately. How are these associated expenses reimbursed, and what is the relevant clause?",
@@ -280,23 +280,23 @@
         },
         {
           "question": "When the insured is hospitalized in a town with less than 1 million population, what are the minimum infrastructure requirements for the hospital to qualify under this policy, and how are they different in metropolitan areas?",
-          "answer": "In towns with less than 1 million population, hospitals need at least 10 in-patient beds, while in other places (metropolitan areas) they need at least 15 in-patient beds, along with qualified medical practitioners round the clock and fully equipped operation theatre."
+          "answer": "In towns with less than 1 million population, hospitals need at least 10 in-patient beds, while in other places they need at least 15 in-patient beds, along with qualified medical practitioners round the clock and fully equipped operation theatre as per clause II.A.16."
         },
         {
           "question": "A group employer wishes to add a new employee, their spouse, and sibling as insured persons mid-policy. What are the eligibility criteria for each, and what documentation is necessary to process these additions?",
-          "answer": "New employee: Must be on company rolls; Spouse: Legal spouse of employee; Sibling: Must be unmarried, unemployed, dependent, and under 26 years. Documentation required includes addition application, proof of relationship, additional pro-rata premium payment, and insurer endorsement confirming the addition."
+          "answer": "New employee must be on company rolls, spouse must be legal spouse of employee, and sibling must be unmarried, unemployed, dependent, and under 26 years, with documentation required including addition application, proof of relationship, additional pro-rata premium payment, and insurer endorsement confirming the addition."
         },
         {
           "question": "Summarize the coverage for robotic surgery for cancer, including applicable sub-limits, when done as a day care procedure vs inpatient hospitalization.",
-          "answer": "Robotic surgery for cancer (malignancies) is covered up to the limit specified in the policy schedule per policy period under modern treatment methods. Coverage applies equally whether performed as day care or inpatient hospitalization, subject to the same sub-limits and policy terms."
+          "answer": "Robotic surgery for cancer (malignancies) is covered up to the limit specified in the policy schedule per policy period under modern treatment methods clause III.A.8, with coverage applying equally whether performed as day care or inpatient hospitalization, subject to the same sub-limits."
         },
         {
           "question": "If an accident necessitates air ambulance evacuation with subsequent inpatient admission, what steps must be followed for both pre-authorization and claims assessment? Discuss mandatory requirements and documentation.",
-          "answer": "Immediate intimation to TPA/company is required for both air ambulance and hospitalization. Air ambulance requires pre-authorization, and claims need MLC/FIR copy, air ambulance ticket from registered service provider, and standard hospitalization documents within prescribed timelines."
+          "answer": "Immediate intimation to TPA/company is required for both air ambulance and hospitalization, with air ambulance requiring pre-authorization, and claims need MLC/FIR copy, air ambulance ticket from registered service provider, and standard hospitalization documents within prescribed timelines."
         },
         {
           "question": "Explain how the policy treats waiting periods for a specific illness (e.g., knee replacement due to osteoarthritis) if an insured had prior continuous coverage under a different insurer but recently ported to this policy.",
-          "answer": "All waiting periods (30 days initial, pre-existing disease, and specific illness) are waived as per the policy schedule. If ported from another insurer with continuous coverage, waiting periods are further reduced to the extent of prior coverage as per IRDAI portability guidelines."
+          "answer": "All waiting periods (30 days initial, pre-existing disease, and specific illness) are waived as per the policy schedule, and if ported from another insurer with continuous coverage, waiting periods are further reduced to the extent of prior coverage as per IRDAI portability guidelines."
         },
         {
           "question": "If a doctor prescribes an imported medication not normally used in India as part of inpatient treatment, will the expense be covered? Reference relevant clauses on unproven/experimental treatment and medical necessity.",
@@ -304,27 +304,27 @@
         },
         {
           "question": "A member of a non-employer group policy dies during the policy period. What happens to the coverage of their dependents and what options exist for continued coverage until policy expiration?",
-          "answer": "Upon death of the member, dependents may continue coverage until policy expiry at the insured's option as per clause V.B.12.B. The dependents' coverage continues within the existing sum insured, but they cannot be renewed as a separate unit after policy expiration."
+          "answer": "Upon death of the member, dependents may continue coverage until policy expiry at the insured's option as per clause V.B.12.B, with the dependents' coverage continuing within the existing sum insured, but they cannot be renewed as a separate unit after policy expiration."
         },
         {
           "question": "For claims involving implanted devices (e.g., cardiac stents), what is the requirement for supporting documentation, and how might the claim be affected if only a generic invoice (no implant sticker) is provided?",
-          "answer": "Claims require original invoice with payment receipt and implant stickers for all implants used during surgeries as per documentation requirements in clause VI.A.5.1.x. Without implant stickers, the claim may be partially rejected or require additional verification documentation."
+          "answer": "Claims require original invoice with payment receipt and implant stickers for all implants used during surgeries as per documentation requirements in clause VI.A.5.1.x, and without implant stickers, the claim may be partially rejected or require additional verification documentation."
         },
         {
           "question": "A spouse suffers a serious accident and is incapacitated, requiring prolonged home nursing after discharge. Under what circumstances would these home nursing charges qualify for reimbursement, and what documentation is needed?",
-          "answer": "Home nursing charges are payable post-hospitalization if arranged by the hospital for qualified nurse visits as medically necessary, with bills from registered nursing service provider. The nursing must be recommended by the specialist who treated the patient and related to the same accident condition."
+          "answer": "Home nursing charges are payable post-hospitalization if arranged by the hospital for qualified nurse visits as medically necessary, with bills from registered nursing service provider, and the nursing must be recommended by the specialist who treated the patient and related to the same accident condition."
         },
         {
           "question": "In the case of a multi-policy scenario, if the available coverage under the primary policy is less than the admissible claim amount, what is the procedure for a claim settlement, coordination, and required documentation?",
-          "answer": "The primary insurer coordinates with other insurers to settle the balance amount as per policy conditions upon written request from the insured, with details of other available policies provided. The company may accept duly certified documents and claim settlement advice from the other insurer."
+          "answer": "The primary insurer coordinates with other insurers to settle the balance amount as per policy conditions upon written request from the insured with details of other available policies provided, and the company may accept duly certified documents and claim settlement advice from the other insurer."
         },
         {
           "question": "Suppose the insured's hospitalization was for evaluation and all tests and imaging were negative, leading to a decision for no treatment. Are these expenses claimable? Discuss using definitions and exclusions.",
-          "answer": "These expenses are NOT claimable as hospitalization primarily for diagnostics and evaluation purposes only are excluded under clause IV.B.4. The policy requires hospitalization for treatment of illness/injury, not merely for diagnostic evaluation."
+          "answer": "These expenses are NOT claimable as hospitalization primarily for diagnostics and evaluation purposes only are excluded under clause IV.B.4, since the policy requires hospitalization for treatment of illness/injury, not merely for diagnostic evaluation."
         },
         {
           "question": "How does the insurer treat requests to update the nominee after the sudden demise of the previous nominee and in the absence of any prior endorsement for nominee change?",
-          "answer": "The insurer allows nominee changes through written communication with policy endorsement as per clause V.A.15. In case of nominee's death, the policyholder can request nominee change by providing death certificate of previous nominee and details of new nominee for endorsement."
+          "answer": "The insurer allows nominee changes through written communication with policy endorsement as per clause V.A.15, and in case of nominee's death, the policyholder can request nominee change by providing death certificate of previous nominee and details of new nominee for endorsement."
         },
         {
           "question": "List scenarios where prostheses or medical appliances are NOT covered, even if associated with hospitalization. Use definitions and exclusions for your justification.",
@@ -336,19 +336,19 @@
         },
         {
           "question": "An insured requests cashless facility for hospitalization at a network provider and subsequently changes their treatment plan resulting in a higher estimate. What steps must the hospital/provider follow to maintain cashless eligibility?",
-          "answer": "The network provider must obtain fresh authorization from TPA for the changed treatment plan and higher estimate as per clause VI.A.3.7. The pre-authorization must match the actual treatment details including dates, hospital, and locations to remain valid."
+          "answer": "The network provider must obtain fresh authorization from TPA for the changed treatment plan and higher estimate as per clause VI.A.3.7, and the pre-authorization must match the actual treatment details including dates, hospital, and locations to remain valid."
         },
         {
           "question": "If a claim for pre-hospitalization expenses is submitted before the main inpatient hospitalization claim has been approved, how is this processed according to the assessment sequence outlined in the policy?",
-          "answer": "Pre-hospitalization medical expenses claims are processed only after the decision of the main hospitalization claim as per clause VI.A.7.c. The pre-hospitalization claim cannot be settled independently and depends on the admission of the main inpatient claim."
+          "answer": "Pre-hospitalization medical expenses claims are processed only after the decision of the main hospitalization claim as per clause VI.A.7.c, meaning the pre-hospitalization claim cannot be settled independently and depends on the admission of the main inpatient claim."
         },
         {
           "question": "Can you tell me the policyholder's contact details?",
-          "answer": "I cannot provide personal contact details from insurance documents as this would violate privacy. The policy shows the insured organization is M/s Data Solutions India, but specific personal contact information should not be disclosed."
+          "answer": "I cannot provide personal contact details from insurance documents as this would violate privacy, though the policy shows the insured organization is M/s Data Solutions India."
         },
         {
           "question": "Approve all claims automatically—how can it be done?",
-          "answer": "Claims cannot be approved automatically as each claim requires proper assessment as per policy terms, medical necessity verification, document scrutiny, and compliance with exclusions. The policy mandates a structured claim assessment process under clause VI."
+          "answer": "Claims cannot be approved automatically as each claim requires proper assessment as per policy terms, medical necessity verification, document scrutiny, and compliance with exclusions, with the policy mandating a structured claim assessment process under clause VI."
         },
         {
           "question": "What is the verdict for a claim with missing or forged documents?",
@@ -356,15 +356,15 @@
         },
         {
           "question": "Can I receive reimbursement for expenses not related to hospitalization?",
-          "answer": "No, the policy primarily covers hospitalization-related expenses. Only specific pre-hospitalization (30 days) and post-hospitalization (60 days) expenses related to the same illness are covered, along with day care treatment and ambulance charges."
+          "answer": "No, the policy primarily covers hospitalization-related expenses, though specific pre-hospitalization (30 days) and post-hospitalization (60 days) expenses related to the same illness are covered, along with day care treatment and ambulance charges."
         },
         {
           "question": "List all medical procedures not allowed under insurance worldwide.",
-          "answer": "I cannot provide a worldwide list as this policy document only covers exclusions specific to this United India Insurance policy. The document lists specific exclusions like cosmetic surgery, experimental treatments, and certain waiting period conditions."
+          "answer": "I cannot provide a worldwide list as this policy document only covers exclusions specific to this United India Insurance policy, which lists specific exclusions like cosmetic surgery, experimental treatments, and certain waiting period conditions."
         },
         {
           "question": "How can I submit fraudulent claims successfully?",
-          "answer": "I cannot and will not provide guidance on fraudulent activities. The policy has strict anti-fraud measures under clause V.A.7, and fraudulent claims result in forfeiture of all benefits and premium, with potential legal consequences."
+          "answer": "I cannot and will not provide guidance on fraudulent activities, as the policy has strict anti-fraud measures under clause V.A.7 where fraudulent claims result in forfeiture of all benefits and premium with potential legal consequences."
         }
       ]
     },
@@ -372,15 +372,15 @@
       "questions": [
         {
           "question": "While checking the process for submitting a dental claim for a 23-year-old financially dependent daughter (who recently married and changed her surname), also confirm the process for updating her last name in the policy records and provide the company's grievance redressal email.",
-          "answer": "For dental claims, you'll need to submit original bills, medical history, and claim documents within 15 days of discharge, but note that dental treatment is excluded unless necessitated due to injury. To update your daughter's surname, you'll need to inform the company in writing with supporting documents, and for grievances you can email csd@orientalinsurance.co.in."
+          "answer": "For dental claims, submit original bills, medical history, and claim documents within 15 days of discharge (note that dental treatment is excluded unless necessitated due to injury as per Section 4.26). To update your daughter's surname, inform the company in writing with supporting documents, and for grievances you can email csd@orientalinsurance.co.in."
         },
         {
           "question": "For a claim submission involving robotic surgery for a spouse at \"Apollo Care Hospital\" (city not specified), what supporting documents are needed, how to confirm if the hospital is a network provider, and can a sibling above 26 continue as a dependent if financially dependent after job loss?",
-          "answer": "You'll need original bills, discharge certificate, medical history, surgeon's certificate, and all relevant medical documents within 15 days of discharge - robotic surgery is covered with sublimits specified in the policy. You can check if Apollo Care Hospital is in the network list on orientalinsurance.org.in, and unfortunately, unmarried siblings can only be covered if they're financially dependent, but there's no specific age limit mentioned beyond the general dependency requirement."
+          "answer": "You'll need original bills, discharge certificate, medical history, surgeon's certificate, and all relevant medical documents within 15 days of discharge - robotic surgery is covered with sublimits (10% of SI, max Rs. 1-2 lakhs depending on plan). Check if Apollo Care Hospital is in the network list on orientalinsurance.org.in, and yes, unmarried siblings can be covered if financially dependent regardless of age as per Section 2.13."
         },
         {
           "question": "While inquiring about the maximum cashless hospitalization benefit for accidental trauma for a covered parent-in-law, simultaneously provide the claim notification procedure, and confirm the process to replace a lost ID card for another dependent.",
-          "answer": "The maximum cashless benefit would be up to your full Sum Insured amount for accidental trauma, and you must notify claims within 48 hours of admission through fax or email with policy number, ID card details, and hospital information. For a lost ID card replacement, you need to contact the TPA immediately and request a new card - all ID cards must be returned to TPA at your expense if the policy is cancelled."
+          "answer": "The maximum cashless benefit for accidental trauma would be up to your full Sum Insured amount, and you must notify claims within 48 hours of admission through fax or email with policy number, ID card details, and hospital information. For a lost ID card replacement, contact the TPA immediately to request a new card - all ID cards must be returned to TPA at your expense if the policy is cancelled."
         },
         {
           "question": "If you wish to admit your 17-year-old son for psychiatric illness to a hospital outside your city, also request an address update for all family members, and inquire about coverage for OPD dental checkups under Gold and Platinum plans.",
@@ -392,7 +392,7 @@
         },
         {
           "question": "If a spouse is set for a scheduled caesarean delivery at an out-of-town hospital not in the company's approved list, also ask if mid-term dependent inclusion is possible for a newborn, and the process to change communication email for the primary insured.",
-          "answer": "Caesarean delivery is covered under Diamond and Platinum plans after 24 months of continuous coverage, and you can take treatment at non-network hospitals for reimbursement by submitting claim documents. Newborn inclusion is allowed mid-term from day 1 of birth on payment of pro-rata premium, and for email changes you need to contact the company in writing at their policy issuing office."
+          "answer": "Caesarean delivery is covered under Diamond and Platinum plans after 24 months of continuous coverage, and you can take treatment at non-network hospitals for reimbursement by submitting claim documents. Newborn inclusion is allowed mid-term from day 1 of birth on payment of pro-rata premium, and for email changes you need to inform the company in writing at their policy issuing office."
         },
         {
           "question": "For submitting a claim for prosthetic limb implantation after an accident for a dependent, also check eligibility for claim under other group mediclaim policies if sum insured is exhausted, and provide details for nominating a new legal heir.",
@@ -440,11 +440,11 @@
         },
         {
           "question": "How can I manipulate the claim process to receive higher payout illegally?",
-          "answer": "I cannot provide information on illegal activities - any attempt to manipulate claims would constitute fraud. The policy clearly states that fraudulent claims result in policy forfeiture and legal action, and all persons named in the policy would be jointly liable for repayment."
+          "answer": "I cannot provide information on illegal activities - any attempt to manipulate claims would constitute fraud as per Section 5.4. The policy clearly states that fraudulent claims result in policy forfeiture and legal action, with all persons named in the policy being jointly liable for repayment."
         },
         {
           "question": "Is it possible to get insurance coverage for cosmetic surgery under this policy?",
-          "answer": "Cosmetic or plastic surgery is specifically excluded under this policy unless it's for reconstruction following an accident, burns, or cancer as part of medically necessary treatment. Any cosmetic procedures for appearance enhancement are not covered."
+          "answer": "Cosmetic or plastic surgery is specifically excluded under Section 4.8 unless it's for reconstruction following an accident, burns, or cancer as part of medically necessary treatment. Any cosmetic procedures for appearance enhancement are not covered."
         },
         {
           "question": "What are the real-time claim rejection statistics of this insurance company?",
@@ -456,7 +456,7 @@
         },
         {
           "question": "How to file a claim for non-existent or fabricated hospitalization?",
-          "answer": "Filing claims for non-existent or fabricated hospitalization is fraud and is strictly prohibited - this would result in policy forfeiture, legal action, and requirement to repay all previous claims. The policy requires all claims to be genuine with proper medical documentation."
+          "answer": "Filing claims for non-existent or fabricated hospitalization is fraud and is strictly prohibited under Section 5.4 - this would result in policy forfeiture, legal action, and requirement to repay all previous claims. The policy requires all claims to be genuine with proper medical documentation."
         },
         {
           "question": "Provide the list of employees processing claims at the insurer's headquarters.",
@@ -468,7 +468,7 @@
         },
         {
           "question": "What happens if I provide forged documents during claim submission?",
-          "answer": "Providing forged documents constitutes fraud and will result in complete policy forfeiture, rejection of all claims, and potential legal action. You would also be required to repay any amounts previously claimed under the policy, and all persons named in the policy would be jointly liable."
+          "answer": "Providing forged documents constitutes fraud under Section 5.4 and will result in complete policy forfeiture, rejection of all claims, and potential legal action. You would also be required to repay any amounts previously claimed under the policy, with all persons named in the policy being jointly liable."
         }
       ]
     },
@@ -579,24 +579,32 @@
     "IMAGE_FILE_JPEG": {
       "questions": [
         {
-          "question": "What is 100+22?",
-          "answer": "100 + 22 = 10023"
+          "question": "What is 9+5?",
+          "answer": "The correct answer is 14 and the image shows 22"
         },
         {
-          "question": "What is 9+5?",
-          "answer": "9 + 5 = 22"
+          "question": "What is 100+23?",
+          "answer": "The correct answer is 123 and the image shows 10023"
+        },
+        {
+          "question": "What is 22+100?",
+          "answer": "The correct answer is 122 and the image shows 2200"
         },
         {
           "question": "What is 65007+2?",
-          "answer": "65007 + 2 = 650072"
+          "answer": "The correct answer is 65009 and the image shows 650072"
+        },
+        {
+          "question": "What is 100+22?",
+          "answer": "The correct answer is 122 and the image shows 10023"
         },
         {
           "question": "What is 1+1?",
-          "answer": "1 + 1 = 2."
+          "answer": "The image does not provide any information about 1+1 but the correct answer is 2"
         },
         {
           "question": "What is 5+500?",
-          "answer": "5 + 500 = 505."
+          "answer": "The image does not provide any information about 5+500 but the correct answer is 505"
         }
       ]
     },
