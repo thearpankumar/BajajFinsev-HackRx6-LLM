@@ -383,9 +383,9 @@ async def get_performance_metrics(api_key: str = Depends(verify_api_key)):
     )
 
 
-@app.get("/api/v1/hackrx/questions/stats")
+"""@app.get("/api/v1/hackrx/questions/stats")
 async def get_question_stats(api_key: str = Depends(verify_api_key)):
-    """Get statistics about loaded questions"""
+    
     print("\n📊 QUESTION STATS REQUESTED")
     
     if not hybrid_matcher:
@@ -405,7 +405,7 @@ async def get_question_stats(api_key: str = Depends(verify_api_key)):
 
 @app.post("/api/v1/hackrx/questions/reload")
 async def reload_questions(api_key: str = Depends(verify_api_key)):
-    """Reload questions from JSON file"""
+    
     print("\n🔄 RELOADING QUESTIONS")
     
     if not hybrid_matcher:
@@ -433,7 +433,7 @@ async def configure_fallback(
     similarity_threshold: float = 0.3,
     api_key: str = Depends(verify_api_key)
 ):
-    """Configure RAG fallback settings"""
+    
     print("\n⚙️ CONFIGURING FALLBACK")
     print(f"Enable fallback: {enable_fallback}")
     print(f"Similarity threshold: {similarity_threshold}")
@@ -457,7 +457,7 @@ async def configure_response_timing(
     enable_delay: bool = True,
     api_key: str = Depends(verify_api_key)
 ):
-    """Configure response timing settings"""
+    
     print("\n⏱️ CONFIGURING RESPONSE TIMING")
     print(f"Min time: {min_seconds}s, Max time: {max_seconds}s, Enabled: {enable_delay}")
     
@@ -477,7 +477,7 @@ async def configure_response_timing(
 
 @app.get("/api/v1/hackrx/config/timing")
 async def get_response_timing_config(api_key: str = Depends(verify_api_key)):
-    """Get current response timing configuration"""
+    
     return {
         "min_response_time_seconds": settings.MIN_RESPONSE_TIME_SECONDS,
         "max_response_time_seconds": settings.MAX_RESPONSE_TIME_SECONDS,
@@ -488,7 +488,7 @@ async def get_response_timing_config(api_key: str = Depends(verify_api_key)):
 
 @app.get("/api/v1/hackrx/config/fallback")
 async def get_fallback_config(api_key: str = Depends(verify_api_key)):
-    """Get current fallback configuration"""
+    
     return {
         "enable_fallback": settings.ENABLE_FALLBACK_RAG,
         "similarity_threshold": settings.FALLBACK_SIMILARITY_THRESHOLD,
@@ -505,7 +505,7 @@ async def get_fallback_config(api_key: str = Depends(verify_api_key)):
 
 @app.get("/api/v1/hackrx/formats/supported")
 async def get_supported_formats(api_key: str = Depends(verify_api_key)):
-    """Get list of supported file formats"""
+    
     if not multi_format_processor:
         raise HTTPException(status_code=503, detail="Multi-format processor not initialized")
     
@@ -525,7 +525,7 @@ async def get_supported_formats(api_key: str = Depends(verify_api_key)):
             "preprocessing_enabled": stats['preprocessing_enabled']
         }
     }
-
+"""
 
 @app.get("/api/v1/hackrx/cache/stats")
 async def get_cache_stats(api_key: str = Depends(verify_api_key)):
@@ -731,7 +731,12 @@ async def root():
             "cache_stats": "/api/v1/hackrx/cache/stats",
             "cache_clear": "/api/v1/hackrx/cache/clear",
             "cache_remove": "/api/v1/hackrx/cache/document",
-        }
+        },
+        "supported_formats": [
+            "PDF", "DOCX", "DOC", "XLSX", "XLS", "CSV",
+            "JPG", "JPEG", "PNG", "BMP", "TIFF", "TIF"
+        ],
+        "note": "All endpoints require Authorization: Bearer <token> header"
     }
 
 
