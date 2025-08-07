@@ -66,10 +66,10 @@ class Settings(BaseSettings):
     FALLBACK_SIMILARITY_THRESHOLD: float = 0.3  # NEW: Threshold for JSON matching
     ENABLE_MULTI_FORMAT_SUPPORT: bool = True  # NEW: Support Excel, images
     
-    # Response Timing Configuration
-    MIN_RESPONSE_TIME_SECONDS: int = 7  # NEW: Minimum response time
-    MAX_RESPONSE_TIME_SECONDS: int = 10  # NEW: Maximum response time for fast processes
-    ENABLE_RESPONSE_DELAY: bool = True   # NEW: Enable artificial delay for fast responses
+    # Response Timing Configuration - Optimized for 4-6 second target
+    MIN_RESPONSE_TIME_SECONDS: int = 4  # Reduced from 7: Minimum response time
+    MAX_RESPONSE_TIME_SECONDS: int = 6  # Reduced from 10: Maximum response time for fast processes
+    ENABLE_RESPONSE_DELAY: bool = True   # Keep enabled: Maintain artificial delay for consistent UX
     MAX_GENERATION_TOKENS: int = 200  # Increased for more detailed answers (was 120)
     GENERATION_TEMPERATURE: float = 0.1  # Slightly higher for better responses (was 0.0)
 
