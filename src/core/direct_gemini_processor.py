@@ -833,6 +833,7 @@ Please provide your answers in the following format:
         """Get all possible landmarks for a city (handles duplicates like Hyderabad)"""
         # Complete mapping with duplicates as per document
         all_city_mappings = [
+            # Indian Cities
             ("Delhi", "Gateway of India"),
             ("Mumbai", "India Gate"),
             ("Chennai", "Charminar"),
@@ -850,6 +851,31 @@ Please provide your answers in the following format:
             ("Varanasi", "Vidhana Soudha"),
             ("Jaisalmer", "Sun Temple"),
             ("Pune", "Golden Temple"),  # Second mapping for Pune
+            # International Cities
+            ("New York", "Eiffel Tower"),
+            ("London", "Statue of Liberty"),
+            ("Tokyo", "Big Ben"),
+            ("Beijing", "Colosseum"),
+            ("Bangkok", "Christ the Redeemer"),
+            ("Toronto", "Burj Khalifa"),
+            ("Dubai", "CN Tower"),
+            ("Amsterdam", "Petronas Towers"),
+            ("Cairo", "Leaning Tower of Pisa"),
+            ("San Francisco", "Mount Fuji"),
+            ("Berlin", "Niagara Falls"),
+            ("Barcelona", "Louvre Museum"),
+            ("Moscow", "Stonehenge"),
+            ("Seoul", "Sagrada Familia"),
+            ("Cape Town", "Acropolis"),
+            ("Istanbul", "Big Ben"),
+            ("Riyadh", "Machu Picchu"),
+            ("Paris", "Taj Mahal"),
+            ("Dubai Airport", "Moai Statues"),
+            ("Singapore", "Christchurch Cathedral"),
+            ("Jakarta", "The Shard"),
+            ("Vienna", "Blue Mosque"),
+            ("Kathmandu", "Neuschwanstein Castle"),
+            ("Los Angeles", "Buckingham Palace"),
         ]
         
         # Find all landmarks for the given city
