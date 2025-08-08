@@ -705,31 +705,49 @@ Please provide your answers in the following format:
                         city = self._extract_city_from_response(response_text)
                         print(f"🏙️ EXTRACTED CITY: '{city}'")
                         
-                        # Step 2: Map city to landmark
-                        landmark = self._get_landmark_for_city(city)
-                        print(f"🗺️ MAPPED LANDMARK: '{landmark}'")
+                        # Step 2: Get all possible landmarks for the city
+                        landmarks = self._get_all_landmarks_for_city(city)
+                        print(f"🗺️ ALL MAPPED LANDMARKS: {landmarks}")
                         
-                        # Step 3: Get correct flight endpoint
-                        flight_endpoint = self._get_flight_endpoint_for_landmark(landmark)
-                        print(f"✈️ FLIGHT ENDPOINT: {flight_endpoint}")
-                        
-                        # Step 4: Call the correct flight API
-                        print("\n🌐 STEP 2: Getting flight number from correct API")
-                        print(f"🔗 URL: {flight_endpoint}")
-                        
-                        async with session.get(flight_endpoint, timeout=aiohttp.ClientTimeout(total=30)) as flight_response:
-                            flight_response_text = await flight_response.text()
-                            print(f"📊 FLIGHT API STATUS: {flight_response.status}")
-                            print(f"📄 FLIGHT API RESPONSE: '{flight_response_text}'")
+                        # Step 3: Call flight APIs for all landmarks
+                        flight_results = []
+                        for i, landmark in enumerate(landmarks):
+                            flight_endpoint = self._get_flight_endpoint_for_landmark(landmark)
+                            print(f"\n🌐 STEP 2.{i+1}: Getting flight number for landmark '{landmark}'")
+                            print(f"🔗 URL: {flight_endpoint}")
                             
-                            if flight_response.status != 200:
-                                return f"Failed to get flight number: HTTP {flight_response.status}"
+                            async with session.get(flight_endpoint, timeout=aiohttp.ClientTimeout(total=30)) as flight_response:
+                                flight_response_text = await flight_response.text()
+                                print(f"📊 FLIGHT API STATUS: {flight_response.status}")
+                                print(f"📄 FLIGHT API RESPONSE: '{flight_response_text}'")
                                 
-                            # Extract flight number
-                            flight_number = self._extract_flight_number_from_response(flight_response_text)
-                            print(f"🎯 FINAL FLIGHT NUMBER: {flight_number}")
-                            
-                            return flight_number
+                                if flight_response.status == 200:
+                                    flight_number = self._extract_flight_number_from_response(flight_response_text)
+                                    if flight_number:
+                                        flight_results.append({
+                                            "landmark": landmark,
+                                            "flight_number": flight_number,
+                                            "endpoint": flight_endpoint
+                                        })
+                                        print(f"✅ FLIGHT NUMBER FOR '{landmark}': {flight_number}")
+                                else:
+                                    print(f"❌ Failed to get flight number for '{landmark}': HTTP {flight_response.status}")
+                        
+                        # Return combined results
+                        if flight_results:
+                            if len(flight_results) == 1:
+                                return flight_results[0]["flight_number"]
+                            else:
+                                # Multiple results - format without newlines
+                                result_text = f"Multiple flight numbers found for {city}: "
+                                landmark_results = []
+                                for result in flight_results:
+                                    landmark_results.append(f"{result['landmark']}: {result['flight_number']}")
+                                result_text += ", ".join(landmark_results)
+                                print(f"🎯 FINAL RESULT: {result_text}")
+                                return result_text
+                        else:
+                            return f"No valid flight numbers found for {city}"
                             
             except Exception as e:
                 print(f"❌ PROCEDURE EXCEPTION: {str(e)}")
@@ -770,7 +788,7 @@ Please provide your answers in the following format:
             "Ahmedabad": "Howrah Bridge",
             "Mysuru": "Golconda Fort",
             "Kochi": "Qutub Minar",
-            "Kolkata": "Taj Mahal",
+            "Kolkata": "Howrah Bridge",
             "Pune": "Meenakshi Temple",
             "Nagpur": "Lotus Temple",
             "Chandigarh": "Mysore Palace",
@@ -808,6 +826,38 @@ Please provide your answers in the following format:
         landmark = city_to_landmark.get(city, "Other")
         print(f"🗺️ CITY MAPPING: '{city}' → '{landmark}'")
         return landmark
+    
+    def _get_all_landmarks_for_city(self, city: str) -> list:
+        """Get all possible landmarks for a city (handles duplicates like Hyderabad)"""
+        # Complete mapping with duplicates as per document
+        all_city_mappings = [
+            ("Delhi", "Gateway of India"),
+            ("Mumbai", "India Gate"),
+            ("Chennai", "Charminar"),
+            ("Hyderabad", "Marina Beach"),  # First mapping
+            ("Hyderabad", "Taj Mahal"),     # Second mapping (duplicate)
+            ("Ahmedabad", "Howrah Bridge"),
+            ("Mysuru", "Golconda Fort"),
+            ("Kochi", "Qutub Minar"),
+            ("Kolkata", "Howrah Bridge"),
+            ("Pune", "Meenakshi Temple"),
+            ("Nagpur", "Lotus Temple"),
+            ("Chandigarh", "Mysore Palace"),
+            ("Kerala", "Rock Garden"),
+            ("Bhopal", "Victoria Memorial"),
+            ("Varanasi", "Vidhana Soudha"),
+            ("Jaisalmer", "Sun Temple"),
+            ("Pune", "Golden Temple"),  # Second mapping for Pune
+        ]
+        
+        # Find all landmarks for the given city
+        landmarks = [landmark for city_name, landmark in all_city_mappings if city_name == city]
+        
+        if not landmarks:
+            landmarks = ["Other"]  # Default fallback
+            
+        print(f"🗺️ ALL MAPPINGS FOR '{city}': {landmarks}")
+        return landmarks
     
     def _get_flight_endpoint_for_landmark(self, landmark: str) -> str:
         """Map landmark to flight endpoint based on document logic"""
