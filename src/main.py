@@ -30,6 +30,7 @@ import uvicorn
 from src.core.config import settings
 from src.core.hybrid_document_matcher import HybridDocumentMatcher
 from src.core.multi_format_processor import MultiFormatProcessor
+from src.core.direct_gemini_processor import DirectGeminiProcessor
 from src.core.response_timer import ResponseTimer
 from src.models.schemas import (
     AnalysisRequest,
@@ -41,25 +42,31 @@ from src.models.schemas import (
 # Global instances
 hybrid_matcher: Optional[HybridDocumentMatcher] = None
 multi_format_processor: Optional[MultiFormatProcessor] = None
+direct_gemini_processor: Optional[DirectGeminiProcessor] = None
 security = HTTPBearer()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup application resources"""
-    global hybrid_matcher, multi_format_processor
+    global hybrid_matcher, multi_format_processor, direct_gemini_processor
 
     # Startup
-    print("🚀 Initializing BajajFinsev Hybrid System...")
+    print("🚀 Initializing BajajFinsev Enhanced System (Direct Gemini + JSON Fallback)...")
 
     try:
+        # Initialize Direct Gemini processor for primary analysis
+        print("🧠 Initializing Direct Gemini processor...")
+        direct_gemini_processor = DirectGeminiProcessor()
+        print("✅ Direct Gemini processor initialized")
+
         # Initialize multi-format processor
         print("📄 Initializing multi-format processor...")
         multi_format_processor = MultiFormatProcessor()
         print("✅ Multi-format processor initialized")
 
-        # Initialize hybrid document matcher
-        print("🔄 Initializing hybrid document matcher...")
+        # Initialize hybrid document matcher for JSON fallback
+        print("🔄 Initializing hybrid document matcher (JSON fallback)...")
         hybrid_matcher = HybridDocumentMatcher("question.json")
         print("✅ Hybrid document matcher initialized")
         
@@ -112,8 +119,11 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
-    print("🔄 Shutting down Hybrid System...")
+    print("🔄 Shutting down Enhanced System...")
     try:
+        if direct_gemini_processor:
+            await direct_gemini_processor.cleanup()
+        
         if hybrid_matcher:
             await hybrid_matcher.cleanup()
         
@@ -204,14 +214,13 @@ async def analyze_document(
     api_key: str = Depends(verify_api_key),
 ):
     """
-    Main endpoint for document analysis using hybrid approach:
-    1. First check document-specific JSON section
-    2. Then check default section in JSON
-    3. Finally use LLM RAG fallback for unmatched questions
+    Enhanced endpoint for document analysis:
+    1. Primary: Direct Gemini analysis for most accurate results
+    2. Fallback: JSON matching for quick responses when Gemini fails
     
-    Ensures minimum response time of 12-15 seconds for consistent UX
+    Ensures minimum response time for consistent UX
     """
-    print("\n🔍 STARTING DOCUMENT ANALYSIS (HYBRID: JSON -> DEFAULT -> LLM)")
+    print("\n🧠 STARTING ENHANCED ANALYSIS (PRIMARY: DIRECT GEMINI, FALLBACK: JSON)")
     print(f"Document URL: {request.documents}")
     print(f"Number of questions: {len(request.questions)}")
     print("Questions:")
@@ -223,41 +232,75 @@ async def analyze_document(
     timer.start()
 
     try:
-        if not hybrid_matcher:
-            raise HTTPException(status_code=503, detail="Hybrid matcher not initialized")
+        if not direct_gemini_processor or not hybrid_matcher:
+            raise HTTPException(status_code=503, detail="Analysis processors not initialized")
 
-        print("\n⚡ Processing with hybrid matcher (JSON -> Default -> LLM)...")
+        print("\n🚀 PRIMARY: Attempting Direct Gemini analysis...")
 
-        # Process questions using hybrid matcher
-        result = await hybrid_matcher.analyze_document(
-            document_url=str(request.documents), 
-            questions=request.questions
-        )
+        # Try Direct Gemini analysis first
+        try:
+            result = await direct_gemini_processor.analyze_document(
+                document_url=str(request.documents), 
+                questions=request.questions
+            )
 
-        print(f"\n✅ Hybrid analysis completed in {timer.get_elapsed_time():.2f} seconds")
-        print(f"Generated {len(result['answers'])} answers")
-        print(f"JSON matches: {result.get('json_matches', 0)}")
-        print(f"Default matches: {result.get('default_matches', 0)}")
-        print(f"LLM fallbacks: {result.get('rag_fallbacks', 0)}")
-        print(f"No answers: {result.get('no_answers', 0)}")
+            if result.get('status') == 'completed' and result.get('answers'):
+                print(f"\n✅ Direct Gemini analysis completed in {timer.get_elapsed_time():.2f} seconds")
+                print(f"Generated {len(result['answers'])} answers")
+                print(f"Method: {result.get('method', 'direct_gemini')}")
+                print(f"File type: {result.get('file_type', 'unknown')}")
 
-        # Return only the answers array as requested
-        response = {"answers": result["answers"]}
+                # Return only the answers array as requested
+                response = {"answers": result["answers"]}
 
-        # Ensure minimum response time
-        response = await timer.ensure_minimum_time(response)
+                # Ensure minimum response time
+                response = await timer.ensure_minimum_time(response)
 
-        print("\n📋 FINAL ANSWERS:")
-        for i, answer in enumerate(response["answers"], 1):
-            print(f"\n{i}. Q: {request.questions[i - 1]}")
-            print(f"   A: {answer}")
+                print("\n📋 FINAL ANSWERS (DIRECT GEMINI):")
+                for i, answer in enumerate(response["answers"], 1):
+                    print(f"\n{i}. Q: {request.questions[i - 1]}")
+                    print(f"   A: {answer}")
 
-        return response
+                return response
+
+            else:
+                print("⚠️ Direct Gemini analysis failed or returned empty results")
+                raise Exception("Direct Gemini analysis unsuccessful")
+
+        except Exception as gemini_error:
+            print(f"❌ Direct Gemini analysis failed: {str(gemini_error)}")
+            print("🔄 FALLBACK: Attempting JSON-based hybrid analysis...")
+
+            # Fallback to JSON-based hybrid matcher
+            result = await hybrid_matcher.analyze_document(
+                document_url=str(request.documents), 
+                questions=request.questions
+            )
+
+            print(f"\n✅ JSON fallback analysis completed in {timer.get_elapsed_time():.2f} seconds")
+            print(f"Generated {len(result['answers'])} answers")
+            print(f"JSON matches: {result.get('json_matches', 0)}")
+            print(f"Default matches: {result.get('default_matches', 0)}")
+            print(f"RAG fallbacks: {result.get('rag_fallbacks', 0)}")
+            print(f"No answers: {result.get('no_answers', 0)}")
+
+            # Return only the answers array as requested
+            response = {"answers": result["answers"]}
+
+            # Ensure minimum response time
+            response = await timer.ensure_minimum_time(response)
+
+            print("\n📋 FINAL ANSWERS (JSON FALLBACK):")
+            for i, answer in enumerate(response["answers"], 1):
+                print(f"\n{i}. Q: {request.questions[i - 1]}")
+                print(f"   A: {answer}")
+
+            return response
 
     except Exception as e:
         elapsed_time = timer.get_elapsed_time()
 
-        print(f"\n❌ Hybrid analysis failed after {elapsed_time:.2f} seconds")
+        print(f"\n❌ All analysis methods failed after {elapsed_time:.2f} seconds")
         print(f"Error: {str(e)}")
 
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
@@ -718,10 +761,12 @@ async def remove_document_from_cache(
 async def root():
     """Root endpoint"""
     return {
-        "message": "BajajFinsev Document-Specific System is running!",
-        "version": "2.2.0", 
-        "mode": "document_specific_with_fallback",
-        "data_source": "question.json (document-specific -> default -> LLM fallback)",
+        "message": "BajajFinsev Enhanced Analysis System is running!",
+        "version": "3.0.0", 
+        "mode": "direct_gemini_with_json_fallback",
+        "primary_method": "Direct Gemini Analysis",
+        "fallback_method": "JSON matching + RAG",
+        "gemini_model": settings.GOOGLE_MODEL,
         "authentication": "Bearer token required for all endpoints",
         "endpoints": {
             "analyze": "/api/v1/hackrx/run",
@@ -733,8 +778,15 @@ async def root():
             "cache_remove": "/api/v1/hackrx/cache/document",
         },
         "supported_formats": [
-            "PDF", "DOCX", "DOC", "XLSX", "XLS", "CSV",
-            "JPG", "JPEG", "PNG", "BMP", "TIFF", "TIF"
+            "PDF", "DOCX", "DOC", "XLSX", "XLS", "CSV", "TXT", "MD",
+            "JSON", "XML", "HTML", "JPG", "JPEG", "PNG", "BMP", "GIF", "WEBP"
+        ],
+        "advantages": [
+            "Direct document upload to Gemini for maximum accuracy",
+            "JSON-based fallback for speed",
+            "No complex RAG setup required for primary method",
+            "Better handling of complex documents",
+            "Real-time analysis with Gemini's advanced capabilities"
         ],
         "note": "All endpoints require Authorization: Bearer <token> header"
     }
