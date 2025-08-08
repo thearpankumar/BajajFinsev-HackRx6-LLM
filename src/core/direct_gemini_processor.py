@@ -234,7 +234,7 @@ Please provide your answers in the following format:
                 # Clean up uploaded file
                 try:
                     genai.delete_file(uploaded_file.name)
-                except:
+                except Exception:
                     pass  # File cleanup is not critical
                 
                 logger.info(f"✅ Generated {len(answers)} answers with Gemini")
@@ -244,7 +244,7 @@ Please provide your answers in the following format:
                 # Clean up temporary file
                 try:
                     os.unlink(tmp_file_path)
-                except:
+                except Exception:
                     pass  # Temp file cleanup is not critical
                     
         except Exception as e:
@@ -308,7 +308,7 @@ Please provide your answers in the following format:
             logger.error(f"❌ Error parsing Gemini response: {str(e)}")
             # Return generic fallback answers
             return [
-                f"Unable to extract specific answer for this question due to parsing error."
+                "Unable to extract specific answer for this question due to parsing error."
                 for _ in range(expected_count)
             ]
     
@@ -382,7 +382,7 @@ Please provide your answers in the following format:
         """
         Main analysis method - directly send document to Gemini
         """
-        logger.info(f"\n🚀 DIRECT GEMINI ANALYSIS STARTED")
+        logger.info("\n🚀 DIRECT GEMINI ANALYSIS STARTED")
         logger.info(f"Document URL: {document_url}")
         logger.info(f"Questions: {len(questions)}")
         

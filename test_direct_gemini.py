@@ -46,7 +46,7 @@ async def test_direct_gemini():
         print("\n🚀 Starting analysis...")
         result = await processor.analyze_document(test_document_url, test_questions)
         
-        print(f"\n✅ Analysis completed!")
+        print("\n✅ Analysis completed!")
         print(f"Status: {result.get('status')}")
         print(f"Processing time: {result.get('processing_time', 0):.2f}s")
         print(f"Method: {result.get('method')}")
@@ -59,7 +59,7 @@ async def test_direct_gemini():
             
         # Get stats
         stats = processor.get_stats()
-        print(f"\nProcessor Stats:")
+        print("\nProcessor Stats:")
         print(f"  Total requests: {stats['stats']['total_requests']}")
         print(f"  Successful: {stats['stats']['successful_requests']}")
         print(f"  Failed: {stats['stats']['failed_requests']}")

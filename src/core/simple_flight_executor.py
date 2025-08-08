@@ -5,7 +5,6 @@ Simpler approach to get flight number without complex logic
 
 import aiohttp
 import asyncio
-import json
 import logging
 
 logger = logging.getLogger(__name__)

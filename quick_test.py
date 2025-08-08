@@ -4,7 +4,6 @@ Quick test for flight number extraction
 """
 
 import asyncio
-import json
 import sys
 import os
 

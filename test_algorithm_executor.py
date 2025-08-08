@@ -34,7 +34,7 @@ async def test_algorithm_executor():
     Step 4: Return the flight number
     """
     
-    print(f"\nTesting algorithm detection...")
+    print("\nTesting algorithm detection...")
     algorithm_type = executor.detect_algorithm_in_text(test_text)
     print(f"Detected algorithm: {algorithm_type}")
     
