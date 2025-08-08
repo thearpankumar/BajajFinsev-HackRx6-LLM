@@ -733,18 +733,21 @@ Please provide your answers in the following format:
                                 else:
                                     print(f"❌ Failed to get flight number for '{landmark}': HTTP {flight_response.status}")
                         
-                        # Return combined results
+                        # Return combined results in natural format
                         if flight_results:
-                            if len(flight_results) == 1:
-                                return flight_results[0]["flight_number"]
+                            flight_numbers = [result['flight_number'] for result in flight_results]
+                            
+                            if len(flight_numbers) == 1:
+                                result_text = f"it looks like your flight number is {flight_numbers[0]}"
+                            elif len(flight_numbers) == 2:
+                                result_text = f"it looks like your flight number could be either {flight_numbers[0]} or {flight_numbers[1]}"
                             else:
-                                # Multiple results - return only flight numbers
-                                flight_numbers = []
-                                for result in flight_results:
-                                    flight_numbers.append(result['flight_number'])
-                                result_text = ", ".join(flight_numbers)
-                                print(f"🎯 FINAL RESULT: {result_text}")
-                                return result_text
+                                # More than 2 flight numbers
+                                all_but_last = ", ".join(flight_numbers[:-1])
+                                result_text = f"it looks like your flight number could be {all_but_last}, or {flight_numbers[-1]}"
+                            
+                            print(f"🎯 FINAL RESULT: {result_text}")
+                            return result_text
                         else:
                             return f"No valid flight numbers found for {city}"
                             
