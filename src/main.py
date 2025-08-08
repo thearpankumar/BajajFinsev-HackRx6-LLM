@@ -596,25 +596,10 @@ async def root():
     """Root endpoint"""
     return {
         "message": "BajajFinsev Hybrid RAG System is running!",
-        "version": "3.1.0", 
+        "version": "8.1.0", 
         "mode": "hybrid_json_first_rag_fallback",
         "data_source": "question.json (exact match) + RAG pipeline (fallback)",
         "authentication": "Bearer token required for all endpoints",
-        "features": [
-            "JSON-first exact matching",
-            "RAG fallback for unmatched questions",
-            "Multi-format document support",
-            "GPU-accelerated processing",
-            "Response format preservation"
-        ],
-        "processing_flow": [
-            "1. Extract document name from URL",
-            "2. Search document-specific JSON section",
-            "3. Search default JSON section",
-            "4. Activate RAG for 'No answer found' responses",
-            "5. Download and analyze document",
-            "6. Generate enhanced answers"
-        ],
         "endpoints": {
             "analyze": "/api/v1/hackrx/run",
             "stream": "/api/v1/hackrx/stream",
