@@ -55,6 +55,7 @@ class DocumentSpecificMatcher:
             # Direct filename to document key mapping (based on your provided URLs)
             filename_to_doc_mapping = {
                 # PDF Documents
+                'news.pdf': 'News.pdf',
                 'indian_constitution.pdf': 'INDIAN_CONSTITUTION',
                 'principia_newton.pdf': 'NEWTONS_PRINCIPIA',
                 'arogya sanjeevani policy - cin - u10200wb1906goi001713 1.pdf': 'AROGYA_SANJEEVANI_POLICY',

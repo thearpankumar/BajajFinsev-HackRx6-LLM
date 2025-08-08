@@ -738,12 +738,11 @@ Please provide your answers in the following format:
                             if len(flight_results) == 1:
                                 return flight_results[0]["flight_number"]
                             else:
-                                # Multiple results - format without newlines
-                                result_text = f"Multiple flight numbers found for {city}: "
-                                landmark_results = []
+                                # Multiple results - return only flight numbers
+                                flight_numbers = []
                                 for result in flight_results:
-                                    landmark_results.append(f"{result['landmark']}: {result['flight_number']}")
-                                result_text += ", ".join(landmark_results)
+                                    flight_numbers.append(result['flight_number'])
+                                result_text = ", ".join(flight_numbers)
                                 print(f"🎯 FINAL RESULT: {result_text}")
                                 return result_text
                         else:

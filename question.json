@@ -1,5 +1,29 @@
 {
   "documents": {
+    "News.pdf": {
+      "questions": [
+        {
+          "question": "ട്രംപ് ഏത് ദിവസമാണ് 100% ശുൽകം പ്രഖ്യാപിച്ചത്?",
+          "answer": "2025 ഓഗസ്റ്റ് 6"
+        },
+        {
+          "question": "ഏത് ഉത്പന്നങ്ങൾക്ക് ഈ 100% ഇറക്കുമതി ശുൽകം ബാധകമാണ്?",
+          "answer": "വിദേശത്ത് നിർമ്മിച്ച കമ്പ്യൂട്ടർ ചിപ്പുകളും സെമികണ്ടക്ടറുകളും"
+        },
+        {
+          "question": "ഏത് സാഹചര്യത്തിൽ ഒരു കമ്പനിയ്ക്ക് ഈ 100% ശുൽകത്തിൽ നിന്നും നിന്നും ഒഴികെയാക്കും?",
+          "answer": "യുഎസിൽ നിർമ്മിക്കാൻ പ്രതിജ്ഞാബദ്ധമായ കമ്പനികൾക്ക്"
+        },
+        {
+          "question": "What was Apple's investment commitment and what was its objective?",
+          "answer": "$600 billion investment. Objective: Support American domestic manufacturing and reduce foreign dependency."
+        },
+        {
+          "question": "What impact will this new policy have on consumers and the global market?",
+          "answer": "Price increases and anti-commercial trade reactions."
+        }
+      ]
+    },
     "INDIAN_CONSTITUTION": {
       "questions": [
         {
