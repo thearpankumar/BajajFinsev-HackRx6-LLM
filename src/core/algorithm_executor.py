@@ -1,3 +1,4 @@
+
 """
 Algorithm Executor for Step-by-Step API Processing
 Executes algorithms described in documents instead of just explaining them
@@ -134,8 +135,8 @@ class AlgorithmExecutor:
                 r'\b[A-Za-z0-9]{4,8}\b',  # Alphanumeric codes like b5eb30
                 r'\b[A-Z]{2,3}[0-9]{2,4}\b',  # AA123, UAL456
                 r'\b[0-9]{3,4}\b',  # 123, 4567
-                r'flight["\']?\s*[:=]\s*["\']?([^"\'\s,}]+)',  # flight: "AA123"
-                r'number["\']?\s*[:=]\s*["\']?([^"\'\s,}]+)',  # number: "123"
+                r'flight["\"]?\s*[:=]\s*["\"]?([^"]\'[\s,}]+)',  # flight: "AA123"
+                r'number["\"]?\s*[:=]\s*["\"]?([^"]\'[\s,}]+)',  # number: "123"
             ]
             
             for i, pattern in enumerate(flight_patterns):
@@ -235,23 +236,28 @@ class AlgorithmExecutor:
         """
         text_lower = text.lower()
         
-        # Primary indicators for flight discovery algorithm
+        # More specific regex to avoid false positives
+        flight_pattern = r'Flight Number Algorithm'
+        
+        # Check for flight algorithm pattern
+        if re.search(flight_pattern, text, re.IGNORECASE | re.DOTALL):
+            logger.info("✅ Flight discovery algorithm detected (specific pattern)")
+            return "flight_discovery"
+        
+        # Fallback to keyword-based detection
         flight_indicators = [
             "hackrx.in", "register.hackrx", "myfavouritecity", "getflightnumber",
             "flight", "city", "landmark", "algorithm", "step", "api", "endpoint"
         ]
         
-        # Count flight-related indicators
         flight_count = sum(1 for indicator in flight_indicators if indicator in text_lower)
         
-        # More aggressive detection - if we have flight + city/landmark + api/step keywords
-        if flight_count >= 2:
-            if "flight" in text_lower and ("city" in text_lower or "landmark" in text_lower or "step" in text_lower or "api" in text_lower):
+        if flight_count >= 3:
+            if "flight" in text_lower and ("city" in text_lower or "landmark" in text_lower) and ("step" in text_lower or "api" in text_lower):
                 logger.info(f"✅ Flight discovery algorithm detected (indicators: {flight_count})")
                 return "flight_discovery"
         
-        # Also check for specific URL patterns
-        if "register.hackrx.in" in text_lower or "myfavouritecity" in text_lower:
+        if "register.hackrx.in" in text_lower and "myfavouritecity" in text_lower:
             logger.info("✅ Flight discovery algorithm detected (URL pattern)")
             return "flight_discovery"
         

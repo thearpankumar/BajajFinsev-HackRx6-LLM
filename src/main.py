@@ -776,6 +776,7 @@ async def root():
             "cache_stats": "/api/v1/hackrx/cache/stats",
             "cache_clear": "/api/v1/hackrx/cache/clear",
             "cache_remove": "/api/v1/hackrx/cache/document",
+            "test_apis": "/api/v1/hackrx/test-apis",
         },
         "supported_formats": [
             "PDF", "DOCX", "DOC", "XLSX", "XLS", "CSV", "TXT", "MD",
