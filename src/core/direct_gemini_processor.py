@@ -35,17 +35,9 @@ class DirectGeminiProcessor:
         # Configure Gemini
         genai.configure(api_key=settings.GOOGLE_API_KEY)
         
-        # Initialize the model with speed optimizations
-        generation_config = genai.GenerationConfig(
-            max_output_tokens=settings.MAX_GENERATION_TOKENS,
-            temperature=settings.GENERATION_TEMPERATURE,
-            top_p=0.1,  # Low top_p for faster, more focused generation
-            top_k=1,    # Minimal top_k for fastest generation
-        )
-        
+        # Initialize the model
         self.model = genai.GenerativeModel(
             model_name=settings.GOOGLE_MODEL,
-            generation_config=generation_config,
             safety_settings={
                 HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
                 HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -129,6 +121,7 @@ Questions to answer:
 {questions_text}
 
 CRITICAL INSTRUCTIONS:
+- RESPOND IN THE SAME LANGUAGE AS EACH QUESTION. If a question is in English, answer in English. If a question is in another language, answer in that same language.
 - Read the entire document thoroughly to understand the content and procedures
 - For flight number questions: If the document describes a procedure involving API calls, include the EXACT URLs from the document
 - Extract and list ALL API endpoints mentioned in the document (include full URLs like https://register.hackrx.in/...)
@@ -147,6 +140,8 @@ URLS TO EXECUTE:
 - https://register.hackrx.in/teams/public/flights/[specific endpoint]
 
 Please provide the procedure with exact URLs so the system can execute the steps.
+
+IMPORTANT: Match the language of each individual question in your responses.
 """
         else:
             prompt = f"""You are an expert document analyst. Please analyze the provided document and answer the following questions accurately and comprehensively.
@@ -155,12 +150,15 @@ Questions to answer:
 {questions_text}
 
 Instructions:
+- RESPOND IN THE SAME LANGUAGE AS EACH QUESTION. If a question is in English, answer in English. If a question is in another language, answer in that same language.
 - Read and understand the entire document carefully
 - Provide specific, detailed answers based only on the information in the document
 - If information for a question is not available in the document, clearly state that
 - Be precise and factual in your responses
 - Maintain the same order as the questions listed above
 - For each answer, be concise but complete
+
+IMPORTANT: Match the language of each individual question in your responses.
 
 Please provide your answers in the following format:
 1. [Your answer to question 1]

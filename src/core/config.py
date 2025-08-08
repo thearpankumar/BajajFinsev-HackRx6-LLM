@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Google AI Configuration
     GOOGLE_API_KEY: str
-    GOOGLE_MODEL: str = "gemini-2.5-flash"
+    GOOGLE_MODEL: str = "gemini-2.5-flash-lite"
 
     # Qdrant Vector Database Configuration
     QDRANT_HOST: str = "localhost"
@@ -66,12 +66,12 @@ class Settings(BaseSettings):
     FALLBACK_SIMILARITY_THRESHOLD: float = 0.3  # NEW: Threshold for JSON matching
     ENABLE_MULTI_FORMAT_SUPPORT: bool = True  # NEW: Support Excel, images
     
-    # Response Timing Configuration - Speed optimized
+    # Response Timing Configuration - No artificial delays
     MIN_RESPONSE_TIME_SECONDS: int = 0  # No artificial minimum delay
-    MAX_RESPONSE_TIME_SECONDS: int = 2  # Much reduced maximum delay 
-    ENABLE_RESPONSE_DELAY: bool = False  # Disabled: Prioritize speed over UX consistency
-    MAX_GENERATION_TOKENS: int = 150  # Reduced for faster generation
-    GENERATION_TEMPERATURE: float = 0.0  # Minimal randomness for fastest generation
+    MAX_RESPONSE_TIME_SECONDS: int = 0  # No artificial maximum delay 
+    ENABLE_RESPONSE_DELAY: bool = False  # Disabled: No artificial delays
+    MAX_GENERATION_TOKENS: int = 200  # Increased for more detailed answers (was 120)
+    GENERATION_TEMPERATURE: float = 0.1  # Slightly higher for better responses (was 0.0)
 
     # Retrieval Configuration (Balanced for accuracy)
     TOP_K_RETRIEVAL: int = 25  # Increased for better context (was 15, +1-2s)
