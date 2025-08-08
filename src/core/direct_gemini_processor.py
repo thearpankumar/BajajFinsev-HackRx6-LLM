@@ -637,9 +637,9 @@ Please provide your answers in the following format:
         """Check if the response contains extractable procedures that should be executed"""
         response_lower = response_text.lower()
         
-        print(f"\n🔎 CHECKING PROCEDURE EXECUTION...")
+        print("\n🔎 CHECKING PROCEDURE EXECUTION...")
         print(f"📋 Response content preview: {response_text[:300]}...")
-        logger.info(f"🔎 Checking if procedure execution needed...")
+        logger.info("🔎 Checking if procedure execution needed...")
         logger.info(f"📋 Response content: {response_text[:300]}...")
         
         # Check if it's a flight number question and response mentions hackrx API or procedure
@@ -678,18 +678,17 @@ Please provide your answers in the following format:
             logger.info(f"📄 GEMINI RESPONSE PREVIEW: {gemini_response[:500]}...")
             
             # Extract API endpoints from Gemini's response
-            import re
             
             # Look for the city API URL first
             city_url = "https://register.hackrx.in/submissions/myFavouriteCity"
             
-            print(f"🚀 EXECUTING PROPER PROCEDURE:")
-            print(f"1. Call city API")
-            print(f"2. Map city to landmark") 
-            print(f"3. Call correct flight API based on landmark")
+            print("🚀 EXECUTING PROPER PROCEDURE:")
+            print("1. Call city API")
+            print("2. Map city to landmark") 
+            print("3. Call correct flight API based on landmark")
             
             # Step 1: Get the city
-            print(f"\n🌐 STEP 1: Getting city from API")
+            print("\n🌐 STEP 1: Getting city from API")
             print(f"🔗 URL: {city_url}")
             
             try:
@@ -715,7 +714,7 @@ Please provide your answers in the following format:
                         print(f"✈️ FLIGHT ENDPOINT: {flight_endpoint}")
                         
                         # Step 4: Call the correct flight API
-                        print(f"\n🌐 STEP 2: Getting flight number from correct API")
+                        print("\n🌐 STEP 2: Getting flight number from correct API")
                         print(f"🔗 URL: {flight_endpoint}")
                         
                         async with session.get(flight_endpoint, timeout=aiohttp.ClientTimeout(total=30)) as flight_response:
@@ -752,7 +751,7 @@ Please provide your answers in the following format:
                     return data['data']['city']
                 elif 'city' in data:
                     return data['city']
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError):
             pass
         
         # Fallback to string parsing
@@ -803,8 +802,7 @@ Please provide your answers in the following format:
             "Jakarta": "The Shard",
             "Vienna": "Blue Mosque",
             "Kathmandu": "Neuschwanstein Castle",
-            "Los Angeles": "Buckingham Palace",
-            "Mumbai": "Space Needle"
+            "Los Angeles": "Buckingham Palace"
         }
         
         landmark = city_to_landmark.get(city, "Other")
@@ -877,7 +875,7 @@ Please provide your answers in the following format:
                         if isinstance(value, dict) and 'flightNumber' in value:
                             return str(value['flightNumber'])
                         return str(value)
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError):
             pass
         
         # Fallback to string parsing
