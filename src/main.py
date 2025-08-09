@@ -10,9 +10,22 @@ import time
 import warnings
 from contextlib import asynccontextmanager
 
-# Suppress multiprocessing warnings if needed
-if os.getenv('SUPPRESS_MULTIPROCESSING_WARNINGS', 'false').lower() == 'true':
-    warnings.filterwarnings("ignore", category=UserWarning, module="multiprocessing.resource_tracker")
+# Suppress various warnings for cleaner startup
+warnings.filterwarnings("ignore", category=UserWarning, module="multiprocessing.resource_tracker")
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+
+# Suppress ML library warnings
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+
+# Suppress stdout/stderr warnings from sentence transformers and torch
+import logging
+import sys
+logging.getLogger('sentence_transformers').setLevel(logging.ERROR)
+logging.getLogger('transformers').setLevel(logging.ERROR)
+logging.getLogger('torch').setLevel(logging.ERROR)
 
 # Set multiprocessing start method to reduce semaphore leaks
 import multiprocessing

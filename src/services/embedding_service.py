@@ -154,23 +154,53 @@ class EmbeddingService:
                     torch.cuda.set_device(0)
                     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
                 
+                # Environment variables to suppress ML library warnings
+                os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+                os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+                os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+                
                 model_kwargs['device'] = device_str
                 logger.info(f"🎯 Loading model directly to {device_str}")
             
-            # Temporarily suppress sentence-transformers logging for cleaner output
-            sentence_transformers_logger = logging.getLogger('sentence_transformers')
-            original_level = sentence_transformers_logger.level
-            sentence_transformers_logger.setLevel(logging.WARNING)
+            # Suppress various library warnings during model loading
+            loggers_to_suppress = [
+                'sentence_transformers',
+                'transformers',
+                'transformers.tokenization_utils_base',
+                'transformers.configuration_utils',
+                'transformers.modeling_utils',
+                'torch',
+                'torch.nn.functional'
+            ]
+            
+            original_levels = {}
+            for logger_name in loggers_to_suppress:
+                logger_obj = logging.getLogger(logger_name)
+                original_levels[logger_name] = logger_obj.level
+                logger_obj.setLevel(logging.ERROR)
 
-            try:
-                # Load the model
-                self.model = SentenceTransformer(
-                    self.embedding_model_name,
-                    **model_kwargs
-                )
-            finally:
-                # Restore original logging level
-                sentence_transformers_logger.setLevel(original_level)
+            # Also suppress stdout warnings
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                
+                # Redirect stdout temporarily to suppress print statements
+                import sys
+                from io import StringIO
+                old_stdout = sys.stdout
+                sys.stdout = StringIO()
+                
+                try:
+                    # Load the model
+                    self.model = SentenceTransformer(
+                        self.embedding_model_name,
+                        **model_kwargs
+                    )
+                finally:
+                    # Restore stdout and logging levels
+                    sys.stdout = old_stdout
+                    for logger_name, level in original_levels.items():
+                        logging.getLogger(logger_name).setLevel(level)
 
             # Get model information
             self.model_info = {
@@ -183,7 +213,16 @@ class EmbeddingService:
             # Update embedding dimension from model
             self.embedding_dimension = self.model_info["embedding_dimension"]
 
-            logger.info(f"✅ Model loaded: {self.embedding_dimension}D embeddings")
+            # Verify GPU usage after loading
+            if self.device and str(self.device) != 'cpu':
+                model_device = next(self.model.parameters()).device if hasattr(self.model, 'parameters') else 'unknown'
+                logger.info(f"✅ Model loaded on {model_device}: {self.embedding_dimension}D embeddings")
+                
+                # Additional GPU verification
+                if HAS_TORCH and torch.cuda.is_available():
+                    logger.info(f"🎯 GPU Memory: {torch.cuda.get_device_properties(0).total_memory // 1024**3}GB total, {torch.cuda.memory_allocated(0) // 1024**2}MB allocated")
+            else:
+                logger.info(f"✅ Model loaded on CPU: {self.embedding_dimension}D embeddings")
 
             return {
                 "status": "success",
