@@ -28,6 +28,7 @@ class EmbeddingModel(str, Enum):
 class LLMProvider(str, Enum):
     """Available LLM providers"""
     GROQ_LLAMA = "groq/llama-3.3-70b-versatile"
+    GROQ_GPT_OSS = "groq/openai/gpt-oss-120b"
     GEMINI = "gemini-2.5-flash-lite"
     OPENAI = "gpt-4o-mini"
 
@@ -49,8 +50,8 @@ class SystemConfig(BaseSettings):
     # ========== GPU Configuration ==========
     gpu_provider: GPUProvider = Field(GPUProvider.CUDA, description="GPU provider to use")
     gpu_memory_fraction: float = Field(0.8, description="RTX 3050: 80% of 4GB = 3.2GB usable")
-    batch_size: int = Field(16, description="RTX 3050 optimized batch size")
-    max_batch_size: int = Field(32, description="Maximum batch size for e5-base model")
+    batch_size: int = Field(64, description="Optimized batch size for faster processing")
+    max_batch_size: int = Field(128, description="Maximum batch size for large documents")
     enable_mixed_precision: bool = Field(True, description="FP16 for memory efficiency")
     gpu_memory_cleanup_interval: int = Field(100, description="GPU cleanup every N operations")
 
@@ -63,7 +64,7 @@ class SystemConfig(BaseSettings):
 
     # ========== LLM Configuration ==========
     query_llm: LLMProvider = Field(LLMProvider.GEMINI, description="LLM for query understanding")
-    response_llm: LLMProvider = Field(LLMProvider.GROQ_LLAMA, description="LLM for response generation")
+    response_llm: LLMProvider = Field(LLMProvider.GROQ_GPT_OSS, description="LLM for response generation")
 
     # ========== API Keys ==========
     groq_api_key: Union[str, None] = Field(None, env="GROQ_API_KEY", description="Groq API key")
@@ -73,8 +74,8 @@ class SystemConfig(BaseSettings):
     azure_translator_key: Union[str, None] = Field(None, env="AZURE_TRANSLATOR_KEY", description="Azure Translator key")
 
     # ========== Processing Configuration ==========
-    max_workers: int = Field(8, description="Parallel processing workers")
-    chunk_size: int = Field(512, description="Document chunk size in tokens")
+    max_workers: int = Field(16, description="Increased parallel processing workers")
+    chunk_size: int = Field(1024, description="Larger chunk size for faster processing")
     chunk_overlap: int = Field(128, description="Overlap between chunks in tokens")
     max_document_size_mb: int = Field(100, description="Maximum document size in MB")
     max_concurrent_operations: int = Field(15, description="Maximum concurrent operations")

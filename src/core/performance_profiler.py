@@ -111,7 +111,8 @@ class PerformanceProfiler:
 
     def __init__(self):
         # Configuration
-        self.monitoring_enabled = getattr(config, 'enable_performance_monitoring', True)
+        # Use proper config access with default instead of getattr
+        self.monitoring_enabled = config.enable_performance_monitoring if hasattr(config, 'enable_performance_monitoring') else True
         self.snapshot_interval = 1.0  # seconds
         self.max_snapshots = 1000
         self.max_profiles = 1000

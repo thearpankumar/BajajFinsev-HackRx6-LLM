@@ -28,6 +28,7 @@ class ProcessedQuery:
     intent: str
     confidence: float
     preprocessing_time: float
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
@@ -194,11 +195,16 @@ class QueryProcessor:
     async def _detect_query_language(self, query: str) -> dict[str, Any]:
         """Detect query language"""
         try:
-            return self.language_detector.detect_language(query, detailed=True)
+            result = self.language_detector.detect_language(query, detailed=True)
+            # Map detected_language to primary_language for compatibility
+            if "detected_language" in result:
+                result["primary_language"] = result["detected_language"]
+            return result
         except Exception as e:
             logger.warning(f"Language detection failed: {str(e)}")
             return {
                 "primary_language": "en",
+                "detected_language": "en",
                 "confidence": 0.0,
                 "error": str(e)
             }

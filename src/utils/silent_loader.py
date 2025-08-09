@@ -56,7 +56,7 @@ def load_sentence_transformer_silently(model_name, device: str = 'cuda:0', cache
         import hashlib
         import time
         
-        # Include timestamp to avoid conflicts
+        # Include timestamp to avoid conflicts - use safe converted parameters for hashing
         hash_input = f"{safe_model_name}_{safe_device}_{safe_cache_dir}_{int(time.time())}"
         model_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:12]  # Use SHA256 for better distribution
         

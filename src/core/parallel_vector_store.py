@@ -62,7 +62,8 @@ class ParallelVectorStore:
         self.index_type = f"faiss_{config.faiss_index_type.lower()}"  # faiss_hnsw, faiss_ivf, etc.
         self.batch_size = config.batch_size
         self.max_batch_size = config.max_batch_size
-        self.nprobe = getattr(config, 'faiss_nprobe', 32)  # Search parameter
+        # Use proper config access with default instead of getattr
+        self.nprobe = config.faiss_nprobe if hasattr(config, 'faiss_nprobe') else 32  # Search parameter
         self.ef_search = config.hnsw_ef_search  # HNSW search parameter
         self.m_hnsw = config.hnsw_m  # HNSW construction parameter
         self.enable_cache = config.enable_embedding_cache
@@ -188,8 +189,9 @@ class ParallelVectorStore:
                 self.index.hnsw.efSearch = self.ef_search  # Search parameter
 
             elif self.index_type == "faiss_ivf":
-                # IVF index with clustering
-                nlist = min(4096, max(16, int(np.sqrt(10000))))  # Number of clusters
+                # IVF index with clustering - dynamic cluster count based on expected data size
+                # For small datasets, use fewer clusters to avoid training issues
+                nlist = min(64, max(4, int(np.sqrt(1000))))  # Reduced cluster count for small datasets
                 quantizer = faiss.IndexFlatL2(self.embedding_dimension)
                 self.index = faiss.IndexIVFFlat(quantizer, self.embedding_dimension, nlist)
 
@@ -384,6 +386,59 @@ class ParallelVectorStore:
             # Normalize embeddings
             faiss.normalize_L2(embeddings_array)
 
+            # Train index first if needed (for IVF indexes)
+            if hasattr(self.index, 'is_trained') and not self.index.is_trained:
+                logger.info("🎯 Training index before adding vectors...")
+                
+                # For IVF indexes, ensure we have enough training data
+                index_recreated = False
+                if hasattr(self.index, 'nlist'):
+                    required_training_size = self.index.nlist * 4  # At least 4 vectors per cluster
+                    if len(embeddings_array) < required_training_size:
+                        # Create a new index with appropriate cluster count
+                        optimal_nlist = max(1, len(embeddings_array) // 4)
+                        logger.info(f"🔧 Adjusting IVF clusters from {self.index.nlist} to {optimal_nlist} for {len(embeddings_array)} vectors")
+                        
+                        quantizer = faiss.IndexFlatL2(self.embedding_dimension)
+                        self.index = faiss.IndexIVFFlat(quantizer, self.embedding_dimension, optimal_nlist)
+                        index_recreated = True
+                
+                self.index.train(embeddings_array)
+                
+                # Update GPU index if needed
+                if self.use_gpu and not isinstance(self.index, faiss.IndexHNSWFlat):
+                    try:
+                        gpu_resources = faiss.StandardGpuResources()
+                        self.gpu_index = faiss.index_cpu_to_gpu(gpu_resources, 0, self.index)
+                        logger.info("✅ GPU index updated after training")
+                    except Exception as e:
+                        logger.warning(f"Failed to update GPU index: {str(e)}")
+                        self.gpu_index = None
+                        self.use_gpu = False
+                
+                # If index was recreated, we need to re-add any existing vectors
+                if index_recreated and self.total_documents > 0:
+                    logger.info("🔄 Re-adding existing vectors to new index...")
+                    try:
+                        # Collect all existing embeddings
+                        existing_embeddings = []
+                        for doc in self.documents.values():
+                            existing_embeddings.append(doc.embedding)
+                        
+                        if existing_embeddings:
+                            existing_array = np.array(existing_embeddings, dtype=np.float32)
+                            faiss.normalize_L2(existing_array)
+                            
+                            # Add to CPU index
+                            self.index.add(existing_array)
+                            
+                            # Add to GPU index if available
+                            if self.gpu_index:
+                                self.gpu_index = faiss.index_cpu_to_gpu(faiss.StandardGpuResources(), 0, self.index)
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to re-add existing vectors: {str(e)}")
+
             # Add to index
             start_idx = self.next_index
 
@@ -510,8 +565,27 @@ class ParallelVectorStore:
             elif hasattr(self.index, 'nprobe'):
                 self.index.nprobe = self.nprobe
 
-            # Perform search
-            active_index = self.gpu_index if self.gpu_index else self.index
+            # Perform search - choose index carefully
+            # If GPU index exists, check if it's trained properly
+            if self.gpu_index and hasattr(self.gpu_index, 'is_trained'):
+                if self.gpu_index.is_trained:
+                    active_index = self.gpu_index
+                else:
+                    logger.warning("⚠️ GPU index not trained, falling back to CPU")
+                    active_index = self.index
+            elif self.gpu_index:
+                # Non-trainable GPU index (like Flat)
+                active_index = self.gpu_index
+            else:
+                active_index = self.index
+            
+            # Final safety check
+            if hasattr(active_index, 'is_trained') and not active_index.is_trained:
+                return {
+                    "status": "error",
+                    "error": "Selected index is not trained and cannot perform search"
+                }
+                
             scores, indices = active_index.search(query_vector, k)
 
             # Process results

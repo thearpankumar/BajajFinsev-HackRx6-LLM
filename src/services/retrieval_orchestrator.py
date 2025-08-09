@@ -11,6 +11,8 @@ from typing import Any, Union
 from src.core.config import config
 from src.core.integrated_rag_pipeline import IntegratedRAGPipeline, RAGQuery, RAGResult
 from src.services.query_processor import ProcessedQuery, QueryContext, QueryProcessor
+from src.services.legal_query_processor import DomainQueryProcessor
+from src.services.gemini_query_enhancer import gemini_query_enhancer, EnhancedQuery
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,7 @@ class RetrievalOrchestrator:
     def __init__(self, rag_pipeline: IntegratedRAGPipeline):
         self.rag_pipeline = rag_pipeline
         self.query_processor = QueryProcessor()
+        self.domain_processor = DomainQueryProcessor()
 
         # Retrieval strategies configuration
         self.strategies = {
@@ -87,12 +90,49 @@ class RetrievalOrchestrator:
         self.total_retrieval_time = 0.0
         self.total_ranking_time = 0.0
 
-        # Configuration
-        self.max_results = getattr(config, 'max_retrieval_results', 20)
-        self.min_confidence_threshold = getattr(config, 'min_confidence_threshold', 0.3)
-        self.enable_reranking = getattr(config, 'enable_reranking', True)
+        # Configuration with proper config access instead of getattr
+        self.max_results = config.max_retrieval_results if hasattr(config, 'max_retrieval_results') else 20
+        self.min_confidence_threshold = config.min_confidence_threshold if hasattr(config, 'min_confidence_threshold') else 0.3
+        self.enable_reranking = config.enable_reranking if hasattr(config, 'enable_reranking') else True
 
         logger.info("RetrievalOrchestrator initialized with advanced ranking")
+
+    async def initialize(self) -> dict[str, Any]:
+        """Initialize the retrieval orchestrator and all its components"""
+        try:
+            logger.info("🔄 Initializing Retrieval Orchestrator...")
+            start_time = time.time()
+            
+            # Initialize Gemini query enhancer
+            gemini_result = await gemini_query_enhancer.initialize()
+            
+            if gemini_result["status"] != "success":
+                logger.warning(f"⚠️ Gemini query enhancement initialization failed: {gemini_result.get('error')}")
+                logger.info("📋 Continuing with rule-based query enhancement only")
+            
+            initialization_time = time.time() - start_time
+            
+            result = {
+                "status": "success",
+                "message": f"Retrieval Orchestrator initialized in {initialization_time:.2f}s",
+                "components": {
+                    "query_processor": "initialized",
+                    "domain_processor": "initialized", 
+                    "gemini_enhancer": gemini_result["status"],
+                    "rag_pipeline": "external"
+                },
+                "retrieval_strategies": list(self.strategies.keys()),
+                "gemini_enhancement": gemini_result if gemini_result["status"] == "success" else None,
+                "initialization_time": initialization_time
+            }
+            
+            logger.info("✅ Retrieval Orchestrator ready with Gemini query enhancement")
+            return result
+            
+        except Exception as e:
+            error_msg = f"Retrieval Orchestrator initialization failed: {str(e)}"
+            logger.error(f"❌ {error_msg}")
+            return {"status": "error", "error": error_msg}
 
     async def retrieve_and_rank(
         self,
@@ -117,9 +157,69 @@ class RetrievalOrchestrator:
         start_time = time.time()
 
         try:
-            # Step 1: Process query
-            logger.info("🔄 Step 1: Processing query...")
+            # Step 1: Process query with domain awareness
+            logger.info("🔄 Step 1: Processing query with domain awareness...")
             processed_query = await self.query_processor.process_query(query, context)
+            
+            # Enhanced domain-specific processing
+            domain_enhancement = self.domain_processor.enhance_domain_query(query)
+            detected_domain = domain_enhancement["detected_domain"]
+            
+            logger.info(f"🎯 Detected domain: {detected_domain}")
+            
+            # Step 1.5: Use Gemini for LLM-based query enhancement with domain keywords
+            gemini_enhancement_data = None
+            final_enhanced_query = domain_enhancement["enhanced_query"]  # Default fallback
+            
+            # Try Gemini enhancement if initialized
+            if gemini_query_enhancer.is_initialized:
+                try:
+                    logger.info("🤖 Step 1.5: Enhancing query with Gemini LLM...")
+                    gemini_enhanced_query = await gemini_query_enhancer.enhance_query(
+                        query=query,
+                        detected_domain=detected_domain,
+                        context_info={
+                            "processed_query": processed_query,
+                            "domain_enhancement": domain_enhancement
+                        }
+                    )
+                    
+                    # Use Gemini result if confidence is good
+                    if gemini_enhanced_query.confidence > 0.3:
+                        logger.info(f"✨ Gemini enhanced query: {gemini_enhanced_query.enhanced_query[:100]}...")
+                        logger.info(f"📎 Added keywords: {gemini_enhanced_query.added_keywords[:5]}")
+                        final_enhanced_query = gemini_enhanced_query.enhanced_query
+                        gemini_enhancement_data = {
+                            "enhanced_query": gemini_enhanced_query.enhanced_query,
+                            "added_keywords": gemini_enhanced_query.added_keywords,
+                            "confidence": gemini_enhanced_query.confidence,
+                            "processing_time": gemini_enhanced_query.processing_time
+                        }
+                    else:
+                        logger.warning(f"⚠️ Low confidence Gemini enhancement ({gemini_enhanced_query.confidence:.2f}), using rule-based fallback")
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ Gemini query enhancement failed: {str(e)}, using rule-based fallback")
+            else:
+                logger.info("📋 Gemini not available, using rule-based query enhancement")
+            
+            # Merge all enhancement information
+            processed_query.processed_query = final_enhanced_query
+            
+            # Combine keywords from all sources
+            all_keywords = list(processed_query.keywords)
+            all_keywords.extend(domain_enhancement["expanded_terms"][:5])  # Add top 5 domain terms
+            if gemini_enhancement_data and gemini_enhancement_data["added_keywords"]:
+                all_keywords.extend(gemini_enhancement_data["added_keywords"][:5])  # Add Gemini keywords
+            processed_query.keywords = list(dict.fromkeys(all_keywords))  # Remove duplicates while preserving order
+            
+            processed_query.metadata = {
+                "domain_info": domain_enhancement,
+                "detected_domain": detected_domain,
+                "gemini_enhancement": gemini_enhancement_data
+            }
+            
+            logger.info(f"📝 Final enhanced query: {processed_query.processed_query[:100]}...")
 
             # Step 2: Execute retrieval strategies
             logger.info("🔍 Step 2: Executing retrieval strategies...")
@@ -170,7 +270,9 @@ class RetrievalOrchestrator:
                     },
                     "retrieval_strategies": [s.name for s in self.strategies.values() if s.enabled],
                     "ranking_applied": self.enable_reranking,
-                    "filters_applied": len([s for s in self.strategies.values() if s.enabled and "filter" in s.name])
+                    "filters_applied": len([s for s in self.strategies.values() if s.enabled and "filter" in s.name]),
+                    "detected_domain": processed_query.metadata.get("detected_domain", "general") if processed_query.metadata else "general",
+                    "domain_info": processed_query.metadata.get("domain_info", {}) if processed_query.metadata else {}
                 },
                 response_summary=response_summary,
                 confidence_score=confidence_score

@@ -265,14 +265,14 @@ class GPUService:
                 memory_info = self._get_gpu_memory_info()
                 available_mb = memory_info.get("available_memory_mb", 0)
 
-                # RTX 3050 optimization
+                # RTX 3050 optimization - Increased batch sizes for faster processing
                 if self.total_memory <= 4096:  # RTX 3050
                     if available_mb > 2000:  # Plenty of memory
-                        return min(self.max_batch_size, 32)
+                        return min(self.max_batch_size, 64)  # Doubled from 32
                     elif available_mb > 1000:  # Moderate memory
-                        return min(base_size * 2, 24)
+                        return min(base_size * 2, 48)  # Doubled from 24
                     else:  # Low memory
-                        return max(base_size // 2, 8)
+                        return max(base_size // 2, 16)  # Doubled from 8
 
                 # For other GPUs, use standard logic
                 if available_mb > 6000:

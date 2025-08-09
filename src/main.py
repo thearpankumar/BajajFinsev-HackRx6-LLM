@@ -69,19 +69,21 @@ from src.monitoring.prometheus_metrics import (
     setup_prometheus_instrumentation,
 )
 from src.services.retrieval_orchestrator import QueryContext, RetrievalOrchestrator
+from src.services.answer_generator import AnswerGenerator
 from src.testing.pipeline_validator import PipelineValidator
 
 # Global instances
 rag_pipeline: Union[IntegratedRAGPipeline, None] = None
 retrieval_orchestrator: Union[RetrievalOrchestrator, None] = None
 pipeline_validator: Union[PipelineValidator, None] = None
+answer_generator: Union[AnswerGenerator, None] = None
 security = HTTPBearer()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup application resources"""
-    global rag_pipeline, retrieval_orchestrator, pipeline_validator
+    global rag_pipeline, retrieval_orchestrator, pipeline_validator, answer_generator
 
     # Startup
     print("🚀 Initializing BajajFinsev Advanced RAG System...")
@@ -101,12 +103,28 @@ async def lifespan(app: FastAPI):
             # Initialize Retrieval Orchestrator
             print("🔄 Initializing Retrieval Orchestrator...")
             retrieval_orchestrator = RetrievalOrchestrator(rag_pipeline)
-            print("✅ Retrieval Orchestrator initialized")
+            
+            # Initialize Retrieval Orchestrator components (including Gemini query enhancement)
+            orchestrator_result = await retrieval_orchestrator.initialize()
+            if orchestrator_result["status"] == "success":
+                print("✅ Retrieval Orchestrator initialized with Gemini query enhancement")
+                if orchestrator_result.get("gemini_enhancement"):
+                    print("🤖 Gemini query enhancement is active")
+                else:
+                    print("📋 Using rule-based query enhancement only")
+            else:
+                print(f"⚠️ Retrieval Orchestrator initialization failed: {orchestrator_result.get('error')}")
+                print("📋 Continuing with basic functionality")
 
             # Initialize Pipeline Validator
             print("🔄 Initializing Pipeline Validator...")
             pipeline_validator = PipelineValidator()
             print("✅ Pipeline Validator initialized")
+            
+            # Initialize Answer Generator
+            print("🔄 Initializing Answer Generator...")
+            answer_generator = AnswerGenerator()
+            print("✅ Answer Generator initialized")
 
         else:
             raise Exception(f"Pipeline initialization failed: {init_result.get('error')}")
@@ -248,7 +266,7 @@ async def analyze_document(
     timer.start()
 
     try:
-        if not rag_pipeline or not retrieval_orchestrator:
+        if not rag_pipeline or not retrieval_orchestrator or not answer_generator:
             raise HTTPException(status_code=503, detail="Advanced RAG pipeline not initialized")
 
         print("\n⚡ Processing with Advanced RAG pipeline...")
@@ -301,19 +319,27 @@ async def analyze_document(
             rag_metrics.record_query_duration(query_duration)
 
             if response.total_results > 0:
-                # Generate answer from top retrieved chunks
+                # Generate human-like answer from top retrieved chunks
                 top_chunks = response.ranked_results[:3]
-                context_text = "\n\n".join([chunk.text for chunk in top_chunks])
+                chunk_data = [
+                    {
+                        "text": chunk.text,
+                        "score": chunk.score,
+                        "metadata": chunk.metadata
+                    }
+                    for chunk in top_chunks
+                ]
 
-                # Simple answer generation (in production, this would use LLM)
-                if len(context_text) > 100:
-                    answer = f"Based on the document analysis: {context_text[:500]}..."
-                else:
-                    answer = f"Based on the document analysis: {context_text}"
+                # Get detected domain from processed query
+                detected_domain = "general"
+                if hasattr(response, 'processing_metadata') and response.processing_metadata:
+                    detected_domain = response.processing_metadata.get('detected_domain', 'general')
 
-                print(f"✅ Generated answer from {len(top_chunks)} relevant chunks")
+                # Use answer generator for human-like responses
+                answer = await answer_generator.generate_answer(question, chunk_data, detected_domain)
+                print(f"✅ Generated human-like answer from {len(top_chunks)} relevant chunks (domain: {detected_domain})")
             else:
-                answer = "I couldn't find specific information to answer this question in the document."
+                answer = answer_generator._generate_no_info_response(question)
                 print("⚠️ No relevant chunks found")
 
             answers.append(answer)

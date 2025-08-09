@@ -13,6 +13,7 @@ from src.core.gpu_service import GPUService
 from src.core.hierarchical_chunker import HierarchicalChunker
 from src.core.parallel_document_processor import ParallelDocumentProcessor
 from src.core.parallel_vector_store import ParallelVectorStore, VectorDocument
+from src.core.parallel_chunking_service import parallel_chunking_service
 from src.services.embedding_service import EmbeddingService
 from src.services.redis_cache import redis_manager
 
@@ -85,7 +86,9 @@ class IntegratedRAGPipeline:
         # Configuration from central config
         self.enable_cache = config.enable_embedding_cache
         self.batch_size = config.batch_size
-        self.chunking_strategy = getattr(config, 'chunking_strategy', 'hierarchical')
+        self.max_batch_size = config.max_batch_size
+        # Use proper config access with default instead of getattr
+        self.chunking_strategy = config.chunking_strategy if hasattr(config, 'chunking_strategy') else 'hierarchical'
 
         logger.info("IntegratedRAGPipeline created with all components")
 
@@ -264,49 +267,37 @@ class IntegratedRAGPipeline:
                     errors=["No documents processed successfully"]
                 )
 
-            # Step 2: Document Chunking
-            logger.info("🔪 Step 2: Chunking documents...")
+            # Step 2: High-Performance Parallel Document Chunking
+            logger.info("🚀 Step 2: High-speed parallel chunking...")
 
-            all_chunks = []
-            chunking_results = []
-
-            for i, doc_result in enumerate(successful_results):
+            async def chunking_progress(message, progress):
                 if progress_callback:
-                    progress = 40 + (i / len(successful_results)) * 30
-                    await progress_callback(f"Chunking document {i+1}/{len(successful_results)}", progress)
+                    await progress_callback(message, progress)
 
-                if not doc_result.get("has_content") or not doc_result.get("content_summary"):
-                    continue
+            # Use parallel chunking service for massive performance boost
+            parallel_chunking_result = await parallel_chunking_service.parallel_chunk_documents(
+                successful_results,
+                chunking_strategy or self.chunking_strategy,
+                chunking_progress
+            )
 
-                # Get document text
-                # In a real scenario, you'd extract from doc_result based on your document processor structure
-                document_text = doc_result.get("aggregated_content", {}).get("combined_full_text", "")
-
-                if not document_text:
-                    errors.append(f"No text content for document: {doc_result['document_url']}")
-                    continue
-
-                # Create source info for chunking
-                source_info = {
-                    "document_url": doc_result["document_url"],
-                    "file_path": doc_result["file_path"],
-                    "processing_time": doc_result["processing_time"],
-                    "worker_id": doc_result.get("worker_id"),
-                    "content_summary": doc_result.get("content_summary")
-                }
-
-                # Chunk the document
-                chunk_result = await self.hierarchical_chunker.chunk_document(
-                    document_text,
-                    source_info,
-                    chunking_strategy or self.chunking_strategy
+            if parallel_chunking_result["status"] != "success":
+                return DocumentIngestionResult(
+                    status="error",
+                    documents_processed=len(successful_results),
+                    chunks_created=0,
+                    embeddings_generated=0,
+                    processing_time=time.time() - start_time,
+                    pipeline_metadata={
+                        "document_processing": processing_result,
+                        "chunking_error": parallel_chunking_result
+                    },
+                    errors=errors + [f"Parallel chunking failed: {parallel_chunking_result.get('error')}"]
                 )
 
-                if chunk_result.chunks:
-                    all_chunks.extend(chunk_result.chunks)
-                    chunking_results.append(chunk_result)
-                else:
-                    errors.append(f"No chunks created for document: {doc_result['document_url']}")
+            all_chunks = parallel_chunking_result["chunks"]
+            chunking_results = parallel_chunking_result["chunking_results"]
+            errors.extend(parallel_chunking_result.get("errors", []))
 
             if not all_chunks:
                 return DocumentIngestionResult(
@@ -322,7 +313,7 @@ class IntegratedRAGPipeline:
                     errors=errors + ["No chunks created from any documents"]
                 )
 
-            logger.info(f"✅ Created {len(all_chunks)} chunks from {len(successful_results)} documents")
+            logger.info(f"⚡ PARALLEL CHUNKING: {len(all_chunks)} chunks from {len(successful_results)} documents in {parallel_chunking_result['processing_time']:.2f}s")
 
             # Step 3: Generate Embeddings
             logger.info("🔢 Step 3: Generating embeddings...")
@@ -332,9 +323,15 @@ class IntegratedRAGPipeline:
 
             chunk_texts = [chunk.text for chunk in all_chunks]
 
+            # Optimize batch size for large chunk sets
+            optimized_batch_size = self.batch_size
+            if len(chunk_texts) > 200:  # Large document with many chunks
+                optimized_batch_size = min(self.max_batch_size, self.batch_size * 2)
+                logger.info(f"🔥 Large document detected: using optimized batch size {optimized_batch_size}")
+
             embedding_result = await self.embedding_service.encode_texts(
                 chunk_texts,
-                batch_size=self.batch_size,
+                batch_size=optimized_batch_size,
                 normalize_embeddings=True
             )
 

@@ -44,8 +44,9 @@ class OfficeProcessor:
 
     def __init__(self):
         self.max_document_size_mb = config.max_document_size_mb
-        self.excel_max_rows = getattr(config, 'excel_max_rows', 10000)
-        self.excel_sheet_limit = getattr(config, 'excel_sheet_limit', 5)
+        # Use proper config access with defaults instead of getattr
+        self.excel_max_rows = config.excel_max_rows if hasattr(config, 'excel_max_rows') else 10000
+        self.excel_sheet_limit = config.excel_sheet_limit if hasattr(config, 'excel_sheet_limit') else 5
 
         # Processing statistics
         self.total_processed = 0

@@ -520,6 +520,7 @@ class ParallelDocumentProcessor:
             "worker_id": result.worker_id,
             "error": result.error,
             "has_content": result.content is not None,
+            "content": result.content,  # Include the actual content
             "content_summary": {
                 "char_count": len(result.content.get("full_text", "")) if result.content else 0,
                 "word_count": len(result.content.get("full_text", "").split()) if result.content else 0,

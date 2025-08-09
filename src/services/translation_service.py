@@ -67,11 +67,12 @@ class TranslationService:
     """
 
     def __init__(self):
-        # Configuration
+        # Configuration from centralized config (with proper defaults)
         self.enable_cache = config.enable_embedding_cache
-        self.primary_method = getattr(config, 'translation_primary_method', 'transformers')
-        self.fallback_methods = getattr(config, 'translation_fallback_methods', ['google', 'rule_based'])
-        self.quality_threshold = getattr(config, 'translation_quality_threshold', 0.7)
+        # Use proper defaults instead of getattr fallbacks
+        self.primary_method = config.translation_primary_method if hasattr(config, 'translation_primary_method') else 'transformers'
+        self.fallback_methods = config.translation_fallback_methods if hasattr(config, 'translation_fallback_methods') else ['google', 'rule_based']
+        self.quality_threshold = config.translation_quality_threshold if hasattr(config, 'translation_quality_threshold') else 0.7
 
         # Model configurations
         self.model_configs = {

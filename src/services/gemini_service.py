@@ -21,6 +21,7 @@ except ImportError:
     HAS_GOOGLE_EXCEPTIONS = False
 
 from src.core.config import config
+from src.core.llm_config import llm_config_manager
 from src.services.redis_cache import redis_manager
 
 logger = logging.getLogger(__name__)
@@ -58,13 +59,19 @@ class GeminiService:
     """
 
     def __init__(self):
-        # Configuration
-        self.api_key = getattr(config, 'gemini_api_key', None)
-        self.model_name = getattr(config, 'gemini_model', 'gemini-1.5-flash')
-        self.enable_cache = getattr(config, 'enable_gemini_cache', True)
-        self.max_tokens = getattr(config, 'gemini_max_tokens', 2048)
-        self.temperature = getattr(config, 'gemini_temperature', 0.7)
-        self.top_p = getattr(config, 'gemini_top_p', 0.9)
+        # Get proper configuration from centralized config manager
+        provider, model_name, api_key = llm_config_manager.get_query_llm_config()
+        
+        if provider != "gemini":
+            logger.warning(f"Expected Gemini provider but got {provider} for query LLM")
+        
+        # Configuration from centralized config
+        self.api_key = api_key
+        self.model_name = model_name
+        self.enable_cache = config.enable_embedding_cache  # Use existing cache config
+        self.max_tokens = 2048  # Reasonable default for Gemini
+        self.temperature = 0.7   # Default temperature
+        self.top_p = 0.9        # Default top_p
 
         # Model instance
         self.model = None

@@ -61,11 +61,12 @@ class AdvancedGPUManager:
 
     def __init__(self):
         # Configuration
-        self.memory_limit_mb = getattr(config, 'gpu_memory_limit_mb', 3500)  # Reserve 500MB for system
+        # Use proper config access with default instead of getattr
+        self.memory_limit_mb = config.gpu_memory_limit_mb if hasattr(config, 'gpu_memory_limit_mb') else 3500  # Reserve 500MB for system
         self.memory_warning_threshold = 0.85  # 85% of available memory
         self.memory_critical_threshold = 0.95  # 95% of available memory
         self.cleanup_frequency = 50  # Operations between cleanups
-        self.profiling_enabled = getattr(config, 'enable_gpu_profiling', True)
+        self.profiling_enabled = config.enable_gpu_profiling if hasattr(config, 'enable_gpu_profiling') else True
 
         # State tracking
         self.device = None
