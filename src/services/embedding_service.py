@@ -4,6 +4,7 @@ RTX 3050 optimized with multilingual support and centralized configuration
 """
 
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any, Union
@@ -146,16 +147,30 @@ class EmbeddingService:
             cache_dir.mkdir(exist_ok=True)
             model_kwargs['cache_folder'] = str(cache_dir)
 
-            # Load the model initially on CPU to avoid CUDA memory issues during loading
-            self.model = SentenceTransformer(
-                self.embedding_model_name,
-                **model_kwargs
-            )
+            # Set CUDA device and suppress warnings if using GPU
+            if self.device and str(self.device) != 'cpu' and HAS_TORCH:
+                # Set default CUDA device
+                if torch.cuda.is_available():
+                    torch.cuda.set_device(0)
+                    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+                
+                model_kwargs['device'] = device_str
+                logger.info(f"🎯 Loading model directly to {device_str}")
             
-            # Move to GPU after loading if GPU is available
-            if self.device and str(self.device) != 'cpu':
-                logger.info(f"🎯 Moving model to {device_str}")
-                self.model = self.model.to(self.device)
+            # Temporarily suppress sentence-transformers logging for cleaner output
+            sentence_transformers_logger = logging.getLogger('sentence_transformers')
+            original_level = sentence_transformers_logger.level
+            sentence_transformers_logger.setLevel(logging.WARNING)
+
+            try:
+                # Load the model
+                self.model = SentenceTransformer(
+                    self.embedding_model_name,
+                    **model_kwargs
+                )
+            finally:
+                # Restore original logging level
+                sentence_transformers_logger.setLevel(original_level)
 
             # Get model information
             self.model_info = {

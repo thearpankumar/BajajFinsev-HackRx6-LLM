@@ -82,7 +82,7 @@ class SystemConfig(BaseSettings):
     vector_db_type: VectorDBType = Field(VectorDBType.FAISS_GPU, description="Vector database type")
 
     # FAISS Configuration
-    faiss_index_type: str = Field("HNSW", description="FAISS index type")
+    faiss_index_type: str = Field("IVF", description="FAISS index type (IVF supports GPU)")
     hnsw_m: int = Field(32, description="HNSW M parameter")
     hnsw_ef_construction: int = Field(200, description="HNSW efConstruction parameter")
     hnsw_ef_search: int = Field(100, description="HNSW efSearch parameter")

@@ -59,12 +59,12 @@ class ParallelVectorStore:
     def __init__(self, embedding_service: Union[EmbeddingService, None] = None, gpu_service: Union[GPUService, None] = None):
         # Configuration from central config
         self.embedding_dimension = config.embedding_dimension
-        self.index_type = config.vector_db_type  # faiss_hnsw, faiss_ivf, etc.
+        self.index_type = f"faiss_{config.faiss_index_type.lower()}"  # faiss_hnsw, faiss_ivf, etc.
         self.batch_size = config.batch_size
         self.max_batch_size = config.max_batch_size
         self.nprobe = getattr(config, 'faiss_nprobe', 32)  # Search parameter
-        self.ef_search = getattr(config, 'faiss_ef_search', 128)  # HNSW search parameter
-        self.m_hnsw = getattr(config, 'faiss_m_hnsw', 32)  # HNSW construction parameter
+        self.ef_search = config.hnsw_ef_search  # HNSW search parameter
+        self.m_hnsw = config.hnsw_m  # HNSW construction parameter
         self.enable_cache = config.enable_embedding_cache
 
         # Services
