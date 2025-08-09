@@ -85,7 +85,6 @@ async def lifespan(app: FastAPI):
 
     # Startup
     print("🚀 Initializing BajajFinsev Advanced RAG System...")
-    print("ℹ️  Note: Any 'Using CPU' warnings are from ML libraries during initialization - GPU will be used for inference")
 
     try:
         # Initialize Integrated RAG pipeline
