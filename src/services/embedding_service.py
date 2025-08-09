@@ -39,7 +39,11 @@ class EmbeddingService:
 
     def __init__(self, gpu_service: Union[GPUService, None] = None):
         # Configuration from central config
-        self.embedding_model_name = config.embedding_model.value  # Convert enum to string
+        # Handle both string and enum cases
+        if hasattr(config.embedding_model, 'value'):
+            self.embedding_model_name = config.embedding_model.value
+        else:
+            self.embedding_model_name = str(config.embedding_model)
         self.embedding_dimension = config.embedding_dimension
         self.max_length = config.embedding_max_length
         self.batch_size = config.batch_size
