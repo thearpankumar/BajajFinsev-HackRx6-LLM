@@ -1,103 +1,172 @@
 """
-Configuration settings for BajajFinsev RAG System
+Centralized Configuration System for BajajFinsev RAG System
+Comprehensive Pydantic-based configuration with environment variable support
 """
 
 import os
 from typing import Optional, List
+from enum import Enum
+from pydantic import BaseSettings, Field
 from pydantic_settings import BaseSettings
 
 
-class Settings(BaseSettings):
-    """Application settings"""
+class GPUProvider(str, Enum):
+    """GPU provider options"""
+    CUDA = "cuda"
+    MPS = "mps" 
+    CPU = "cpu"
 
-    # API Configuration
-    API_KEY: str = "123456"
 
-    # OpenAI Configuration
-    OPENAI_API_KEY: str
-    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
-    OPENAI_GENERATION_MODEL: str = "gpt-4o-mini"
+class EmbeddingModel(str, Enum):
+    """Available embedding models"""
+    E5_BASE = "intfloat/multilingual-e5-base"
+    E5_LARGE = "intfloat/multilingual-e5-large"
+    BGE_M3 = "BAAI/bge-m3"
+    OPENAI_SMALL = "text-embedding-3-small"
 
-    # Google AI Configuration
-    GOOGLE_API_KEY: str
-    GOOGLE_MODEL: str = "gemini-2.5-flash-lite"
 
-    # Qdrant Vector Database Configuration
-    QDRANT_HOST: str = "localhost"
-    QDRANT_PORT: int = 6333
-    QDRANT_COLLECTION_NAME: str = "bajaj_documents"
-    QDRANT_API_KEY: Optional[str] = None
-    QDRANT_TIMEOUT: int = 60
-    VECTOR_DIMENSION: int = 1536  # OpenAI text-embedding-3-small dimension
+class LLMProvider(str, Enum):
+    """Available LLM providers"""
+    GROQ_LLAMA = "groq/llama-3.3-70b-versatile"
+    GEMINI = "gemini-2.5-flash-lite"
+    OPENAI = "gpt-4o-mini"
 
-    # Document Processing Configuration
-    MAX_CHUNK_SIZE: int = 1000
-    CHUNK_OVERLAP: int = 200
-    MAX_DOCUMENT_SIZE_MB: int = 100  # Updated: Maximum document size in MB
-    MAX_FILE_SIZE_MB: int = 100  # NEW: Maximum file size before falling back to LLM knowledge
 
-    # Document Caching Configuration
-    ENABLE_PERSISTENT_DOCUMENT_CACHE: bool = True
-    DOCUMENT_CACHE_PATH: str = "/app/document_cache" if os.path.exists("/app") else "./document_cache"
-    DOCUMENT_CACHE_TTL_HOURS: int = 168  # 7 days
-    CHECK_VECTOR_DB_BEFORE_DOWNLOAD: bool = True
-    SKIP_DUPLICATE_DOCUMENTS: bool = True
-    DOCUMENT_HASH_ALGORITHM: str = "sha256"
+class VectorDBType(str, Enum):
+    """Vector database options"""
+    FAISS_GPU = "faiss-gpu"
+    FAISS_CPU = "faiss-cpu"
+    QDRANT = "qdrant"
+    CHROMA = "chroma"
 
-    # Parallel Processing Configuration
-    MAX_PARALLEL_QUESTIONS: int = 40
-    QUESTION_BATCH_SIZE: int = 10
-    PARALLEL_PROCESSING: bool = True
-    MAX_CONCURRENT_OPERATIONS: int = 15  # NEW: Limit concurrent operations (increased for better performance)
 
-    # Balanced Settings (Good accuracy with reasonable performance)
-    ENABLE_RERANKING: bool = True  # Enable for better accuracy (+3-5s)
-    FAST_MODE: bool = False  # Comprehensive processing (+2-3s)
-    MAX_CHUNKS_FOR_GENERATION: int = 8  # Balanced context (was 5, +1-2s)
-    USE_ENHANCED_QUERY: bool = True  # Enable for better queries (+1-2s)
-    USE_ENHANCED_RRF: bool = False  # Keep disabled for speed (saves 1-2s)
-    ENABLE_QUESTION_DECOMPOSITION: bool = False  # Keep disabled for speed (saves 2-4s)
-    COMPLEX_QUESTION_MAX_TOKENS: int = 200  # Moderate increase (was 150, +0.5-1s)
-    FAST_COMPLEX_QUESTIONS: bool = True  # Keep fast for complex questions
-    ENABLE_QUERY_ENHANCEMENT: bool = True  # Enable for domain enhancement (+1-2s)
+class SystemConfig(BaseSettings):
+    """Centralized system configuration using Pydantic BaseSettings"""
+
+    # ========== API Configuration ==========
+    API_KEY: str = Field("123456", description="API authentication key")
+
+    # ========== GPU Configuration ==========
+    gpu_provider: GPUProvider = Field(GPUProvider.CUDA, description="GPU provider to use")
+    gpu_memory_fraction: float = Field(0.8, description="RTX 3050: 80% of 4GB = 3.2GB usable")
+    batch_size: int = Field(16, description="RTX 3050 optimized batch size")
+    max_batch_size: int = Field(32, description="Maximum batch size for e5-base model")
+    enable_mixed_precision: bool = Field(True, description="FP16 for memory efficiency")
+    gpu_memory_cleanup_interval: int = Field(100, description="GPU cleanup every N operations")
+
+    # ========== Embedding Configuration ==========
+    embedding_model: EmbeddingModel = Field(EmbeddingModel.E5_BASE, description="Multilingual embedding model")
+    embedding_dimension: int = Field(768, description="e5-base embedding dimension")
+    embedding_max_length: int = Field(512, description="Maximum sequence length for embeddings")
+    enable_embedding_cache: bool = Field(True, description="Enable embedding caching")
+
+    # ========== LLM Configuration ==========
+    query_llm: LLMProvider = Field(LLMProvider.GEMINI, description="LLM for query understanding")
+    response_llm: LLMProvider = Field(LLMProvider.GROQ_LLAMA, description="LLM for response generation")
     
-    # Hybrid System Settings
-    ENABLE_FALLBACK_RAG: bool = True  # NEW: Enable RAG fallback for unmatched questions
-    FALLBACK_SIMILARITY_THRESHOLD: float = 0.3  # NEW: Threshold for JSON matching
-    ENABLE_MULTI_FORMAT_SUPPORT: bool = True  # NEW: Support Excel, images
-    
-    # Response Timing Configuration - Optimized for 4-6 second target
-    MIN_RESPONSE_TIME_SECONDS: int = 4  # Reduced from 7: Minimum response time
-    MAX_RESPONSE_TIME_SECONDS: int = 6  # Reduced from 10: Maximum response time for fast processes
-    ENABLE_RESPONSE_DELAY: bool = True   # Keep enabled: Maintain artificial delay for consistent UX
-    MAX_GENERATION_TOKENS: int = 200  # Increased for more detailed answers (was 120)
-    GENERATION_TEMPERATURE: float = 0.1  # Slightly higher for better responses (was 0.0)
+    # ========== API Keys ==========
+    groq_api_key: Optional[str] = Field(None, env="GROQ_API_KEY", description="Groq API key")
+    gemini_api_key: Optional[str] = Field(None, env="GEMINI_API_KEY", description="Google Gemini API key") 
+    openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY", description="OpenAI API key")
+    google_translate_key: Optional[str] = Field(None, env="GOOGLE_TRANSLATE_KEY", description="Google Translate API key")
+    azure_translator_key: Optional[str] = Field(None, env="AZURE_TRANSLATOR_KEY", description="Azure Translator key")
 
-    # Retrieval Configuration (Balanced for accuracy)
-    TOP_K_RETRIEVAL: int = 25  # Increased for better context (was 15, +1-2s)
-    RERANK_TOP_K: int = 8  # Increased for better reranking (was 5, +1s)
-    SIMILARITY_THRESHOLD: float = 0.15  # Lowered for more relevant results (was 0.2)
-
-    # Hybrid Search Configuration (Balanced for accuracy)
-    DENSE_WEIGHT: float = 0.7  # Balanced dense/sparse search (was 0.9)
-    SPARSE_WEIGHT: float = 0.3  # Increased sparse search weight (was 0.1)
+    # ========== Processing Configuration ==========
+    max_workers: int = Field(8, description="Parallel processing workers")
+    chunk_size: int = Field(512, description="Document chunk size in tokens")
+    chunk_overlap: int = Field(128, description="Overlap between chunks in tokens")
+    max_document_size_mb: int = Field(100, description="Maximum document size in MB")
+    max_concurrent_operations: int = Field(15, description="Maximum concurrent operations")
     
-    # OCR and Multi-format Settings
-    OCR_ENGINE: str = "easyocr"  # Fast OCR engine (easyocr, tesseract, paddleocr)
-    OCR_LANGUAGES: List[str] = ["en"]  # English only for speed
-    ENABLE_OCR_PREPROCESSING: bool = True  # Image preprocessing for better OCR
-    MAX_IMAGE_SIZE_MB: int = 10  # Limit image size for speed
+    # ========== Vector Database Configuration ==========
+    vector_db_type: VectorDBType = Field(VectorDBType.FAISS_GPU, description="Vector database type")
     
-    # Excel Processing Settings
-    EXCEL_MAX_ROWS: int = 10000  # Limit rows for speed
-    EXCEL_SHEET_LIMIT: int = 5  # Process max 5 sheets
-    EXCEL_TEXT_EXTRACTION_MODE: str = "fast"  # fast, comprehensive
+    # FAISS Configuration
+    faiss_index_type: str = Field("HNSW", description="FAISS index type")
+    hnsw_m: int = Field(32, description="HNSW M parameter")
+    hnsw_ef_construction: int = Field(200, description="HNSW efConstruction parameter")
+    hnsw_ef_search: int = Field(100, description="HNSW efSearch parameter")
+    
+    # Qdrant Configuration (fallback)
+    qdrant_host: str = Field("localhost", description="Qdrant host")
+    qdrant_port: int = Field(6333, description="Qdrant port")
+    qdrant_collection_name: str = Field("bajaj_documents", description="Qdrant collection name")
+    qdrant_api_key: Optional[str] = Field(None, env="QDRANT_API_KEY", description="Qdrant API key")
+    qdrant_timeout: int = Field(60, description="Qdrant timeout in seconds")
 
+    # ========== Redis Configuration ==========
+    redis_host: str = Field("localhost", description="Redis host")
+    redis_port: int = Field(6379, description="Redis port") 
+    redis_db: int = Field(0, description="Redis database number")
+    redis_password: Optional[str] = Field(None, env="REDIS_PASSWORD", description="Redis password")
+    redis_max_connections: int = Field(20, description="Maximum Redis connections")
+    redis_timeout: int = Field(30, description="Redis connection timeout")
+
+    # ========== Performance Thresholds ==========
+    query_timeout_seconds: int = Field(30, description="Maximum query processing time")
+    min_response_time_seconds: int = Field(4, description="Minimum response time for UX")
+    max_response_time_seconds: int = Field(6, description="Maximum response time target")
+    cache_ttl_hours: int = Field(24, description="Default cache TTL in hours")
+    
+    # ========== Translation Settings ==========
+    enable_translation: bool = Field(True, description="Enable Malayalam-English translation")
+    translation_confidence_threshold: float = Field(0.7, description="Translation quality threshold")
+    enable_parallel_translation: bool = Field(True, description="Enable parallel translation processing")
+    translation_batch_size: int = Field(10, description="Translation batch size")
+
+    # ========== Document Processing Settings ==========
+    supported_formats: List[str] = Field(
+        ["pdf", "docx", "doc", "xlsx", "xls", "csv", "jpg", "jpeg", "png", "bmp", "tiff", "tif", "webp"],
+        description="Supported document formats"
+    )
+    
+    # OCR Settings
+    ocr_engine: str = Field("easyocr", description="OCR engine (easyocr, tesseract)")
+    ocr_languages: List[str] = Field(["en", "ml"], description="OCR supported languages")
+    enable_ocr_preprocessing: bool = Field(True, description="Enable image preprocessing for OCR")
+    max_image_size_mb: int = Field(10, description="Maximum image size for OCR")
+    
+    # ========== Human Response Settings ==========
+    conversational_tone: bool = Field(True, description="Enable human-like conversational responses")
+    response_length_preference: str = Field("medium", description="Response length: short/medium/detailed")
+    include_source_attribution: bool = Field(True, description="Include source citations in responses")
+    enable_response_streaming: bool = Field(True, description="Enable streaming responses")
+    
+    # ========== Retrieval Configuration ==========
+    top_k_retrieval: int = Field(25, description="Number of chunks to retrieve")
+    rerank_top_k: int = Field(8, description="Number of chunks after reranking")
+    similarity_threshold: float = Field(0.15, description="Minimum similarity threshold")
+    enable_reranking: bool = Field(True, description="Enable result reranking")
+    dense_weight: float = Field(0.7, description="Weight for dense search in hybrid retrieval")
+    sparse_weight: float = Field(0.3, description="Weight for sparse search in hybrid retrieval")
+
+    # ========== MCP Integration Settings ==========
+    enable_mcp_integration: bool = Field(True, description="Enable MCP tool integration")
+    mcp_timeout_seconds: int = Field(30, description="MCP tool timeout")
+    max_web_requests_per_document: int = Field(20, description="Maximum web requests per document")
+    web_request_timeout: int = Field(10, description="Web request timeout in seconds")
+
+    # ========== Monitoring and Logging ==========
+    enable_performance_monitoring: bool = Field(True, description="Enable performance monitoring")
+    log_level: str = Field("INFO", description="Logging level")
+    enable_detailed_logging: bool = Field(False, description="Enable detailed debug logging")
+    metrics_collection_interval: int = Field(60, description="Metrics collection interval in seconds")
+
+    # ========== Development Settings ==========
+    enable_debug_mode: bool = Field(False, env="DEBUG", description="Enable debug mode")
+    enable_response_delay: bool = Field(True, description="Enable artificial response delays for UX")
+    skip_gpu_check: bool = Field(False, description="Skip GPU availability check")
+    
     class Config:
         env_file = ".env"
-        case_sensitive = True
+        env_file_encoding = "utf-8"
+        case_sensitive = False
         extra = "ignore"
+        use_enum_values = True
 
 
-# Global settings instance
-settings = Settings()
+# Global configuration instance
+config = SystemConfig()
+
+# Legacy settings alias for backward compatibility
+settings = config

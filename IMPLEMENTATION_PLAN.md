@@ -23,7 +23,15 @@ Build a comprehensive RAG system that:
 ## **Day 1: Redis Integration & RAG Foundation (8 hours)**
 
 ### **Morning (4 hours): Redis Service Setup**
-- **Task 1.1** (1 hour): Add Redis service to existing docker-compose.yml
+- **Task 1.1** (1 hour): Centralized Pydantic Configuration System
+  - File: `src/core/config.py`
+  - Pydantic BaseSettings for all system configurations
+  - Environment variable loading with type validation
+  - Model configurations (embedding models, LLM endpoints, etc.)
+  - GPU settings, batch sizes, memory limits
+  - API keys and service endpoints management
+  
+- **Task 1.2** (1 hour): Add Redis service to existing docker-compose.yml
   ```yaml
   redis:
     image: redis:7-alpine
@@ -33,30 +41,31 @@ Build a comprehensive RAG system that:
     networks: [app-network]
   ```
   
-- **Task 1.2** (1.5 hours): Create Redis connection manager
+- **Task 1.3** (1.5 hours): Create Redis connection manager with config integration
   - File: `src/services/redis_cache.py`
   - Features: Connection pooling, retry logic, health checks
-  - Configuration: Max connections, timeout settings
+  - Configuration: Max connections, timeout settings from central config
   
-- **Task 1.3** (1.5 hours): Test Redis connectivity
+- **Task 1.4** (0.5 hours): Test Redis connectivity and configuration
   - Basic caching operations (set/get/delete)
   - Connection health monitoring
-  - Docker compose service integration testing
+  - Configuration validation testing
 
 ### **Afternoon (4 hours): RAG Pipeline Foundation**
-- **Task 1.4** (2 hours): Expand BasicRAGPipeline class
+- **Task 1.5** (2 hours): Expand BasicRAGPipeline class with config integration
   - File: `src/core/basic_rag_pipeline.py`
   - Document processing workflow foundation
+  - Central configuration integration for all pipeline settings
   - Error handling and logging setup
   - Performance monitoring setup
   
-- **Task 1.5** (1 hour): Create response validation system
-  - Answer quality scoring
+- **Task 1.6** (1 hour): Create response validation system
+  - Answer quality scoring with configurable thresholds
   - Confidence scoring for responses
   - Response format validation
   
-- **Task 1.6** (1 hour): Integrate expanded pipeline into main.py
-  - Enhanced RAG pipeline initialization
+- **Task 1.7** (1 hour): Integrate expanded pipeline into main.py
+  - Enhanced RAG pipeline initialization with central config
   - Improved error handling
   - Add comprehensive logging for RAG operations
 
@@ -77,18 +86,27 @@ Build a comprehensive RAG system that:
   - DOCX support with python-docx
   - Text cleaning and preprocessing
 
+- **Task 2.2b** (2 hours): Cross-lingual text processing foundation
+  - File: `src/services/language_detector.py`
+  - Language detection for Malayalam/English content
+  - Text preprocessing for multilingual content
+  - Character encoding handling for Indic scripts
+
 ### **Afternoon (4 hours): GPU Service Foundation**
-- **Task 2.3** (2 hours): GPU detection and configuration
+- **Task 2.3** (2 hours): GPU detection and configuration with central config
   - File: `src/core/gpu_service.py`
-  - RTX 3050 optimization (4GB VRAM, batch size: 16)
+  - Configurable GPU settings (model name, batch size, memory limits)
+  - RTX 3050 optimization (4GB VRAM, batch size: 16) via config
   - Device detection (CUDA/MPS/CPU fallback)
-  - Memory management and monitoring
+  - Memory management and monitoring with configurable thresholds
   
-- **Task 2.4** (2 hours): Basic embedding service
-  - BAAI/bge-m3 model integration
-  - Mixed precision (FP16) configuration
-  - Batch processing optimization
-  - GPU memory cleanup routines
+- **Task 2.4** (2 hours): Configurable multilingual embedding service
+  - File: `src/services/embedding_service.py`
+  - Configurable embedding model (default: intfloat/multilingual-e5-base)
+  - RTX 3050 optimized settings from central config (~1GB VRAM usage)
+  - Cross-lingual vector space optimization
+  - Configurable mixed precision (FP16) and batch processing
+  - GPU memory cleanup routines with configurable intervals
 
 ---
 
@@ -108,47 +126,52 @@ Build a comprehensive RAG system that:
   - Metadata extraction and preservation
 
 ### **Afternoon (4 hours): Image Processing & OCR**
-- **Task 3.3** (2 hours): Image processor setup
+- **Task 3.3** (2 hours): Enhanced image processor setup
   - File: `src/services/image_processor.py`
-  - Support: JPG, JPEG, PNG, BMP, TIFF, TIF
+  - Support: JPG, JPEG, PNG, BMP, TIFF, TIF, WEBP
+  - WebP format decoding and processing
   - Image preprocessing with OpenCV
-  - Text region detection
+  - Text region detection for all formats
   
-- **Task 3.4** (2 hours): OCR integration
-  - Tesseract + EasyOCR dual engine
-  - Parallel OCR processing
-  - Text quality improvement
-  - Multi-language support
+- **Task 3.4** (2 hours): Multilingual OCR integration
+  - Tesseract + EasyOCR dual engine with Malayalam support
+  - Parallel OCR processing for mixed-language documents
+  - Text quality improvement and script detection
+  - Malayalam + English OCR optimization
+  - Character encoding normalization
 
 ---
 
-## **Day 4: Hierarchical Document Chunking (8 hours)**
+## **Day 4: Parallel Document Processing & Chunking (8 hours)**
 
-### **Morning (4 hours): Smart Chunking System**
-- **Task 4.1** (2 hours): Hierarchical chunker
+### **Morning (4 hours): Parallel Processing Architecture**
+- **Task 4.1** (2 hours): Parallel document splitter
+  - File: `src/core/parallel_document_processor.py`
+  - Page-level document splitting for parallel processing
+  - 8-worker async processing architecture
+  - Load balancing and task distribution
+  - Memory-efficient streaming processing
+  
+- **Task 4.2** (2 hours): Hierarchical chunker with parallel optimization
   - File: `src/core/hierarchical_chunker.py`
-  - Document → Sections → Paragraphs → Sentences
+  - Document → Pages → Sections → Paragraphs (parallel)
   - 512 token chunks with 128 token overlap
-  - Semantic boundary detection
-  
-- **Task 4.2** (2 hours): Chunk metadata system
-  - Source tracking and attribution
-  - Chunk relationship mapping
-  - Context preservation techniques
-  - Chunk quality scoring
+  - Semantic boundary detection across parallel workers
+  - Chunk metadata system with parallel attribution tracking
 
-### **Afternoon (4 hours): Basic Vector Storage**
-- **Task 4.3** (2.5 hours): FAISS vector store setup
-  - File: `src/core/vector_store.py`
-  - HNSW indexing (M=32, efConstruction=200)
-  - CPU implementation first (GPU upgrade later)
-  - Vector similarity search
+### **Afternoon (4 hours): Parallel Vector Storage & Batch Processing**
+- **Task 4.3** (2.5 hours): FAISS GPU vector store with batch optimization
+  - File: `src/core/parallel_vector_store.py`
+  - HNSW indexing (M=32, efConstruction=200) with GPU acceleration
+  - Batch vector insertion for parallel chunks
+  - Multi-threaded index building (faiss.omp_set_num_threads(8))
+  - GPU memory optimization for RTX 3050
   
-- **Task 4.4** (1.5 hours): Embedding pipeline integration
-  - Chunk embedding generation
-  - Vector storage and retrieval
-  - Basic similarity search
-  - Metadata association
+- **Task 4.4** (1.5 hours): Parallel embedding pipeline
+  - Batch embedding generation (batch_size=64)
+  - Streaming vector storage as chunks are processed
+  - Parallel metadata association
+  - Real-time indexing progress tracking
 
 ---
 
@@ -174,7 +197,13 @@ Build a comprehensive RAG system that:
   - Test response generation and formatting
   - Performance baseline measurement
   
-- **Task 5.4** (2 hours): Week 1 debugging and optimization
+- **Task 5.4** (2 hours): Cross-lingual pipeline integration
+  - Integrate language detection in document processing
+  - Test multilingual embedding generation
+  - Validate Malayalam-English text handling
+  - Performance baseline for cross-lingual queries
+
+- **Task 5.5** (2 hours): Week 1 debugging and optimization
   - Fix integration issues
   - Performance tuning
   - Memory usage optimization
@@ -182,16 +211,17 @@ Build a comprehensive RAG system that:
 
 ---
 
-# 🗓️ **WEEK 2: Advanced RAG & GPU Acceleration (40 hours)**
+# 🗓️ **WEEK 2: Advanced RAG & GPU Acceleration + Translation (40 hours)**
 
 ## **Day 6: GPU-Accelerated Embedding System (8 hours)**
 
 ### **Morning (4 hours): RTX 3050 Optimization**
-- **Task 6.1** (2 hours): GPU memory optimization
+- **Task 6.1** (2 hours): RTX 3050 GPU memory optimization
   - File: `src/core/gpu_embedding_service.py`
-  - RTX 3050 specific settings (batch size: 16)
-  - Memory fraction: 80% of 4GB VRAM
-  - Automatic memory cleanup
+  - RTX 3050 specific settings (batch size: 16-32 with e5-base model)
+  - Memory allocation: e5-base (~1GB) + batch processing (~2GB) + FAISS (~1GB)
+  - Memory fraction: 80% of 4GB VRAM = 3.2GB usable
+  - Automatic memory cleanup and garbage collection
   
 - **Task 6.2** (2 hours): Mixed precision implementation
   - FP16 precision for 2x speedup
@@ -199,44 +229,81 @@ Build a comprehensive RAG system that:
   - Performance vs accuracy balancing
   - GPU utilization monitoring
 
-### **Afternoon (4 hours): Advanced Embedding Features**
-- **Task 6.3** (2 hours): Batch processing optimization
-  - Dynamic batch sizing
-  - GPU memory monitoring
-  - Automatic fallback to CPU
-  - Processing queue management
+### **Afternoon (4 hours): Parallel Embedding & Advanced Batch Processing**
+- **Task 6.3** (2 hours): Parallel batch embedding optimization
+  - Optimized batch processing (batch_size=32-64 with e5-base model)
+  - Dynamic batch sizing based on RTX 3050 memory availability
+  - Improved parallel embedding generation across 8 workers
+  - GPU memory monitoring with ~2.2GB available for batch processing
+  - Automatic fallback to CPU when GPU memory exceeded
   
-- **Task 6.4** (2 hours): Embedding caching system
-  - Redis-based embedding cache
-  - Cache hit rate optimization
-  - Persistent storage integration
-  - Cache invalidation strategies
+- **Task 6.4** (2 hours): Advanced embedding caching system
+  - Redis-based embedding cache with batch operations
+  - Parallel cache operations for multiple chunks
+  - Cache hit rate optimization for batch requests
+  - Persistent storage integration with streaming updates
+  - Cache invalidation strategies for updated documents
 
 ---
 
-## **Day 7: GPU Vector Store Implementation (8 hours)**
+## **Day 7: Cross-Lingual Translation Pipeline (8 hours)**
+
+### **Morning (4 hours): Translation Service Setup**
+- **Task 7.1** (2 hours): Translation service architecture
+  - File: `src/services/translation_service.py`
+  - Google Translate API integration
+  - Azure Translator fallback
+  - Rate limiting and cost optimization
+  - Translation caching in Redis
+  
+- **Task 7.2** (2 hours): Parallel async translation pipeline
+  - File: `src/core/parallel_translator.py`
+  - 8-worker parallel translation processing
+  - Batch translation of document chunks
+  - Concurrent API calls with rate limiting
+  - Progress tracking and status updates
+  - Error handling and retry logic across workers
+
+### **Afternoon (4 hours): Dual-Language Storage System**
+- **Task 7.3** (2 hours): Bilingual document storage
+  - File: `src/core/bilingual_storage.py`
+  - Store original Malayalam + English versions
+  - Version linking and metadata management
+  - Storage optimization strategies
+  - Retrieval path selection logic
+  
+- **Task 7.4** (2 hours): Translation quality assurance
+  - Translation confidence scoring
+  - Quality validation algorithms
+  - Fallback to original text when needed
+  - Performance monitoring for translation accuracy
+
+---
+
+## **Day 8: GPU Vector Store Implementation (8 hours)**
 
 ### **Morning (4 hours): FAISS GPU Integration**
-- **Task 7.1** (2 hours): GPU FAISS setup
+- **Task 8.1** (2 hours): RTX 3050 optimized FAISS GPU setup
   - File: `src/core/gpu_vector_store.py`
-  - FAISS GPU acceleration
-  - Index migration CPU↔GPU
-  - Memory management for RTX 3050
+  - FAISS GPU acceleration with e5-base embeddings (768 dimensions)
+  - Index migration CPU↔GPU with memory monitoring
+  - RTX 3050 memory management (~1GB reserved for FAISS index)
+  - Optimized for smaller embedding dimensions
   
-- **Task 7.2** (2 hours): Advanced indexing
+- **Task 8.2** (2 hours): Advanced indexing
   - HNSW parameter optimization
   - Index building performance
   - Search parameter tuning (efSearch=100)
   - Multi-index support
 
-### **Afternoon (4 hours): Multi-Modal Search Implementation**
-- **Task 7.3** (2 hours): Dense vector search
-  - GPU-accelerated similarity search
-  - Result ranking and filtering
-  - Distance metric optimization
-  - Search result caching
+### **Afternoon (4 hours): Cross-Lingual Vector Search**
+- **Task 8.3** (2 hours): Multilingual dense vector search
+  - GPU-accelerated cross-lingual similarity search
+  - Malayalam-English vector space optimization
+  - Result ranking for bilingual content
+  - Cross-lingual search result caching
   
-- **Task 7.4** (2 hours): Sparse search integration
+- **Task 8.4** (2 hours): Bilingual sparse search integration
   - BM25 text search implementation
   - Keyword extraction and weighting
   - Search result fusion preparation
@@ -340,18 +407,18 @@ Build a comprehensive RAG system that:
 
 ## **Day 11: Gemini Integration for Query Understanding (8 hours)**
 
-### **Morning (4 hours): Gemini Service Setup**
-- **Task 11.1** (2 hours): Gemini API integration
+### **Morning (4 hours): Configurable Gemini Service Setup**
+- **Task 11.1** (2 hours): Gemini API integration with central config
   - File: `src/services/gemini_service.py`
-  - Gemini-2.5-flash-lite configuration
-  - API key management and security
-  - Rate limiting and error handling
+  - Configurable Gemini model (default: Gemini-2.5-flash-lite)
+  - API key management from central config and security
+  - Configurable rate limiting and error handling parameters
   
-- **Task 11.2** (2 hours): Query understanding implementation
-  - Intent detection and analysis
-  - Key concept extraction
-  - Query reformulation
-  - Semantic enhancement
+- **Task 11.2** (2 hours): Query understanding implementation with config
+  - Configurable intent detection and analysis parameters
+  - Key concept extraction with adjustable thresholds
+  - Query reformulation with configurable strategies
+  - Semantic enhancement with tunable settings
 
 ### **Afternoon (4 hours): Advanced Query Processing**
 - **Task 11.3** (2 hours): Query validation and enhancement
@@ -368,59 +435,94 @@ Build a comprehensive RAG system that:
 
 ---
 
-## **Day 12: OpenAI Integration for Answer Generation (8 hours)**
+## **Day 12: Groq Llama Integration for Human-Like Answer Generation (8 hours)**
 
-### **Morning (4 hours): OpenAI Service Setup**
-- **Task 12.1** (2 hours): OpenAI API integration
-  - File: `src/services/openai_service.py`
-  - GPT-4o-mini configuration
-  - Prompt engineering and templates
-  - Response streaming implementation
+### **Morning (4 hours): Configurable Groq Llama Service Setup**
+- **Task 12.1** (2 hours): Groq Llama API integration with central config
+  - File: `src/services/groq_llama_service.py`
+  - Configurable Llama model (default: Llama-3.3-70B-Versatile)
+  - Groq API key management from central config and rate limiting
+  - Configurable response streaming with human conversational tone settings
   
-- **Task 12.2** (2 hours): Answer generation pipeline
-  - Context-aware prompt construction
-  - Response format enforcement
-  - Source citation integration
-  - Answer quality validation
+- **Task 12.2** (2 hours): Configurable human-like answer generation pipeline
+  - Configurable conversational prompt templates for natural responses
+  - Adjustable human-style context integration and storytelling parameters
+  - Configurable source citation formats (conversational vs formal)
+  - Response naturalness validation with adjustable scoring thresholds
 
-### **Afternoon (4 hours): Advanced Generation Features**
-- **Task 12.3** (2 hours): Multi-hop reasoning
-  - Complex query handling
-  - Chain-of-thought prompting
-  - Evidence synthesis
-  - Logical consistency checking
+### **Afternoon (4 hours): Intelligent Web Request Processing & MCP Integration**
+- **Task 12.3** (2 hours): MCP tool integration for intelligent web processing
+  - File: `src/services/mcp_web_processor.py`
+  - Intelligent link extraction from documents
+  - Sequential web request processing based on document instructions
+  - Response parsing and chaining logic
+  - Error handling and fallback mechanisms
   
-- **Task 12.4** (2 hours): Response optimization
-  - Answer length optimization
-  - Confidence scoring implementation
-  - Source attribution formatting
-  - Response caching system
+- **Task 12.4** (2 hours): Advanced conversational response optimization
+  - Human-like answer length and pacing optimization
+  - Confidence scoring with conversational expressions
+  - Natural source attribution ("According to the document...")
+  - Response caching with personalization
 
 ---
 
-## **Day 13: Streaming & Parallel Processing (8 hours)**
+## **Day 13: Intelligent Web Processing & Document Link Analysis (8 hours)**
+
+### **Morning (4 hours): Smart Link Extraction & Processing**
+- **Task 13.1** (2 hours): Intelligent link extraction engine
+  - File: `src/services/link_extractor.py`
+  - PDF/document link detection and extraction
+  - Context-aware link classification (API endpoints, web pages, resources)
+  - Link validation and accessibility checking
+  - Priority scoring for link processing order
+  
+- **Task 13.2** (2 hours): Sequential web request processor
+  - File: `src/services/sequential_web_processor.py`
+  - Document instruction parsing for web workflows
+  - Conditional request chaining based on previous responses
+  - Response parsing and data extraction
+  - State management for multi-step web processes
+
+### **Afternoon (4 hours): MCP Integration & Decision Engine**
+- **Task 13.3** (2 hours): MCP tool integration framework
+  - File: `src/core/mcp_integration.py`
+  - MCP tool discovery and registration
+  - Dynamic tool selection based on document context
+  - Error handling and fallback mechanisms
+  - Performance monitoring for MCP calls
+  
+- **Task 13.4** (2 hours): Intelligent decision engine for web processing
+  - File: `src/core/web_decision_engine.py`
+  - Document workflow analysis and understanding
+  - Smart stopping conditions for web processing chains
+  - Response validation and quality assessment
+  - Learning from successful processing patterns
+
+---
+
+## **Day 14: Streaming & Parallel Processing (8 hours)**
 
 ### **Morning (4 hours): Streaming Implementation**
-- **Task 13.1** (2 hours): Document streaming processor
+- **Task 14.1** (2 hours): Document streaming processor
   - File: `src/core/streaming_processor.py`
   - Large document streaming (700K+ tokens)
   - Memory-efficient processing
   - Progress tracking and reporting
   
-- **Task 13.2** (2 hours): Response streaming
+- **Task 14.2** (2 hours): Response streaming
   - Real-time answer generation
   - Streaming API endpoints
   - Client-side streaming support
   - Connection management
 
 ### **Afternoon (4 hours): Parallel Processing System**
-- **Task 13.3** (2 hours): Multi-worker architecture
+- **Task 14.3** (2 hours): Multi-worker architecture
   - 8-worker parallel processing
   - Task queue management
   - Load balancing and distribution
   - Worker health monitoring
   
-- **Task 13.4** (2 hours): Asynchronous I/O optimization
+- **Task 14.4** (2 hours): Asynchronous I/O optimization
   - Async file operations
   - Concurrent request handling
   - Resource pool management
@@ -475,11 +577,12 @@ Build a comprehensive RAG system that:
   - GPU utilization optimization
 
 ### **Afternoon (4 hours): Performance Optimization**
-- **Task 15.3** (2 hours): System performance tuning
-  - Response time optimization
-  - Memory usage reduction
-  - GPU utilization maximization
-  - Caching strategy refinement
+- **Task 15.3** (2 hours): Parallel processing performance tuning
+  - Document ingestion speed optimization (target: 7x improvement)
+  - Parallel worker load balancing and optimization
+  - Batch processing pipeline fine-tuning
+  - GPU memory usage optimization for parallel operations
+  - Vector DB batch insertion performance optimization
   
 - **Task 15.4** (2 hours): Week 3 debugging and fixes
   - Bug identification and resolution
@@ -645,6 +748,7 @@ Build a comprehensive RAG system that:
 
 ## **Performance Targets**
 - ✅ **Processing Speed**: 700K tokens in <40 seconds  
+- ✅ **Document Ingestion Speed**: Small docs (3-6s), Medium docs (12-25s), Large docs (45-90s)
 - ✅ **Memory Usage**: <8GB for large documents
 - ✅ **Accuracy**: >75% on complex queries
 - ✅ **GPU Utilization**: 70-90% during processing
@@ -652,10 +756,12 @@ Build a comprehensive RAG system that:
 - ✅ **Throughput**: 1000+ concurrent users
 
 ## **Functional Requirements**
-- ✅ **Multi-Format Support**: PDF, DOCX, XLSX, Images with OCR
+- ✅ **Multi-Format Support**: PDF, DOCX, XLSX, Images (JPG, PNG, BMP, TIFF, WEBP) with OCR
+- ✅ **Cross-Lingual Support**: Malayalam-English translation and retrieval
 - ✅ **GPU Acceleration**: RTX 3050 optimized (batch size: 16)
-- ✅ **Multi-Modal Retrieval**: Dense + Sparse + Fusion
-- ✅ **LLM Integration**: Gemini-2.5-flash-lite + OpenAI-4o-mini
+- ✅ **Multi-Modal Retrieval**: Dense + Sparse + Fusion + Cross-lingual
+- ✅ **Human-Like LLM**: Groq Llama-3.3-70B-Versatile for conversational responses
+- ✅ **Intelligent Web Processing**: MCP-based sequential link processing from documents
 - ✅ **Streaming**: Real-time processing and responses
 - ✅ **Caching**: Redis with clustering support
 - ✅ **Monitoring**: Comprehensive performance tracking
@@ -674,6 +780,11 @@ Build a comprehensive RAG system that:
 
 ## **Core Dependencies**
 ```bash
+# Configuration Management
+pydantic==2.5.2
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
 # GPU-Accelerated ML Libraries
 torch==2.1.1+cu118
 torchvision==0.16.1+cu118
@@ -681,6 +792,12 @@ sentence-transformers==2.2.2
 transformers==4.35.2
 faiss-gpu==1.7.4
 pynvml==11.5.0
+
+# Cross-Lingual & Translation Libraries
+googletrans==4.0.0rc1
+azure-cognitiveservices-language-translator==3.0.0
+langdetect==1.0.9
+polyglot==16.7.4
 
 # Document Processing
 pymupdf==1.23.8
@@ -691,6 +808,8 @@ unstructured==0.10.30
 pytesseract==0.3.10
 easyocr==1.7.0
 opencv-python==4.8.1.78
+pillow==10.1.0
+webp==0.1.6
 
 # API & Caching
 fastapi==0.104.1
@@ -701,7 +820,22 @@ httpx==0.25.2
 
 # LLM Integration
 google-generativeai==0.3.1
+groq==0.4.1
 openai==1.3.7
+
+# MCP Integration & Web Processing
+mcp==0.8.0
+requests==2.31.0
+aiohttp==3.9.1
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# Parallel Processing & Async
+asyncio==3.4.3
+concurrent.futures==3.1.1
+multiprocessing==0.70a1
+celery==5.3.4
+ray==2.8.0
 
 # Performance & Monitoring
 psutil==5.9.6
@@ -746,4 +880,166 @@ brew install tesseract poppler
 
 ---
 
-**This implementation plan provides a detailed, minute-by-minute roadmap for creating a production-ready RAG system with advanced GPU-accelerated document analysis capabilities.**
+# ⚙️ **Centralized Pydantic Configuration System**
+
+## **📋 Configuration Structure**
+```python
+# src/core/config.py - Comprehensive Configuration Example
+
+from pydantic import BaseSettings, Field
+from typing import Optional, List
+from enum import Enum
+
+class GPUProvider(str, Enum):
+    CUDA = "cuda"
+    MPS = "mps"
+    CPU = "cpu"
+
+class EmbeddingModel(str, Enum):
+    E5_BASE = "intfloat/multilingual-e5-base"
+    E5_LARGE = "intfloat/multilingual-e5-large"
+    BGE_M3 = "BAAI/bge-m3"
+
+class LLMProvider(str, Enum):
+    GROQ_LLAMA = "groq/llama-3.3-70b-versatile"
+    GEMINI = "gemini-2.5-flash-lite"
+    OPENAI = "gpt-4o-mini"
+
+class SystemConfig(BaseSettings):
+    # GPU Configuration
+    gpu_provider: GPUProvider = GPUProvider.CUDA
+    gpu_memory_fraction: float = Field(0.8, description="RTX 3050: 80% of 4GB = 3.2GB")
+    batch_size: int = Field(16, description="RTX 3050 optimized batch size")
+    max_batch_size: int = Field(32, description="Maximum batch size for e5-base")
+    
+    # Embedding Configuration
+    embedding_model: EmbeddingModel = EmbeddingModel.E5_BASE
+    embedding_dimension: int = Field(768, description="e5-base dimension")
+    mixed_precision: bool = Field(True, description="FP16 for memory efficiency")
+    
+    # LLM Configuration
+    query_llm: LLMProvider = LLMProvider.GEMINI
+    response_llm: LLMProvider = LLMProvider.GROQ_LLAMA
+    
+    # API Keys
+    groq_api_key: Optional[str] = Field(None, env="GROQ_API_KEY")
+    gemini_api_key: Optional[str] = Field(None, env="GEMINI_API_KEY")
+    google_translate_key: Optional[str] = Field(None, env="GOOGLE_TRANSLATE_KEY")
+    
+    # Processing Configuration
+    max_workers: int = Field(8, description="Parallel processing workers")
+    chunk_size: int = Field(512, description="Token chunk size")
+    chunk_overlap: int = Field(128, description="Chunk overlap")
+    
+    # Vector DB Configuration
+    faiss_index_type: str = Field("HNSW", description="FAISS index type")
+    hnsw_m: int = Field(32, description="HNSW M parameter")
+    hnsw_ef_construction: int = Field(200, description="HNSW efConstruction")
+    hnsw_ef_search: int = Field(100, description="HNSW efSearch")
+    
+    # Performance Thresholds
+    max_document_size_mb: int = Field(100, description="Max document size")
+    query_timeout_seconds: int = Field(30, description="Query timeout")
+    cache_ttl_hours: int = Field(24, description="Cache TTL")
+    
+    # Translation Settings
+    enable_translation: bool = Field(True, description="Enable Malayalam-English translation")
+    translation_confidence_threshold: float = Field(0.7, description="Translation quality threshold")
+    
+    # Human Response Settings
+    conversational_tone: bool = Field(True, description="Enable human-like responses")
+    response_length_preference: str = Field("medium", description="short/medium/detailed")
+    include_source_attribution: bool = Field(True, description="Include source citations")
+    
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+
+# Global config instance
+config = SystemConfig()
+```
+
+## **🔧 Environment Configuration (.env file)**
+```env
+# GPU Settings
+GPU_PROVIDER=cuda
+GPU_MEMORY_FRACTION=0.8
+BATCH_SIZE=16
+MAX_BATCH_SIZE=32
+
+# Model Selection
+EMBEDDING_MODEL=intfloat/multilingual-e5-base
+QUERY_LLM=gemini-2.5-flash-lite
+RESPONSE_LLM=groq/llama-3.3-70b-versatile
+
+# API Keys
+GROQ_API_KEY=your_groq_key_here
+GEMINI_API_KEY=your_gemini_key_here
+GOOGLE_TRANSLATE_KEY=your_translate_key_here
+
+# Processing Settings
+MAX_WORKERS=8
+CHUNK_SIZE=512
+CHUNK_OVERLAP=128
+
+# Performance Tuning
+MAX_DOCUMENT_SIZE_MB=100
+QUERY_TIMEOUT_SECONDS=30
+CACHE_TTL_HOURS=24
+
+# Features
+ENABLE_TRANSLATION=true
+CONVERSATIONAL_TONE=true
+RESPONSE_LENGTH_PREFERENCE=medium
+```
+
+---
+
+# 🔄 **Optimized System Workflow & Performance**
+
+## **📥 Parallel Document Ingestion Workflow**
+```
+Document Upload → Page Splitting → 8 Parallel Workers → Batch Processing → Vector DB
+```
+
+### **⚡ Optimized Processing Times (7x Improvement):**
+- **Small docs (1-10 pages)**: **3-6 seconds** (was 15-30s)
+- **Medium docs (50-100 pages)**: **12-25 seconds** (was 60-180s)  
+- **Large docs (500+ pages)**: **45-90 seconds** (was 300-600s)
+
+### **🔧 Parallel Processing Architecture:**
+```python
+# 8-Worker Pipeline
+Document → split_pages() → [Worker1, Worker2, ..., Worker8] → batch_embed() → FAISS_batch_insert()
+
+# Performance Breakdown (500-page document):
+- Page splitting: 2s
+- Parallel text extraction: 25s (8 workers @ 200s/8)
+- Parallel translation: 23s (8 workers @ 180s/8)  
+- Batch embedding: 15s (GPU batch processing)
+- Vector DB insertion: 4s (batch FAISS operation)
+Total: 69s (vs 530s sequential) = 7.7x faster
+```
+
+## **🔍 Query Processing Workflow**
+```
+Query → Enhancement → Parallel Retrieval → Web Processing → Groq Llama → Response
+```
+
+### **⚡ Response Times:**
+- **Simple queries**: <2 seconds
+- **Complex queries**: 3-8 seconds  
+- **Web processing**: 5-15 seconds
+
+### **📊 Vector Database Specifications:**
+- **Database**: FAISS GPU with HNSW indexing
+- **Embedding Model**: intfloat/multilingual-e5-base (768 dimensions, ~1GB VRAM)
+- **Parameters**: M=32, efConstruction=200, efSearch=100
+- **Batch Operations**: 32-64 embeddings per batch (RTX 3050 optimized)
+- **GPU Memory Allocation**: Model (1GB) + Batch (2GB) + Index (1GB) = 3.2GB total
+- **Persistence**: Redis caching + periodic snapshots
+
+---
+
+**This implementation plan provides a detailed, minute-by-minute roadmap for creating a production-ready RAG system with advanced GPU-accelerated document analysis capabilities and 7x faster parallel processing.**
