@@ -4,11 +4,10 @@ Document analysis using RAG (Retrieval Augmented Generation)
 Supports multiple file formats with fast OCR processing
 """
 
+import json
 import os
 import time
-import json
 import warnings
-from typing import Optional
 from contextlib import asynccontextmanager
 
 # Suppress multiprocessing warnings if needed
@@ -17,32 +16,42 @@ if os.getenv('SUPPRESS_MULTIPROCESSING_WARNINGS', 'false').lower() == 'true':
 
 # Set multiprocessing start method to reduce semaphore leaks
 import multiprocessing
+
 try:
     multiprocessing.set_start_method('spawn', force=True)
 except RuntimeError:
     pass  # Already set
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from typing import Union
 
 from src.core.config import settings
 from src.core.integrated_rag_pipeline import IntegratedRAGPipeline
-from src.services.retrieval_orchestrator import RetrievalOrchestrator, QueryContext
-from src.testing.pipeline_validator import PipelineValidator
 from src.core.response_timer import ResponseTimer
 from src.models.schemas import (
     AnalysisRequest,
-    StreamResponse,
     HealthResponse,
     PerformanceMetrics,
+    StreamResponse,
 )
+from src.monitoring.prometheus_metrics import (
+    get_system_metrics,
+    monitor_rag_operation,
+    rag_metrics,
+    setup_prometheus_instrumentation,
+)
+from src.services.retrieval_orchestrator import QueryContext, RetrievalOrchestrator
+from src.testing.pipeline_validator import PipelineValidator
 
 # Global instances
-rag_pipeline: Optional[IntegratedRAGPipeline] = None
-retrieval_orchestrator: Optional[RetrievalOrchestrator] = None
-pipeline_validator: Optional[PipelineValidator] = None
+rag_pipeline: Union[IntegratedRAGPipeline, None] = None
+retrieval_orchestrator: Union[RetrievalOrchestrator, None] = None
+pipeline_validator: Union[PipelineValidator, None] = None
 security = HTTPBearer()
 
 
@@ -59,26 +68,26 @@ async def lifespan(app: FastAPI):
         print("🔄 Initializing Integrated RAG pipeline...")
         rag_pipeline = IntegratedRAGPipeline()
         init_result = await rag_pipeline.initialize()
-        
+
         if init_result["status"] == "success":
             print("✅ Integrated RAG pipeline initialized")
             print(f"⚡ GPU: {init_result['components_initialized']['gpu_service']}")
             print(f"🧠 Embedding Model: {init_result['configuration']['embedding_model']}")
             print(f"🗃️ Vector DB: {init_result['configuration']['vector_db_type']}")
-            
+
             # Initialize Retrieval Orchestrator
             print("🔄 Initializing Retrieval Orchestrator...")
             retrieval_orchestrator = RetrievalOrchestrator(rag_pipeline)
             print("✅ Retrieval Orchestrator initialized")
-            
+
             # Initialize Pipeline Validator
             print("🔄 Initializing Pipeline Validator...")
             pipeline_validator = PipelineValidator()
             print("✅ Pipeline Validator initialized")
-            
+
         else:
             raise Exception(f"Pipeline initialization failed: {init_result.get('error')}")
-        
+
         print("✅ Supported formats: Multi-format advanced processing")
         print("✅ Features: GPU acceleration, parallel processing, cross-lingual support")
 
@@ -100,11 +109,11 @@ async def lifespan(app: FastAPI):
             pipeline_stats = rag_pipeline.get_pipeline_stats()
             print(f"📊 Final stats: {pipeline_stats['performance_metrics']['total_documents_ingested']} docs processed, "
                   f"{pipeline_stats['performance_metrics']['total_queries_processed']} queries answered")
-        
+
         # Simple garbage collection
         import gc
         gc.collect()
-        
+
         print("✅ Shutdown complete!")
     except Exception as e:
         print(f"⚠️ Error during shutdown: {str(e)}")
@@ -126,6 +135,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Setup Prometheus instrumentation
+instrumentator = setup_prometheus_instrumentation(app)
+instrumentator.expose(app, endpoint="/metrics")
 
 
 # Request logging middleware
@@ -182,6 +195,7 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
 
 
 @app.post("/api/v1/hackrx/run")
+@monitor_rag_operation("document_analysis")
 async def analyze_document(
     request: AnalysisRequest,
     background_tasks: BackgroundTasks,
@@ -219,18 +233,24 @@ async def analyze_document(
         # Step 1: Ingest document with comprehensive processing
         print("📥 Step 1: Document ingestion...")
         document_urls = [str(request.documents)]
-        
+
         async def progress_callback(message, progress):
             print(f"📊 Progress: {message} ({progress:.1f}%)")
-        
+
         ingestion_result = await rag_pipeline.ingest_documents(
             document_urls=document_urls,
             progress_callback=progress_callback
         )
-        
+
         if ingestion_result.status != "success":
+            rag_metrics.record_failed_analysis("ingestion_failed")
             raise Exception(f"Document ingestion failed: {ingestion_result.errors}")
-        
+
+        # Record metrics
+        rag_metrics.record_document_processed("url_document")
+        rag_metrics.record_chunks_created(ingestion_result.chunks_created)
+        rag_metrics.record_embeddings_generated(ingestion_result.embeddings_generated)
+
         print(f"✅ Ingested: {ingestion_result.documents_processed} docs, "
               f"{ingestion_result.chunks_created} chunks, "
               f"{ingestion_result.embeddings_generated} embeddings")
@@ -238,11 +258,15 @@ async def analyze_document(
         # Step 2: Process questions using retrieval orchestrator
         print("\n🔍 Step 2: Processing questions...")
         answers = []
-        
+
         for i, question in enumerate(request.questions, 1):
             print(f"\n🤔 Question {i}: {question}")
-            
+
+            # Record question processing
+            rag_metrics.record_question_processed()
+
             # Use advanced retrieval orchestrator
+            query_start_time = time.time()
             response = await retrieval_orchestrator.retrieve_and_rank(
                 query=question,
                 max_results=5,
@@ -250,28 +274,33 @@ async def analyze_document(
                     preferred_language="auto-detect"
                 )
             )
-            
+            query_duration = time.time() - query_start_time
+            rag_metrics.record_query_duration(query_duration)
+
             if response.total_results > 0:
                 # Generate answer from top retrieved chunks
                 top_chunks = response.ranked_results[:3]
                 context_text = "\n\n".join([chunk.text for chunk in top_chunks])
-                
+
                 # Simple answer generation (in production, this would use LLM)
                 if len(context_text) > 100:
                     answer = f"Based on the document analysis: {context_text[:500]}..."
                 else:
                     answer = f"Based on the document analysis: {context_text}"
-                    
+
                 print(f"✅ Generated answer from {len(top_chunks)} relevant chunks")
             else:
                 answer = "I couldn't find specific information to answer this question in the document."
                 print("⚠️ No relevant chunks found")
-            
+
             answers.append(answer)
 
         elapsed_time = timer.get_elapsed_time()
         print(f"\n✅ Advanced RAG analysis completed in {elapsed_time:.2f} seconds")
         print(f"Generated {len(answers)} answers with advanced retrieval")
+
+        # Record successful analysis
+        rag_metrics.record_successful_analysis()
 
         # Return answers in expected format
         response = {"answers": answers}
@@ -291,6 +320,10 @@ async def analyze_document(
 
         print(f"\n❌ Advanced RAG analysis failed after {elapsed_time:.2f} seconds")
         print(f"Error: {str(e)}")
+
+        # Record failed analysis
+        rag_metrics.record_failed_analysis(type(e).__name__)
+        rag_metrics.record_error(type(e).__name__, "main_analysis")
 
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
@@ -317,10 +350,10 @@ async def stream_analysis(
 
         # For streaming, return initial status
         initial_answers = [f"Processing question {i+1} with RAG..." for i in range(len(request.questions))]
-        
+
         # Calculate estimated completion time based on current progress
         elapsed = timer.get_elapsed_time()
-        eta = max(settings.MIN_RESPONSE_TIME_SECONDS - elapsed, 0)
+        eta = max(settings.min_response_time_seconds - elapsed, 0)
 
         return StreamResponse(
             initial_answers=initial_answers,
@@ -344,7 +377,7 @@ async def health_check():
         # Check RAG pipeline
         pipeline_status = rag_pipeline is not None
         initialization_status = rag_pipeline.is_initialized if pipeline_status else False
-        
+
         overall_status = "healthy" if (pipeline_status and initialization_status) else "degraded"
 
         print(f"RAG Pipeline: {'✅' if pipeline_status else '❌'}")
@@ -372,13 +405,13 @@ async def health_check():
 async def get_performance_metrics(api_key: str = Depends(verify_api_key)):
     """Get comprehensive performance metrics for Advanced RAG system"""
     print("\n📊 PERFORMANCE METRICS REQUESTED (ADVANCED RAG)")
-    
+
     if not rag_pipeline:
         raise HTTPException(status_code=503, detail="Advanced RAG pipeline not initialized")
-    
+
     pipeline_stats = rag_pipeline.get_pipeline_stats()
     orchestrator_stats = retrieval_orchestrator.get_orchestrator_stats() if retrieval_orchestrator else {}
-    
+
     return PerformanceMetrics(
         total_requests=pipeline_stats["performance_metrics"]["total_queries_processed"],
         successful_requests=pipeline_stats["performance_metrics"]["total_queries_processed"],
@@ -421,27 +454,27 @@ async def ingest_documents_endpoint(
     """
     try:
         print("\n📥 ADVANCED DOCUMENT INGESTION REQUESTED")
-        
+
         if not rag_pipeline:
             raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
-        
+
         document_urls = request.get("document_urls", [])
         if not document_urls:
             raise HTTPException(status_code=400, detail="No document URLs provided")
-        
+
         print(f"📄 Processing {len(document_urls)} documents")
-        
+
         # Progress tracking
         async def progress_callback(message, progress):
             print(f"📊 {message} ({progress:.1f}%)")
-        
+
         # Ingest documents
         result = await rag_pipeline.ingest_documents(
             document_urls=document_urls,
             progress_callback=progress_callback,
             chunking_strategy=request.get("chunking_strategy", "hierarchical")
         )
-        
+
         return {
             "status": result.status,
             "documents_processed": result.documents_processed,
@@ -451,7 +484,7 @@ async def ingest_documents_endpoint(
             "pipeline_metadata": result.pipeline_metadata,
             "errors": result.errors
         }
-        
+
     except Exception as e:
         print(f"❌ Document ingestion failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
@@ -467,16 +500,16 @@ async def advanced_query_endpoint(
     """
     try:
         print("\n🔍 ADVANCED QUERY REQUESTED")
-        
+
         if not retrieval_orchestrator:
             raise HTTPException(status_code=503, detail="Retrieval orchestrator not initialized")
-        
+
         query = request.get("query")
         if not query:
             raise HTTPException(status_code=400, detail="No query provided")
-        
+
         print(f"❓ Query: {query}")
-        
+
         # Execute advanced retrieval
         response = await retrieval_orchestrator.retrieve_and_rank(
             query=query,
@@ -487,7 +520,7 @@ async def advanced_query_endpoint(
             ),
             strategies=request.get("strategies")
         )
-        
+
         return {
             "query_id": response.query_id,
             "original_query": response.original_query,
@@ -510,7 +543,7 @@ async def advanced_query_endpoint(
             "response_summary": response.response_summary,
             "confidence_score": response.confidence_score
         }
-        
+
     except Exception as e:
         print(f"❌ Advanced query failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
@@ -521,20 +554,20 @@ async def get_pipeline_stats(api_key: str = Depends(verify_api_key)):
     """Get comprehensive pipeline statistics"""
     try:
         print("\n📊 PIPELINE STATISTICS REQUESTED")
-        
+
         if not rag_pipeline:
             raise HTTPException(status_code=503, detail="Pipeline not initialized")
-        
+
         pipeline_stats = rag_pipeline.get_pipeline_stats()
         orchestrator_stats = retrieval_orchestrator.get_orchestrator_stats() if retrieval_orchestrator else {}
-        
+
         return {
             "pipeline_stats": pipeline_stats,
             "orchestrator_stats": orchestrator_stats,
             "system_status": "operational",
             "features_enabled": [
                 "GPU acceleration",
-                "Parallel processing", 
+                "Parallel processing",
                 "Cross-lingual support",
                 "Advanced retrieval",
                 "Hierarchical chunking",
@@ -543,7 +576,7 @@ async def get_pipeline_stats(api_key: str = Depends(verify_api_key)):
                 "Redis caching"
             ]
         }
-        
+
     except Exception as e:
         print(f"❌ Failed to get pipeline stats: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
@@ -557,13 +590,13 @@ async def run_pipeline_validation(api_key: str = Depends(verify_api_key)):
     """
     try:
         print("\n🧪 PIPELINE VALIDATION REQUESTED")
-        
+
         if not pipeline_validator:
             raise HTTPException(status_code=503, detail="Pipeline validator not initialized")
-        
+
         # Run validation tests
         validation_report = await pipeline_validator.run_comprehensive_validation()
-        
+
         return {
             "validation_status": "completed",
             "total_tests": validation_report.total_tests,
@@ -584,7 +617,7 @@ async def run_pipeline_validation(api_key: str = Depends(verify_api_key)):
                 for r in validation_report.test_results
             ]
         }
-        
+
     except Exception as e:
         print(f"❌ Pipeline validation failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
@@ -595,10 +628,10 @@ async def get_cache_stats(api_key: str = Depends(verify_api_key)):
     """Get basic cache statistics for RAG system"""
     try:
         print("\n📊 CACHE STATISTICS REQUESTED (RAG)")
-        
+
         if not rag_pipeline:
             raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
-        
+
         # RAG system caching capabilities
         cache_stats = {
             "vector_database": "available",
@@ -612,11 +645,12 @@ async def get_cache_stats(api_key: str = Depends(verify_api_key)):
                 "llm_responses": False
             }
         }
-        
+
         return cache_stats
-        
+
     except Exception as e:
         print(f"❌ Failed to get cache stats: {str(e)}")
+        rag_metrics.record_error("CacheStatsError", "cache_stats_endpoint")
         raise HTTPException(status_code=500, detail=f"Failed to get cache stats: {str(e)}")
 
 
@@ -625,10 +659,10 @@ async def clear_all_caches(api_key: str = Depends(verify_api_key)):
     """Clear caches for RAG system"""
     try:
         print("\n🗑️ CLEARING CACHES (RAG)")
-        
+
         if not rag_pipeline:
             raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
-        
+
         # For now, return placeholder - actual cache clearing would be implemented in services
         results = {
             "message": "Cache clearing requested (RAG system)",
@@ -636,10 +670,10 @@ async def clear_all_caches(api_key: str = Depends(verify_api_key)):
             "embedding_cache_cleared": True,
             "vector_database_cleared": True
         }
-        
+
         print("✅ Cache clearing completed")
         return results
-        
+
     except Exception as e:
         print(f"❌ Failed to clear caches: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to clear caches: {str(e)}")
@@ -647,16 +681,16 @@ async def clear_all_caches(api_key: str = Depends(verify_api_key)):
 
 @app.delete("/api/v1/hackrx/cache/document")
 async def remove_document_from_cache(
-    document_url: str, 
+    document_url: str,
     api_key: str = Depends(verify_api_key)
 ):
     """Remove specific document from RAG system cache"""
     try:
         print(f"\n🗑️ DOCUMENT REMOVAL REQUESTED (RAG): {document_url}")
-        
+
         if not rag_pipeline:
             raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
-        
+
         # Placeholder for document cache removal
         results = {
             "message": f"Document removal processed: {document_url}",
@@ -664,13 +698,144 @@ async def remove_document_from_cache(
             "action_taken": "cache_invalidation",
             "components_cleared": ["vector_embeddings", "document_chunks", "metadata"]
         }
-        
+
         print("✅ Document removed from cache")
         return results
-        
+
     except Exception as e:
         print(f"❌ Failed to process request: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to process request: {str(e)}")
+
+
+# Prometheus and monitoring endpoints
+
+@app.get("/api/v1/hackrx/metrics/prometheus")
+async def get_prometheus_metrics():
+    """Expose Prometheus metrics (alternative endpoint)"""
+    return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/api/v1/hackrx/metrics/system")
+async def get_detailed_system_metrics(api_key: str = Depends(verify_api_key)):
+    """Get detailed system metrics for monitoring dashboards"""
+    try:
+        print("\n📊 DETAILED SYSTEM METRICS REQUESTED")
+
+        # Get system metrics and update Prometheus gauges
+        system_metrics = get_system_metrics()
+
+        # Update Prometheus metrics with current system state
+        if 'gpu_info' in system_metrics and system_metrics['gpu_info']:
+            gpu_info = system_metrics['gpu_info']
+            rag_metrics.set_gpu_utilization(gpu_info.get('utilization', 0))
+            rag_metrics.set_gpu_memory_used(gpu_info.get('memory_used', 0))
+
+        return {
+            "timestamp": time.time(),
+            "system_metrics": system_metrics,
+            "prometheus_endpoint": "/metrics",
+            "monitoring_status": "active",
+            "metrics_collected": [
+                "http_requests_total",
+                "rag_documents_processed_total",
+                "rag_questions_processed_total",
+                "rag_processing_duration_seconds",
+                "rag_errors_total",
+                "rag_gpu_utilization_percent",
+                "rag_memory_usage_bytes",
+                "rag_cache_hits_total",
+                "rag_answer_quality_score"
+            ]
+        }
+
+    except Exception as e:
+        print(f"❌ Failed to get system metrics: {str(e)}")
+        rag_metrics.record_error("SystemMetricsError", "system_metrics_endpoint")
+        raise HTTPException(status_code=500, detail=f"Failed to get system metrics: {str(e)}")
+
+
+@app.get("/api/v1/hackrx/metrics/rag")
+async def get_rag_metrics_summary(api_key: str = Depends(verify_api_key)):
+    """Get RAG-specific metrics summary for Grafana dashboards"""
+    try:
+        print("\n📊 RAG METRICS SUMMARY REQUESTED")
+
+        if not rag_pipeline:
+            raise HTTPException(status_code=503, detail="RAG pipeline not initialized")
+
+        # Get pipeline stats
+        pipeline_stats = rag_pipeline.get_pipeline_stats()
+
+        return {
+            "timestamp": time.time(),
+            "pipeline_status": "operational",
+            "performance_metrics": {
+                "total_documents_processed": pipeline_stats["performance_metrics"]["total_documents_ingested"],
+                "total_questions_processed": pipeline_stats["performance_metrics"]["total_queries_processed"],
+                "total_chunks_created": pipeline_stats["performance_metrics"]["total_chunks_created"],
+                "average_processing_time": pipeline_stats["performance_metrics"]["average_query_time"],
+                "cache_hit_rate": pipeline_stats["component_stats"]["embedding_service"]["performance"]["cache_hit_rate_percent"]
+            },
+            "component_health": {
+                "gpu_service": pipeline_stats["component_stats"]["gpu_service"]["gpu_available"],
+                "embedding_service": "healthy",
+                "vector_store": "operational",
+                "retrieval_orchestrator": "healthy"
+            },
+            "grafana_queries": {
+                "request_rate": "rate(bajajfinsev_http_requests_total[5m])",
+                "error_rate": "rate(bajajfinsev_rag_errors_total[5m])",
+                "processing_time": "rate(bajajfinsev_rag_processing_duration_seconds[5m])",
+                "gpu_utilization": "bajajfinsev_rag_gpu_utilization_percent",
+                "memory_usage": "bajajfinsev_rag_memory_usage_bytes"
+            }
+        }
+
+    except Exception as e:
+        print(f"❌ Failed to get RAG metrics: {str(e)}")
+        rag_metrics.record_error("RAGMetricsError", "rag_metrics_endpoint")
+        raise HTTPException(status_code=500, detail=f"Failed to get RAG metrics: {str(e)}")
+
+
+@app.post("/api/v1/hackrx/metrics/test")
+async def test_metrics_generation(api_key: str = Depends(verify_api_key)):
+    """Generate test metrics for Grafana dashboard testing"""
+    try:
+        print("\n📊 GENERATING TEST METRICS FOR GRAFANA")
+
+        # Generate some test metrics
+        rag_metrics.record_document_processed("test_pdf")
+        rag_metrics.record_question_processed()
+        rag_metrics.record_chunks_created(50)
+        rag_metrics.record_embeddings_generated(50)
+        rag_metrics.record_cache_hit("embeddings")
+        rag_metrics.record_processing_duration("test_operation", 2.5)
+        rag_metrics.record_answer_quality(0.85)
+        rag_metrics.record_retrieval_accuracy(0.92)
+        rag_metrics.set_gpu_utilization(75.5)
+        rag_metrics.set_memory_usage("test_component", 1024 * 1024 * 500)  # 500MB
+
+        return {
+            "message": "Test metrics generated successfully",
+            "metrics_generated": [
+                "Documents processed: +1",
+                "Questions processed: +1",
+                "Chunks created: +50",
+                "Embeddings generated: +50",
+                "Cache hit recorded",
+                "Processing duration: 2.5s",
+                "Answer quality: 0.85",
+                "Retrieval accuracy: 0.92",
+                "GPU utilization: 75.5%",
+                "Memory usage: 500MB"
+            ],
+            "view_metrics_at": "/metrics",
+            "grafana_dashboard_ready": True
+        }
+
+    except Exception as e:
+        print(f"❌ Failed to generate test metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate test metrics: {str(e)}")
 
 
 # Root endpoint for testing
@@ -679,7 +844,7 @@ async def root():
     """Root endpoint"""
     return {
         "message": "BajajFinsev Advanced RAG System is running!",
-        "version": "5.0.0", 
+        "version": "5.0.0",
         "mode": "advanced_rag",
         "data_source": "GPU-accelerated parallel document processing with comprehensive RAG pipeline",
         "authentication": "Bearer token required for all endpoints",
@@ -706,7 +871,7 @@ async def root():
         "processing_flow": [
             "1. Parallel document download and validation",
             "2. Multi-format text extraction (PDF, Office, Images)",
-            "3. Hierarchical semantic chunking with cross-lingual support", 
+            "3. Hierarchical semantic chunking with cross-lingual support",
             "4. GPU-accelerated embedding generation with caching",
             "5. FAISS vector storage with batch operations",
             "6. Advanced query processing and intent analysis",
@@ -715,7 +880,7 @@ async def root():
         ],
         "endpoints": {
             "analyze": "/api/v1/hackrx/run",
-            "stream": "/api/v1/hackrx/stream", 
+            "stream": "/api/v1/hackrx/stream",
             "ingest": "/api/v1/hackrx/ingest",
             "query": "/api/v1/hackrx/query",
             "health": "/api/v1/hackrx/health",
@@ -724,18 +889,22 @@ async def root():
             "validate": "/api/v1/hackrx/validate",
             "cache_stats": "/api/v1/hackrx/cache/stats",
             "cache_clear": "/api/v1/hackrx/cache/clear",
-            "cache_remove": "/api/v1/hackrx/cache/document"
+            "cache_remove": "/api/v1/hackrx/cache/document",
+            "prometheus_metrics": "/metrics",
+            "system_metrics": "/api/v1/hackrx/metrics/system",
+            "rag_metrics": "/api/v1/hackrx/metrics/rag",
+            "test_metrics": "/api/v1/hackrx/metrics/test"
         },
         "supported_formats": [
             "PDF (with table extraction and OCR)",
-            "DOCX/DOC (with metadata and structure analysis)", 
+            "DOCX/DOC (with metadata and structure analysis)",
             "XLSX/XLS/CSV (with multi-sheet support)",
             "Images: JPG, JPEG, PNG, BMP, TIFF, TIF, WebP (with OCR)",
             "Text files and web content"
         ],
         "languages_supported": [
             "English (en)",
-            "Malayalam (ml)", 
+            "Malayalam (ml)",
             "Hindi (hi)",
             "Tamil (ta)",
             "Telugu (te)",

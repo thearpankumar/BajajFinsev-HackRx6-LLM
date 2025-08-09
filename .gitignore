@@ -348,7 +348,7 @@ benchmark_results/
 performance_tests/
 
 # Test data (keep structure, ignore content)
-test_data/*.pdf
+#test_data/*.pdf
 test_data/*.docx
 test_data/*.txt
 test_data/large_files/
@@ -421,9 +421,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Poetry
-poetry.lock
 
 # Conda
 .conda/
@@ -510,6 +507,10 @@ scripts/staging/
 document_cache/
 notes.txt
 cache
+
+models_cache/
+vector_storage/
+test_data/
 # ==============================================================================
 # NOTES:
 # 

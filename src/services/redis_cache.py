@@ -3,16 +3,15 @@ Redis Connection Manager with Centralized Configuration Support
 Provides connection pooling, retry logic, health checks, and caching operations
 """
 
-import json
 import asyncio
+import json
 import logging
-from typing import Any, Dict, List, Optional, Union
-from datetime import timedelta
+from typing import Any, Union
 
 try:
     import redis.asyncio as redis
     from redis.asyncio import ConnectionPool
-    from redis.exceptions import ConnectionError, TimeoutError, RedisError
+    from redis.exceptions import ConnectionError, RedisError, TimeoutError
 except ImportError:
     raise ImportError("redis package is required. Install with: pip install redis")
 
@@ -26,14 +25,14 @@ class RedisConnectionManager:
     Redis connection manager with pooling, retry logic, and health monitoring
     Integrated with centralized configuration system
     """
-    
+
     def __init__(self):
-        self.pool: Optional[ConnectionPool] = None
-        self.redis_client: Optional[redis.Redis] = None
+        self.pool: Union[ConnectionPool, None] = None
+        self.redis_client: Union[redis.Redis, None] = None
         self.is_connected = False
         self._health_check_interval = 30  # seconds
         self._last_health_check = 0
-        
+
         # Configuration from central config
         self.host = config.redis_host
         self.port = config.redis_port
@@ -41,14 +40,14 @@ class RedisConnectionManager:
         self.password = config.redis_password
         self.max_connections = config.redis_max_connections
         self.timeout = config.redis_timeout
-        
+
         logger.info(f"RedisConnectionManager initialized for {self.host}:{self.port}")
 
     async def initialize(self) -> bool:
         """Initialize Redis connection pool and test connectivity"""
         try:
             logger.info("🔄 Initializing Redis connection pool...")
-            
+
             # Create connection pool
             self.pool = ConnectionPool(
                 host=self.host,
@@ -62,17 +61,17 @@ class RedisConnectionManager:
                 retry_on_timeout=True,
                 decode_responses=True
             )
-            
+
             # Create Redis client
             self.redis_client = redis.Redis(connection_pool=self.pool)
-            
+
             # Test connection
             await self._test_connection()
-            
+
             self.is_connected = True
             logger.info("✅ Redis connection pool initialized successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to initialize Redis connection: {str(e)}")
             self.is_connected = False
@@ -87,32 +86,32 @@ class RedisConnectionManager:
             logger.error(f"Redis connection test failed: {str(e)}")
             return False
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Perform Redis health check"""
         current_time = asyncio.get_event_loop().time()
-        
+
         if current_time - self._last_health_check < self._health_check_interval:
             return {"status": "healthy" if self.is_connected else "unhealthy"}
-            
+
         try:
             if not self.redis_client:
                 raise Exception("Redis client not initialized")
-                
+
             # Test basic operations
             test_key = "health_check_test"
             await self.redis_client.set(test_key, "test_value", ex=10)
             value = await self.redis_client.get(test_key)
             await self.redis_client.delete(test_key)
-            
+
             if value != "test_value":
                 raise Exception("Redis read/write test failed")
-            
+
             # Get Redis info
             info = await self.redis_client.info()
-            
+
             self.is_connected = True
             self._last_health_check = current_time
-            
+
             return {
                 "status": "healthy",
                 "connected_clients": info.get("connected_clients", 0),
@@ -121,7 +120,7 @@ class RedisConnectionManager:
                 "version": info.get("redis_version", "unknown"),
                 "connection_pool_size": self.max_connections
             }
-            
+
         except Exception as e:
             self.is_connected = False
             logger.error(f"Redis health check failed: {str(e)}")
@@ -130,12 +129,12 @@ class RedisConnectionManager:
                 "error": str(e)
             }
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> Union[str, None]:
         """Get value from Redis with retry logic"""
         if not self.is_connected:
             logger.warning("Redis not connected, skipping get operation")
             return None
-            
+
         try:
             return await self.redis_client.get(key)
         except Exception as e:
@@ -143,29 +142,29 @@ class RedisConnectionManager:
             return None
 
     async def set(
-        self, 
-        key: str, 
-        value: Union[str, int, float], 
-        ex: Optional[int] = None,
+        self,
+        key: str,
+        value: Union[str, int] | float,
+        ex: Union[int, None] = None,
         nx: bool = False
     ) -> bool:
         """Set value in Redis with optional expiration"""
         if not self.is_connected:
             logger.warning("Redis not connected, skipping set operation")
             return False
-            
+
         try:
             # Use default TTL from config if not specified
             if ex is None:
                 ex = config.cache_ttl_hours * 3600
-                
+
             result = await self.redis_client.set(key, value, ex=ex, nx=nx)
             return bool(result)
         except Exception as e:
             logger.error(f"Redis set operation failed for key '{key}': {str(e)}")
             return False
 
-    async def get_json(self, key: str) -> Optional[Dict[str, Any]]:
+    async def get_json(self, key: str) -> dict[str, Any] | None:
         """Get JSON value from Redis"""
         try:
             value = await self.get(key)
@@ -177,10 +176,10 @@ class RedisConnectionManager:
             return None
 
     async def set_json(
-        self, 
-        key: str, 
-        value: Dict[str, Any], 
-        ex: Optional[int] = None
+        self,
+        key: str,
+        value: dict[str, Any],
+        ex: Union[int, None] = None
     ) -> bool:
         """Set JSON value in Redis"""
         try:
@@ -195,7 +194,7 @@ class RedisConnectionManager:
         if not self.is_connected:
             logger.warning("Redis not connected, skipping delete operation")
             return 0
-            
+
         try:
             return await self.redis_client.delete(*keys)
         except Exception as e:
@@ -206,18 +205,18 @@ class RedisConnectionManager:
         """Check if keys exist in Redis"""
         if not self.is_connected:
             return 0
-            
+
         try:
             return await self.redis_client.exists(*keys)
         except Exception as e:
             logger.error(f"Redis exists operation failed: {str(e)}")
             return 0
 
-    async def increment(self, key: str, amount: int = 1) -> Optional[int]:
+    async def increment(self, key: str, amount: int = 1) -> Union[int, None]:
         """Increment value in Redis"""
         if not self.is_connected:
             return None
-            
+
         try:
             return await self.redis_client.incrby(key, amount)
         except Exception as e:
@@ -228,18 +227,18 @@ class RedisConnectionManager:
         """Set expiration time for key"""
         if not self.is_connected:
             return False
-            
+
         try:
             return await self.redis_client.expire(key, seconds)
         except Exception as e:
             logger.error(f"Redis expire operation failed for key '{key}': {str(e)}")
             return False
 
-    async def keys(self, pattern: str = "*") -> List[str]:
+    async def keys(self, pattern: str = "*") -> list[str]:
         """Get keys matching pattern (use carefully in production)"""
         if not self.is_connected:
             return []
-            
+
         try:
             return await self.redis_client.keys(pattern)
         except Exception as e:
@@ -257,11 +256,11 @@ class RedisConnectionManager:
             logger.error(f"Failed to clear cache: {str(e)}")
             return 0
 
-    async def get_cache_stats(self) -> Dict[str, Any]:
+    async def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics"""
         try:
             info = await self.redis_client.info()
-            
+
             return {
                 "connected": self.is_connected,
                 "total_connections_received": info.get("total_connections_received", 0),
@@ -270,7 +269,7 @@ class RedisConnectionManager:
                 "keyspace_hits": info.get("keyspace_hits", 0),
                 "keyspace_misses": info.get("keyspace_misses", 0),
                 "hit_rate": self._calculate_hit_rate(
-                    info.get("keyspace_hits", 0), 
+                    info.get("keyspace_hits", 0),
                     info.get("keyspace_misses", 0)
                 )
             }
@@ -303,22 +302,22 @@ redis_manager = RedisConnectionManager()
 
 
 # Convenience functions for easy access
-async def get_cache(key: str) -> Optional[str]:
+async def get_cache(key: str) -> Union[str, None]:
     """Convenience function for getting cached values"""
     return await redis_manager.get(key)
 
 
-async def set_cache(key: str, value: Union[str, int, float], ex: Optional[int] = None) -> bool:
+async def set_cache(key: str, value: Union[str, int] | float, ex: Union[int, None] = None) -> bool:
     """Convenience function for setting cached values"""
     return await redis_manager.set(key, value, ex=ex)
 
 
-async def get_json_cache(key: str) -> Optional[Dict[str, Any]]:
+async def get_json_cache(key: str) -> dict[str, Any] | None:
     """Convenience function for getting JSON cached values"""
     return await redis_manager.get_json(key)
 
 
-async def set_json_cache(key: str, value: Dict[str, Any], ex: Optional[int] = None) -> bool:
+async def set_json_cache(key: str, value: dict[str, Any], ex: Union[int, None] = None) -> bool:
     """Convenience function for setting JSON cached values"""
     return await redis_manager.set_json(key, value, ex=ex)
 

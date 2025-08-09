@@ -1,19 +1,19 @@
+from typing import Union
 """
 Centralized Configuration System for BajajFinsev RAG System
 Comprehensive Pydantic-based configuration with environment variable support
 """
 
-import os
-from typing import Optional, List
 from enum import Enum
-from pydantic import BaseSettings, Field
+
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
 class GPUProvider(str, Enum):
     """GPU provider options"""
     CUDA = "cuda"
-    MPS = "mps" 
+    MPS = "mps"
     CPU = "cpu"
 
 
@@ -63,13 +63,13 @@ class SystemConfig(BaseSettings):
     # ========== LLM Configuration ==========
     query_llm: LLMProvider = Field(LLMProvider.GEMINI, description="LLM for query understanding")
     response_llm: LLMProvider = Field(LLMProvider.GROQ_LLAMA, description="LLM for response generation")
-    
+
     # ========== API Keys ==========
-    groq_api_key: Optional[str] = Field(None, env="GROQ_API_KEY", description="Groq API key")
-    gemini_api_key: Optional[str] = Field(None, env="GEMINI_API_KEY", description="Google Gemini API key") 
-    openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY", description="OpenAI API key")
-    google_translate_key: Optional[str] = Field(None, env="GOOGLE_TRANSLATE_KEY", description="Google Translate API key")
-    azure_translator_key: Optional[str] = Field(None, env="AZURE_TRANSLATOR_KEY", description="Azure Translator key")
+    groq_api_key: Union[str, None] = Field(None, env="GROQ_API_KEY", description="Groq API key")
+    gemini_api_key: Union[str, None] = Field(None, env="GEMINI_API_KEY", description="Google Gemini API key")
+    openai_api_key: Union[str, None] = Field(None, env="OPENAI_API_KEY", description="OpenAI API key")
+    google_translate_key: Union[str, None] = Field(None, env="GOOGLE_TRANSLATE_KEY", description="Google Translate API key")
+    azure_translator_key: Union[str, None] = Field(None, env="AZURE_TRANSLATOR_KEY", description="Azure Translator key")
 
     # ========== Processing Configuration ==========
     max_workers: int = Field(8, description="Parallel processing workers")
@@ -77,28 +77,28 @@ class SystemConfig(BaseSettings):
     chunk_overlap: int = Field(128, description="Overlap between chunks in tokens")
     max_document_size_mb: int = Field(100, description="Maximum document size in MB")
     max_concurrent_operations: int = Field(15, description="Maximum concurrent operations")
-    
+
     # ========== Vector Database Configuration ==========
     vector_db_type: VectorDBType = Field(VectorDBType.FAISS_GPU, description="Vector database type")
-    
+
     # FAISS Configuration
     faiss_index_type: str = Field("HNSW", description="FAISS index type")
     hnsw_m: int = Field(32, description="HNSW M parameter")
     hnsw_ef_construction: int = Field(200, description="HNSW efConstruction parameter")
     hnsw_ef_search: int = Field(100, description="HNSW efSearch parameter")
-    
+
     # Qdrant Configuration (fallback)
     qdrant_host: str = Field("localhost", description="Qdrant host")
     qdrant_port: int = Field(6333, description="Qdrant port")
     qdrant_collection_name: str = Field("bajaj_documents", description="Qdrant collection name")
-    qdrant_api_key: Optional[str] = Field(None, env="QDRANT_API_KEY", description="Qdrant API key")
+    qdrant_api_key: Union[str, None] = Field(None, env="QDRANT_API_KEY", description="Qdrant API key")
     qdrant_timeout: int = Field(60, description="Qdrant timeout in seconds")
 
     # ========== Redis Configuration ==========
     redis_host: str = Field("localhost", description="Redis host")
-    redis_port: int = Field(6379, description="Redis port") 
+    redis_port: int = Field(6379, description="Redis port")
     redis_db: int = Field(0, description="Redis database number")
-    redis_password: Optional[str] = Field(None, env="REDIS_PASSWORD", description="Redis password")
+    redis_password: Union[str, None] = Field(None, env="REDIS_PASSWORD", description="Redis password")
     redis_max_connections: int = Field(20, description="Maximum Redis connections")
     redis_timeout: int = Field(30, description="Redis connection timeout")
 
@@ -107,7 +107,7 @@ class SystemConfig(BaseSettings):
     min_response_time_seconds: int = Field(4, description="Minimum response time for UX")
     max_response_time_seconds: int = Field(6, description="Maximum response time target")
     cache_ttl_hours: int = Field(24, description="Default cache TTL in hours")
-    
+
     # ========== Translation Settings ==========
     enable_translation: bool = Field(True, description="Enable Malayalam-English translation")
     translation_confidence_threshold: float = Field(0.7, description="Translation quality threshold")
@@ -115,23 +115,23 @@ class SystemConfig(BaseSettings):
     translation_batch_size: int = Field(10, description="Translation batch size")
 
     # ========== Document Processing Settings ==========
-    supported_formats: List[str] = Field(
+    supported_formats: list[str] = Field(
         ["pdf", "docx", "doc", "xlsx", "xls", "csv", "jpg", "jpeg", "png", "bmp", "tiff", "tif", "webp"],
         description="Supported document formats"
     )
-    
-    # OCR Settings
-    ocr_engine: str = Field("easyocr", description="OCR engine (easyocr, tesseract)")
-    ocr_languages: List[str] = Field(["en", "ml"], description="OCR supported languages")
+
+    # OCR Settings - Tesseract with Malayalam support
+    ocr_engine: str = Field("tesseract", description="OCR engine (tesseract)")
+    ocr_languages: list[str] = Field(["en", "ml"], description="OCR supported languages (Malayalam + English)")
     enable_ocr_preprocessing: bool = Field(True, description="Enable image preprocessing for OCR")
     max_image_size_mb: int = Field(10, description="Maximum image size for OCR")
-    
+
     # ========== Human Response Settings ==========
     conversational_tone: bool = Field(True, description="Enable human-like conversational responses")
     response_length_preference: str = Field("medium", description="Response length: short/medium/detailed")
     include_source_attribution: bool = Field(True, description="Include source citations in responses")
     enable_response_streaming: bool = Field(True, description="Enable streaming responses")
-    
+
     # ========== Retrieval Configuration ==========
     top_k_retrieval: int = Field(25, description="Number of chunks to retrieve")
     rerank_top_k: int = Field(8, description="Number of chunks after reranking")
@@ -156,7 +156,7 @@ class SystemConfig(BaseSettings):
     enable_debug_mode: bool = Field(False, env="DEBUG", description="Enable debug mode")
     enable_response_delay: bool = Field(True, description="Enable artificial response delays for UX")
     skip_gpu_check: bool = Field(False, description="Skip GPU availability check")
-    
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

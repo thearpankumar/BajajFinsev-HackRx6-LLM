@@ -1,0 +1,56 @@
+name: gpu-genai
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+channel_priority: strict
+
+dependencies:
+  - python=3.11
+
+  # PyTorch CUDA support (PyTorch itself installed via pip)
+  - pytorch-cuda=12.1
+  
+  # NumPy compatible with FAISS 
+  - numpy
+  
+  # FAISS GPU - conda version for GPU acceleration
+  - faiss-gpu
+  
+  # SciPy for numerical computations (conda version for numpy compatibility)
+  - scipy
+  
+  # Core scientific computing (conda optimized)
+  - pandas
+  - scikit-learn
+  - scikit-image
+  
+  # ML libraries that need conda for proper linking
+  - sentence-transformers
+  - transformers
+  
+  # Image processing 
+  - pillow
+  - opencv
+  
+  # OCR (Python binding, Tesseract installed via system)
+  - pytesseract
+  
+  # Text processing
+  - nltk
+  - spacy
+  
+  # System utilities
+  - psutil
+  
+  # Development essentials
+  - jupyter
+  - pytest
+  - black
+  - ruff
+  
+  # System tools
+  - curl
+  - git
+  - pip
