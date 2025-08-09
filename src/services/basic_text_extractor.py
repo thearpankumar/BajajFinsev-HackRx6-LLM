@@ -108,7 +108,7 @@ class BasicTextExtractor:
                 logger.info("✅ EasyOCR available as fallback (English only)")
             except Exception as e:
                 logger.warning(f"EasyOCR initialization failed: {str(e)}")
-                HAS_EASYOCR = False
+                self.easyocr_reader = None
 
     async def extract_text(self, file_path: str, file_type: Union[str, None] = None) -> dict[str, Any]:
         """
