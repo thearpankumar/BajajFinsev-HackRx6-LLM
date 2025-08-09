@@ -1,0 +1,55 @@
+# Core web framework
+--extra-index-url https://download.pytorch.org/whl/cpu
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+ruff
+
+# AI and ML services
+openai
+google-generativeai
+sentence-transformers
+
+# Vector database
+qdrant-client
+
+# Document processing - Core
+PyMuPDF
+python-docx
+pypdf
+
+# Document processing - Enhanced (LlamaIndex)
+llama-index
+llama-index-readers-file
+llama-index-embeddings-openai
+llama-index-llms-openai
+
+# Excel and CSV processing
+pandas
+openpyxl
+xlrd
+
+# OCR and Image processing
+easyocr
+Pillow
+opencv-python-headless
+pytesseract
+
+# Text processing and search
+nltk
+spacy
+rank-bm25
+
+# HTTP and async operations
+aiohttp
+httpx
+aiofiles
+
+# Data processing
+numpy
+
+# Utilities
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]

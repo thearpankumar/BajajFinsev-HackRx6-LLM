@@ -1,0 +1,105 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest 
+    container_name: qdrant-container
+    ports:
+      - "6333:6333"
+      - "6334:6334"  # gRPC port
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__LOG_LEVEL=INFO
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  fastapi-app:
+    image: arpankumar1119/hackrx-bajaj:latest
+    container_name: fastapi-app-container
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 1
+    environment:
+      # API Keys
+      - API_KEY=${API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Qdrant Configuration
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION_NAME=bajaj_documents
+      - QDRANT_TIMEOUT=60
+      - VECTOR_DIMENSION=1536
+      
+      # System Configuration
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      
+    expose:
+      - "8000"
+    volumes:
+      - embedding_cache:/tmp/embedding_cache
+      - vector_db:/app/vector_db
+      - document_cache:/app/document_cache
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/hackrx/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/sites-available/llmnow.dev.conf:/etc/nginx/conf.d/default.conf
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    depends_on:
+      - fastapi-app
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot-container
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    networks:
+      - app-network
+    # This service runs on-demand, not continuously
+    profiles:
+      - tools
+
+volumes:
+  embedding_cache:
+    driver: local
+  vector_db:
+    driver: local
+  qdrant_data:
+    driver: local
+  document_cache:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
