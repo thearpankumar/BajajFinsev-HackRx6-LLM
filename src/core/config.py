@@ -59,6 +59,7 @@ class SystemConfig(BaseSettings):
     embedding_dimension: int = Field(768, description="e5-base embedding dimension")
     embedding_max_length: int = Field(512, description="Maximum sequence length for embeddings")
     enable_embedding_cache: bool = Field(True, description="Enable embedding caching")
+    use_silent_loading: bool = Field(True, description="Use silent loading to suppress ML library warnings")
 
     # ========== LLM Configuration ==========
     query_llm: LLMProvider = Field(LLMProvider.GEMINI, description="LLM for query understanding")

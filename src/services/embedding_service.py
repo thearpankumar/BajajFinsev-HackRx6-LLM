@@ -26,6 +26,7 @@ except ImportError:
 from src.core.config import config
 from src.core.gpu_service import GPUService
 from src.services.redis_cache import redis_manager
+from src.utils.silent_loader import load_sentence_transformer_silently
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class EmbeddingService:
         self.max_batch_size = config.max_batch_size
         self.mixed_precision = config.enable_mixed_precision
         self.enable_cache = config.enable_embedding_cache
+        self.use_silent_loading = config.use_silent_loading
 
         # GPU service integration
         self.gpu_service = gpu_service or GPUService()
@@ -147,62 +149,77 @@ class EmbeddingService:
             cache_dir.mkdir(exist_ok=True)
             model_kwargs['cache_folder'] = str(cache_dir)
 
-            # Set CUDA device and suppress warnings if using GPU
-            if self.device and str(self.device) != 'cpu' and HAS_TORCH:
-                # Set default CUDA device
-                if torch.cuda.is_available():
-                    torch.cuda.set_device(0)
-                    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+            # Choose loading method based on configuration
+            if self.use_silent_loading:
+                # Use silent subprocess loading to completely eliminate warnings
+                device_str = str(self.device) if self.device else 'cpu'
+                self.model = load_sentence_transformer_silently(
+                    model_name=self.embedding_model_name,
+                    device=device_str,
+                    cache_dir=str(cache_dir)
+                )
+                logger.info(f"🔇 Model loaded silently on {device_str}")
                 
-                # Environment variables to suppress ML library warnings
-                os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-                os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
-                os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+            else:
+                # Use traditional loading with suppression
+                device_str = str(self.device) if self.device else 'cpu'
                 
-                model_kwargs['device'] = device_str
-                logger.info(f"🎯 Loading model directly to {device_str}")
-            
-            # Suppress various library warnings during model loading
-            loggers_to_suppress = [
-                'sentence_transformers',
-                'transformers',
-                'transformers.tokenization_utils_base',
-                'transformers.configuration_utils',
-                'transformers.modeling_utils',
-                'torch',
-                'torch.nn.functional'
-            ]
-            
-            original_levels = {}
-            for logger_name in loggers_to_suppress:
-                logger_obj = logging.getLogger(logger_name)
-                original_levels[logger_name] = logger_obj.level
-                logger_obj.setLevel(logging.ERROR)
+                # Set CUDA device and suppress warnings if using GPU
+                if self.device and str(self.device) != 'cpu' and HAS_TORCH:
+                    # Set default CUDA device
+                    if torch.cuda.is_available():
+                        torch.cuda.set_device(0)
+                        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+                    
+                    # Environment variables to suppress ML library warnings
+                    os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+                    os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+                    os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+                    
+                    model_kwargs['device'] = device_str
+                    logger.info(f"🎯 Loading model directly to {device_str}")
+                
+                # Suppress various library warnings during model loading
+                loggers_to_suppress = [
+                    'sentence_transformers',
+                    'transformers',
+                    'transformers.tokenization_utils_base',
+                    'transformers.configuration_utils',
+                    'transformers.modeling_utils',
+                    'torch',
+                    'torch.nn.functional'
+                ]
+                
+                original_levels = {}
+                for logger_name in loggers_to_suppress:
+                    logger_obj = logging.getLogger(logger_name)
+                    original_levels[logger_name] = logger_obj.level
+                    logger_obj.setLevel(logging.ERROR)
 
-            # Complete output suppression during model loading
-            import warnings
-            import sys
-            from io import StringIO
-            from contextlib import redirect_stdout, redirect_stderr
-            
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
+                # Complete output suppression during model loading
+                import warnings
+                import sys
+                from io import StringIO
+                from contextlib import redirect_stdout, redirect_stderr
                 
-                # Redirect both stdout and stderr to suppress all output
-                stdout_buffer = StringIO()
-                stderr_buffer = StringIO()
-                
-                with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
-                    try:
-                        # Load the model with complete output suppression
-                        self.model = SentenceTransformer(
-                            self.embedding_model_name,
-                            **model_kwargs
-                        )
-                    finally:
-                        # Restore logging levels
-                        for logger_name, level in original_levels.items():
-                            logging.getLogger(logger_name).setLevel(level)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    
+                    # Redirect both stdout and stderr to suppress all output
+                    stdout_buffer = StringIO()
+                    stderr_buffer = StringIO()
+                    
+                    with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
+                        try:
+                            # Load the model with complete output suppression
+                            self.model = SentenceTransformer(
+                                self.embedding_model_name,
+                                **model_kwargs
+                            )
+                        finally:
+                            # Restore logging levels
+                            for logger_name, level in original_levels.items():
+                                logging.getLogger(logger_name).setLevel(level)
 
             # Get model information
             self.model_info = {
