@@ -153,9 +153,9 @@ class EmbeddingService:
             cache_dir.mkdir(exist_ok=True)
             model_kwargs['cache_folder'] = str(cache_dir)
 
-            # Choose loading method based on configuration
+            # 2025 ADVANCED LOADING: Multiple strategies for dict hash issues
             if self.use_silent_loading:
-                # Try silent subprocess loading first
+                # Strategy 1: Try silent subprocess loading first
                 try:
                     device_str = str(self.device) if self.device else 'cpu'
                     self.model = load_sentence_transformer_silently(
@@ -165,8 +165,27 @@ class EmbeddingService:
                     )
                     logger.info(f"🔇 Model loaded silently on {device_str}")
                 except Exception as e:
-                    logger.warning(f"Silent loading failed ({e}), falling back to traditional loading")
-                    # Fall through to traditional loading
+                    logger.warning(f"Silent subprocess failed ({e}), trying direct minimal loading")
+                    
+                    # Strategy 2: 2025 Direct minimal loading (no subprocess)
+                    try:
+                        # Set minimal environment
+                        os.environ['SENTENCE_TRANSFORMERS_HOME'] = str(cache_dir)
+                        os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
+                        
+                        # Minimal SentenceTransformer creation
+                        self.model = SentenceTransformer(self.embedding_model_name)
+                        
+                        # Move to device
+                        if self.device and str(self.device) != 'cpu':
+                            self.model = self.model.to(self.device)
+                            
+                        logger.info(f"🎯 Model loaded with 2025 direct minimal approach on {self.device}")
+                        device_str = None  # Mark as loaded
+                        
+                    except Exception as e2:
+                        logger.warning(f"Direct minimal loading failed ({e2}), falling back to traditional loading")
+                        # Fall through to traditional loading
                 else:
                     # Silent loading succeeded, skip traditional loading
                     device_str = None  # Mark as loaded

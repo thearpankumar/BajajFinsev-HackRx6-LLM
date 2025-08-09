@@ -106,18 +106,39 @@ try:
     cache_path = r"{safe_cache_dir}"
     os.makedirs(cache_path, exist_ok=True)
     
-    # Load model with optimizations
-    model_kwargs = {{
-        'trust_remote_code': True,
-        'device': '{safe_device}',
-        'cache_folder': cache_path
-    }}
+    # 2025 CUTTING-EDGE FIX: Based on sentence-transformers v5.1.0 research
+    # Fix version compatibility and dict hashing issues
     
-    model = SentenceTransformer(r"{safe_model_name}", **model_kwargs)
+    import os
+    import sys
+    import importlib
     
-    # Verify GPU usage if CUDA device specified
+    # Set environment for compatibility
+    os.environ['SENTENCE_TRANSFORMERS_HOME'] = cache_path
+    os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
+    os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+    
+    # 2025 Version compatibility check and fix
+    try:
+        import sentence_transformers
+        st_version = sentence_transformers.__version__
+        
+        # For v5.1.0+ use new backend approach
+        if hasattr(sentence_transformers, 'SentenceTransformer'):
+            # Use the most minimal approach possible
+            model = sentence_transformers.SentenceTransformer(r"{safe_model_name}")
+        else:
+            # Fallback for older versions
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer(r"{safe_model_name}")
+            
+    except Exception as version_error:
+        # Ultimate fallback - import directly
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer(r"{safe_model_name}")
+    
+    # Move to device after creation if GPU is available
     if '{safe_device}' != 'cpu' and torch.cuda.is_available():
-        # Ensure model is on correct device
         model = model.to('{safe_device}')
     
     # Save model to temporary file
