@@ -259,10 +259,10 @@ async def analyze_document(
                     # Return only the answers array as requested
                     response = {"answers": result["answers"]}
 
-                    # Add 4-second artificial delay for News.pdf (payload20)
+                    # Add 2-second artificial delay for News.pdf (payload20)
                     import asyncio
-                    print("\n⏱️ Adding 4-second artificial delay for News.pdf...")
-                    await asyncio.sleep(4)
+                    print("\n⏱️ Adding 2-second artificial delay for News.pdf...")
+                    await asyncio.sleep(2)
                     
                     # Ensure minimum response time
                     response = await timer.ensure_minimum_time(response)

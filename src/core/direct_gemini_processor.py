@@ -509,7 +509,7 @@ Please provide your answers in the following format:
                                         break
                                 
                                 if token_found:
-                                    answers.append(token_found.strip())
+                                    answers.append(f"your secret token is {token_found.strip()}")
                                     logger.info(f"✅ Extracted token: {token_found[:20]}...")
                                 else:
                                     # Return the full response if no pattern matches
