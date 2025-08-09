@@ -151,16 +151,23 @@ class EmbeddingService:
 
             # Choose loading method based on configuration
             if self.use_silent_loading:
-                # Use silent subprocess loading to completely eliminate warnings
-                device_str = str(self.device) if self.device else 'cpu'
-                self.model = load_sentence_transformer_silently(
-                    model_name=self.embedding_model_name,
-                    device=device_str,
-                    cache_dir=str(cache_dir)
-                )
-                logger.info(f"🔇 Model loaded silently on {device_str}")
-                
-            else:
+                # Try silent subprocess loading first
+                try:
+                    device_str = str(self.device) if self.device else 'cpu'
+                    self.model = load_sentence_transformer_silently(
+                        model_name=self.embedding_model_name,
+                        device=device_str,
+                        cache_dir=str(cache_dir)
+                    )
+                    logger.info(f"🔇 Model loaded silently on {device_str}")
+                except Exception as e:
+                    logger.warning(f"Silent loading failed ({e}), falling back to traditional loading")
+                    # Fall through to traditional loading
+                else:
+                    # Silent loading succeeded, skip traditional loading
+                    device_str = None  # Mark as loaded
+            
+            if not self.use_silent_loading or device_str is not None:
                 # Use traditional loading with suppression
                 device_str = str(self.device) if self.device else 'cpu'
                 

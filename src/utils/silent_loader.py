@@ -32,12 +32,14 @@ def load_sentence_transformer_silently(model_name: str, device: str = 'cuda:0', 
     
     # Prepare temp file paths
     temp_dir = Path(tempfile.gettempdir())
-    model_file = temp_dir / f'model_{hash(model_name)}.pkl'
-    success_file = temp_dir / f'success_{hash(model_name)}.txt'
-    error_file = temp_dir / f'error_{hash(model_name)}.txt'
-    script_file = temp_dir / f'loader_{hash(model_name)}.py'
+    # Create a safe hash from model name string
+    model_hash = abs(hash(str(model_name)))
+    model_file = temp_dir / f'model_{model_hash}.pkl'
+    success_file = temp_dir / f'success_{model_hash}.txt'
+    error_file = temp_dir / f'error_{model_hash}.txt'
+    script_file = temp_dir / f'loader_{model_hash}.py'
     
-    # Create the isolated loader script
+    # Create the isolated loader script with proper escaping
     loader_script = f'''
 import os
 import sys
@@ -70,7 +72,7 @@ try:
     import pickle
     
     # Create cache directory
-    cache_path = "{cache_dir}"
+    cache_path = r"{cache_dir}"
     os.makedirs(cache_path, exist_ok=True)
     
     # Load model with optimizations
@@ -80,7 +82,7 @@ try:
         'cache_folder': cache_path
     }}
     
-    model = SentenceTransformer('{model_name}', **model_kwargs)
+    model = SentenceTransformer(r"{model_name}", **model_kwargs)
     
     # Verify GPU usage if CUDA device specified
     if '{device}' != 'cpu' and torch.cuda.is_available():
@@ -88,22 +90,24 @@ try:
         model = model.to('{device}')
     
     # Save model to temporary file
-    with open('{model_file}', 'wb') as f:
+    with open(r"{model_file}", 'wb') as f:
         pickle.dump(model, f)
     
     # Write success indicator with device info
     model_device = str(next(model.parameters()).device) if hasattr(model, 'parameters') else '{device}'
-    with open('{success_file}', 'w') as f:
-        f.write(f'success,{{model_device}}')
+    with open(r"{success_file}", 'w') as f:
+        f.write('success,' + str(model_device))
         
 except Exception as e:
     # Write error to file
-    with open('{error_file}', 'w') as f:
+    with open(r"{error_file}", 'w') as f:
         f.write(str(e))
 finally:
     # Close redirected streams
-    sys.stdout.close()
-    sys.stderr.close()
+    if sys.stdout != sys.__stdout__:
+        sys.stdout.close()
+    if sys.stderr != sys.__stderr__:
+        sys.stderr.close()
 '''
     
     try:
@@ -152,8 +156,16 @@ finally:
         raise Exception(f"Model loading timed out after 5 minutes for {model_name}")
     
     except Exception as e:
-        logger.error(f"❌ Silent loading failed: {str(e)}")
-        raise
+        error_msg = f"Silent loading failed: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        
+        # Add debugging info
+        logger.debug(f"Model name: {model_name}")
+        logger.debug(f"Device: {device}")
+        logger.debug(f"Cache dir: {cache_dir}")
+        logger.debug(f"Temp files: model={model_file}, success={success_file}, error={error_file}")
+        
+        raise Exception(error_msg)
     
     finally:
         # Cleanup temp files
