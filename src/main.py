@@ -15,10 +15,20 @@ warnings.filterwarnings("ignore", category=UserWarning, module="multiprocessing.
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# Suppress ML library warnings
+# Suppress ML library warnings at system level
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
 os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+os.environ['TORCH_CPP_LOG_LEVEL'] = 'ERROR'
+os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
+
+# Try to suppress C++ level warnings
+try:
+    import torch._C
+    torch._C._set_print_stacktraces_on_fatal_signal(False)
+except:
+    pass
 
 # Suppress stdout/stderr warnings from sentence transformers and torch
 import logging

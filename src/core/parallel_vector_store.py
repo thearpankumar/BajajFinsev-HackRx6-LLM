@@ -116,13 +116,27 @@ class ParallelVectorStore:
             # Initialize GPU service if available
             if self.gpu_service and self.gpu_service.is_gpu_available:
                 gpu_info = self.gpu_service.initialize()
-                try:
-                    self.use_gpu = faiss.get_num_gpus() > 0 if HAS_FAISS and faiss else False
-                    gpu_count = faiss.get_num_gpus() if HAS_FAISS and faiss else 0
+                
+                # Suppress FAISS GPU detection warnings
+                import sys
+                from io import StringIO
+                from contextlib import redirect_stdout, redirect_stderr
+                
+                stdout_buffer = StringIO()
+                stderr_buffer = StringIO()
+                
+                with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
+                    try:
+                        self.use_gpu = faiss.get_num_gpus() > 0 if HAS_FAISS and faiss else False
+                        gpu_count = faiss.get_num_gpus() if HAS_FAISS and faiss else 0
+                    except (AttributeError, Exception) as e:
+                        self.use_gpu = False
+                        gpu_count = 0
+                
+                if self.use_gpu:
                     logger.info(f"🎯 GPU support available: {self.use_gpu} (FAISS GPUs: {gpu_count})")
-                except (AttributeError, Exception) as e:
-                    logger.warning(f"FAISS GPU detection failed: {e}. Using CPU mode.")
-                    self.use_gpu = False
+                else:
+                    logger.warning("FAISS GPU detection failed. Using CPU mode.")
 
             # Initialize the FAISS index
             index_result = self._initialize_faiss_index()

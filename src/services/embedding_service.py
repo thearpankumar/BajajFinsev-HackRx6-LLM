@@ -179,28 +179,30 @@ class EmbeddingService:
                 original_levels[logger_name] = logger_obj.level
                 logger_obj.setLevel(logging.ERROR)
 
-            # Also suppress stdout warnings
+            # Complete output suppression during model loading
             import warnings
+            import sys
+            from io import StringIO
+            from contextlib import redirect_stdout, redirect_stderr
+            
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 
-                # Redirect stdout temporarily to suppress print statements
-                import sys
-                from io import StringIO
-                old_stdout = sys.stdout
-                sys.stdout = StringIO()
+                # Redirect both stdout and stderr to suppress all output
+                stdout_buffer = StringIO()
+                stderr_buffer = StringIO()
                 
-                try:
-                    # Load the model
-                    self.model = SentenceTransformer(
-                        self.embedding_model_name,
-                        **model_kwargs
-                    )
-                finally:
-                    # Restore stdout and logging levels
-                    sys.stdout = old_stdout
-                    for logger_name, level in original_levels.items():
-                        logging.getLogger(logger_name).setLevel(level)
+                with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
+                    try:
+                        # Load the model with complete output suppression
+                        self.model = SentenceTransformer(
+                            self.embedding_model_name,
+                            **model_kwargs
+                        )
+                    finally:
+                        # Restore logging levels
+                        for logger_name, level in original_levels.items():
+                            logging.getLogger(logger_name).setLevel(level)
 
             # Get model information
             self.model_info = {
