@@ -14,7 +14,7 @@ from typing import Any, Dict
 logger = logging.getLogger(__name__)
 
 
-def load_sentence_transformer_silently(model_name: str, device: str = 'cuda:0', cache_dir: str = './models_cache') -> Any:
+def load_sentence_transformer_silently(model_name, device: str = 'cuda:0', cache_dir: str = './models_cache') -> Any:
     """
     Load SentenceTransformer with complete output suppression using subprocess isolation
     
@@ -30,14 +30,45 @@ def load_sentence_transformer_silently(model_name: str, device: str = 'cuda:0', 
         Exception: If model loading fails
     """
     
-    # Prepare temp file paths
-    temp_dir = Path(tempfile.gettempdir())
-    # Create a safe hash from model name string
-    model_hash = abs(hash(str(model_name)))
-    model_file = temp_dir / f'model_{model_hash}.pkl'
-    success_file = temp_dir / f'success_{model_hash}.txt'
-    error_file = temp_dir / f'error_{model_hash}.txt'
-    script_file = temp_dir / f'loader_{model_hash}.py'
+    # 2024-2025 Fix: Handle unhashable dict/list parameters from transformers/sentence-transformers
+    def safe_param_to_string(param):
+        """Convert any parameter to a safe string representation"""
+        if isinstance(param, (dict, list, set)):
+            import json
+            try:
+                return json.dumps(param, sort_keys=True)
+            except (TypeError, ValueError):
+                return str(param)
+        return str(param)
+    
+    # Safely convert all parameters
+    safe_model_name = safe_param_to_string(model_name)
+    safe_device = safe_param_to_string(device)
+    safe_cache_dir = safe_param_to_string(cache_dir)
+    
+    logger.debug(f"Converted parameters - model_name: {safe_model_name}, device: {safe_device}, cache_dir: {safe_cache_dir}")
+    
+    try:
+        # Prepare temp file paths with safe hash generation
+        temp_dir = Path(tempfile.gettempdir())
+        
+        # Create a deterministic hash using hashlib
+        import hashlib
+        import time
+        
+        # Include timestamp to avoid conflicts
+        hash_input = f"{safe_model_name}_{safe_device}_{safe_cache_dir}_{int(time.time())}"
+        model_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:12]  # Use SHA256 for better distribution
+        
+        model_file = temp_dir / f'st_model_{model_hash}.pkl'
+        success_file = temp_dir / f'st_success_{model_hash}.txt'
+        error_file = temp_dir / f'st_error_{model_hash}.txt'
+        script_file = temp_dir / f'st_loader_{model_hash}.py'
+        
+    except Exception as e:
+        logger.error(f"Hash creation failed: {e}")
+        logger.error(f"Original parameters: model_name={type(model_name)}, device={type(device)}, cache_dir={type(cache_dir)}")
+        raise Exception(f"Parameter processing failed: {e}")
     
     # Create the isolated loader script with proper escaping
     loader_script = f'''
@@ -72,29 +103,29 @@ try:
     import pickle
     
     # Create cache directory
-    cache_path = r"{cache_dir}"
+    cache_path = r"{safe_cache_dir}"
     os.makedirs(cache_path, exist_ok=True)
     
     # Load model with optimizations
     model_kwargs = {{
         'trust_remote_code': True,
-        'device': '{device}',
+        'device': '{safe_device}',
         'cache_folder': cache_path
     }}
     
-    model = SentenceTransformer(r"{model_name}", **model_kwargs)
+    model = SentenceTransformer(r"{safe_model_name}", **model_kwargs)
     
     # Verify GPU usage if CUDA device specified
-    if '{device}' != 'cpu' and torch.cuda.is_available():
+    if '{safe_device}' != 'cpu' and torch.cuda.is_available():
         # Ensure model is on correct device
-        model = model.to('{device}')
+        model = model.to('{safe_device}')
     
     # Save model to temporary file
     with open(r"{model_file}", 'wb') as f:
         pickle.dump(model, f)
     
     # Write success indicator with device info
-    model_device = str(next(model.parameters()).device) if hasattr(model, 'parameters') else '{device}'
+    model_device = str(next(model.parameters()).device) if hasattr(model, 'parameters') else '{safe_device}'
     with open(r"{success_file}", 'w') as f:
         f.write('success,' + str(model_device))
         
