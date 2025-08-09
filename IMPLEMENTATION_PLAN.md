@@ -1,7 +1,7 @@
-# 🎯 **Hybrid RAG System Implementation Plan**
+# 🎯 **RAG System Implementation Plan**
 
 **Project**: BajajFinsev Advanced Document Analysis System  
-**Goal**: Integrate GPU-accelerated RAG pipeline while preserving current exact match system  
+**Goal**: Implement GPU-accelerated RAG pipeline for comprehensive document analysis  
 **Timeline**: 4 weeks (160+ hours)  
 **GPU Target**: RTX 3050 (4GB VRAM)
 
@@ -9,19 +9,18 @@
 
 ## 📋 **Executive Summary**
 
-Transform the current JSON-only system into a hybrid RAG system that:
-- ✅ **Preserves 100%** of current functionality and response format
-- ✅ **Adds RAG capabilities** only when exact match fails ("No answer found")
+Build a comprehensive RAG system that:
+- ✅ **RAG-powered document analysis** for comprehensive question answering
 - ✅ **Supports multiple formats**: PDF, DOCX, XLSX, Images with OCR
 - ✅ **GPU-accelerated processing** optimized for RTX 3050
 - ✅ **Handles 700K+ tokens** in under 40 seconds
-- ✅ **Maintains current API**: Same input/output format
+- ✅ **FastAPI-based architecture** for scalable deployment
 
 ---
 
 # 🗓️ **WEEK 1: Foundation & Infrastructure (40 hours)**
 
-## **Day 1: Redis Integration & Response Wrapper (8 hours)**
+## **Day 1: Redis Integration & RAG Foundation (8 hours)**
 
 ### **Morning (4 hours): Redis Service Setup**
 - **Task 1.1** (1 hour): Add Redis service to existing docker-compose.yml
@@ -44,22 +43,22 @@ Transform the current JSON-only system into a hybrid RAG system that:
   - Connection health monitoring
   - Docker compose service integration testing
 
-### **Afternoon (4 hours): Non-Invasive Response Wrapper**
-- **Task 1.4** (2 hours): Create HybridResponseHandler class
-  - File: `src/core/hybrid_response_handler.py`
-  - Wrapper around current DocumentSpecificMatcher
-  - Preserve exact input/output format
-  - Add response analysis logic
+### **Afternoon (4 hours): RAG Pipeline Foundation**
+- **Task 1.4** (2 hours): Expand BasicRAGPipeline class
+  - File: `src/core/basic_rag_pipeline.py`
+  - Document processing workflow foundation
+  - Error handling and logging setup
+  - Performance monitoring setup
   
-- **Task 1.5** (1 hour): Create response failure detection
-  - Detect "No answer found" patterns
-  - Pattern matching for failed responses
-  - Confidence scoring for answer quality
+- **Task 1.5** (1 hour): Create response validation system
+  - Answer quality scoring
+  - Confidence scoring for responses
+  - Response format validation
   
-- **Task 1.6** (1 hour): Integrate wrapper into main.py
-  - Replace document_matcher initialization
-  - Maintain all existing endpoints unchanged
-  - Add logging for hybrid mode operations
+- **Task 1.6** (1 hour): Integrate expanded pipeline into main.py
+  - Enhanced RAG pipeline initialization
+  - Improved error handling
+  - Add comprehensive logging for RAG operations
 
 ---
 
@@ -163,16 +162,16 @@ Transform the current JSON-only system into a hybrid RAG system that:
   - Result compilation and ranking
   
 - **Task 5.2** (2 hours): Response generation
-  - Simple template-based responses
+  - Template-based responses
   - Source attribution
   - Confidence scoring
-  - Format preservation (same as current system)
+  - Consistent response formatting
 
 ### **Afternoon (4 hours): Week 1 Integration & Testing**
 - **Task 5.3** (2 hours): End-to-end integration testing
-  - Test hybrid response handler
-  - Verify current system unchanged
-  - Test RAG activation on failed matches
+  - Test RAG pipeline functionality
+  - Verify document processing workflow
+  - Test response generation and formatting
   - Performance baseline measurement
   
 - **Task 5.4** (2 hours): Week 1 debugging and optimization
@@ -230,7 +229,7 @@ Transform the current JSON-only system into a hybrid RAG system that:
   - Search parameter tuning (efSearch=100)
   - Multi-index support
 
-### **Afternoon (4 hours): Hybrid Search Implementation**
+### **Afternoon (4 hours): Multi-Modal Search Implementation**
 - **Task 7.3** (2 hours): Dense vector search
   - GPU-accelerated similarity search
   - Result ranking and filtering
@@ -279,7 +278,7 @@ Transform the current JSON-only system into a hybrid RAG system that:
 ## **Day 9: Retrieval & Fusion System (8 hours)**
 
 ### **Morning (4 hours): Advanced Retrieval**
-- **Task 9.1** (2 hours): Hybrid retrieval implementation
+- **Task 9.1** (2 hours): Multi-modal retrieval implementation
   - Dense + sparse search combination
   - Weight balancing (Dense: 0.7, Sparse: 0.3)
   - Result deduplication
@@ -622,7 +621,7 @@ Transform the current JSON-only system into a hybrid RAG system that:
   - Edge case scenario testing
   
 - **Task 20.2** (2 hours): Regression testing
-  - Current functionality preservation
+  - Core functionality validation
   - API compatibility verification
   - Response format validation
   - Performance regression testing
@@ -645,7 +644,6 @@ Transform the current JSON-only system into a hybrid RAG system that:
 # 📊 **Success Metrics & Validation**
 
 ## **Performance Targets**
-- ✅ **Current System Preservation**: 100% compatibility maintained
 - ✅ **Processing Speed**: 700K tokens in <40 seconds  
 - ✅ **Memory Usage**: <8GB for large documents
 - ✅ **Accuracy**: >75% on complex queries
@@ -656,15 +654,15 @@ Transform the current JSON-only system into a hybrid RAG system that:
 ## **Functional Requirements**
 - ✅ **Multi-Format Support**: PDF, DOCX, XLSX, Images with OCR
 - ✅ **GPU Acceleration**: RTX 3050 optimized (batch size: 16)
-- ✅ **Hybrid Retrieval**: Dense + Sparse + Fusion
+- ✅ **Multi-Modal Retrieval**: Dense + Sparse + Fusion
 - ✅ **LLM Integration**: Gemini-2.5-flash-lite + OpenAI-4o-mini
 - ✅ **Streaming**: Real-time processing and responses
 - ✅ **Caching**: Redis with clustering support
 - ✅ **Monitoring**: Comprehensive performance tracking
 
 ## **Quality Assurance**
-- ✅ **Zero Breaking Changes**: Current API untouched
-- ✅ **Response Format**: Same JSON structure maintained
+- ✅ **Consistent API**: Well-defined REST endpoints
+- ✅ **Response Format**: Structured JSON responses
 - ✅ **Error Handling**: Graceful degradation and fallbacks
 - ✅ **Security**: Authentication, validation, rate limiting
 - ✅ **Scalability**: Horizontal scaling capability
@@ -748,4 +746,4 @@ brew install tesseract poppler
 
 ---
 
-**This implementation plan provides a detailed, minute-by-minute roadmap for creating a production-ready hybrid RAG system that preserves your current functionality while adding advanced GPU-accelerated document analysis capabilities.**
+**This implementation plan provides a detailed, minute-by-minute roadmap for creating a production-ready RAG system with advanced GPU-accelerated document analysis capabilities.**
