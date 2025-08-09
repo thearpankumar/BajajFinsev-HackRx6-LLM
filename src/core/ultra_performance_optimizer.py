@@ -186,16 +186,20 @@ class UltraPerformanceOptimizer:
         
         original_process_documents = processor.process_documents
         
-        async def ultra_parallel_processing(document_urls: List[str], progress_callback=None) -> Dict[str, Any]:
+        async def ultra_parallel_processing(self, document_urls: List[str], progress_callback=None) -> Dict[str, Any]:
             """Ultra-parallel document processing with correct signature"""
             
-            if progress_callback:
-                await progress_callback("Starting ultra-parallel processing", 10)
+            # Create a wrapper for the progress callback to handle the different signature
+            async def ultra_progress_wrapper(progress, completed, total):
+                if progress_callback:
+                    # Convert the 3-parameter callback to the expected format
+                    message = f"Ultra processing: {completed}/{total} documents"
+                    await progress_callback(message, progress)
             
             # For ultra-speed, let's use the original method but with optimizations
             # Call the original method - it's already optimized for parallel processing
             try:
-                result = await original_process_documents(document_urls, progress_callback)
+                result = await original_process_documents(document_urls, ultra_progress_wrapper)
                 
                 # Add ultra-performance tracking
                 if 'processing_results' in result:
@@ -205,24 +209,19 @@ class UltraPerformanceOptimizer:
                             text_content = doc_result['content'].get('text', '')
                             total_text += text_content
                     
-                    # Track tokens processed
+                    # Track tokens processed in the global optimizer
                     token_count = len(total_text.split())
-                    self.tokens_processed += token_count
-                
-                if progress_callback:
-                    await progress_callback("Ultra-parallel processing complete", 100)
+                    ultra_optimizer.tokens_processed += token_count
                 
                 return result
                 
             except Exception as e:
                 logger.error(f"Ultra-parallel processing failed: {e}")
-                if progress_callback:
-                    await progress_callback(f"Processing failed: {str(e)}", 100)
                 raise e
         
-        # Monkey patch with correct binding
-        processor.ultra_parallel_processing = ultra_parallel_processing
-        processor.process_documents = processor.ultra_parallel_processing
+        # Monkey patch with correct method binding
+        import types
+        processor.process_documents = types.MethodType(ultra_parallel_processing, processor)
         
         logger.info("✅ Document processor patched for ultra parallelism")
     
