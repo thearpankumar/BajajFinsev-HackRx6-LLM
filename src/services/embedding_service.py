@@ -136,9 +136,9 @@ class EmbeddingService:
             logger.info(f"📦 Loading embedding model: {self.embedding_model_name}")
 
             # Load model with optimizations
+            device_str = str(self.device) if self.device else 'cpu'
             model_kwargs = {
-                'trust_remote_code': True,
-                'device': str(self.device) if self.device else 'cpu'
+                'trust_remote_code': True
             }
 
             # Add cache directory for models
@@ -146,11 +146,16 @@ class EmbeddingService:
             cache_dir.mkdir(exist_ok=True)
             model_kwargs['cache_folder'] = str(cache_dir)
 
-            # Load the model
+            # Load the model initially on CPU to avoid CUDA memory issues during loading
             self.model = SentenceTransformer(
                 self.embedding_model_name,
                 **model_kwargs
             )
+            
+            # Move to GPU after loading if GPU is available
+            if self.device and str(self.device) != 'cpu':
+                logger.info(f"🎯 Moving model to {device_str}")
+                self.model = self.model.to(self.device)
 
             # Get model information
             self.model_info = {
@@ -184,9 +189,8 @@ class EmbeddingService:
             return
 
         try:
-            # Move model to GPU device
-            self.model = self.model.to(self.device)
-
+            # Model is already moved to GPU in _load_model, just apply optimizations
+            
             # Enable mixed precision if configured
             if self.mixed_precision and self.gpu_service.gpu_provider == "cuda":
                 # Enable autocast for inference
@@ -200,7 +204,7 @@ class EmbeddingService:
             for param in self.model.parameters():
                 param.requires_grad = False
 
-            logger.info(f"🎯 Model configured for {self.device} with optimizations")
+            logger.info(f"✅ Model optimized for {self.device} inference")
 
         except Exception as e:
             logger.warning(f"Model GPU configuration failed: {str(e)}")
