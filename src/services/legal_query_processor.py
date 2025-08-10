@@ -159,8 +159,8 @@ class DomainQueryProcessor:
         query_lower = query.lower()
         
         # Domain keywords
-        insurance_keywords = ["policy", "claim", "premium", "hospital", "medical", "coverage", "insurance", "ambulance", "maternity", "cashless"]
-        legal_keywords = ["article", "constitution", "legal", "law", "court", "judge", "rights", "freedom", "arrest"]
+        insurance_keywords = ["policy", "claim", "premium", "hospital", "medical", "coverage", "insurance", "ambulance", "maternity", "cashless", "deductible", "insurer"]
+        legal_keywords = ["article", "constitution", "legal", "law", "court", "judge", "rights", "freedom", "arrest", "tariff", "import duty", "tax"]
         hr_keywords = ["employee", "salary", "leave", "job", "employment", "termination", "performance", "harassment", "resignation"]
         compliance_keywords = ["regulation", "audit", "compliance", "violation", "penalty", "certification", "governance", "ethics"]
         

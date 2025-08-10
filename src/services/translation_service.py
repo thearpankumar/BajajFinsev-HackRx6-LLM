@@ -360,6 +360,8 @@ class TranslationService:
             self.total_processing_time += processing_time
 
             logger.info(f"✅ Translation completed in {processing_time:.2f}s using {translation_result.translation_method}")
+            print(f"Original: {text}")
+            print(f"Translated: {translation_result.translated_text}")
             return translation_result
 
         except Exception as e:

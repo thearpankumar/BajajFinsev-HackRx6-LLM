@@ -703,6 +703,7 @@ class IntegratedRAGPipeline:
             
             if not malayalam_chunks_found:
                 logger.info("📝 Document appears to be English-only, skipping translation")
+                print("Translation skipped: Document is English-only.")
                 # Add language metadata to original chunks
                 for chunk in original_chunks:
                     if chunk.metadata:

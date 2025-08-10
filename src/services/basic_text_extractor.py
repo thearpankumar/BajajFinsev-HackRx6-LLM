@@ -94,15 +94,23 @@ class BasicTextExtractor:
                 async with session.get(url) as response:
                     response.raise_for_status()
                     headers = dict(response.headers)
-                    content_type = headers.get('content-type', '').lower()
                     
-                    file_type = 'txt'
+                    # More robust file type detection
+                    from urllib.parse import urlparse
+                    from pathlib import Path
+                    
+                    content_type = headers.get('content-type', '').lower()
+                    file_ext_from_url = Path(urlparse(url).path).suffix.lower().lstrip('.')
+
+                    file_type = 'txt' # Default
                     if 'html' in content_type:
                         file_type = 'html'
-                    elif 'pdf' in content_type:
+                    elif 'pdf' in content_type or file_ext_from_url == 'pdf':
                         file_type = 'pdf'
                     elif 'json' in content_type:
                         file_type = 'json'
+                    elif file_ext_from_url in self.supported_formats:
+                        file_type = file_ext_from_url
                     
                     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_type}") as tmp_file:
                         tmp_file.write(await response.read())
