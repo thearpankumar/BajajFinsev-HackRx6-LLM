@@ -358,6 +358,15 @@ async def analyze_document(
         # Check if vector store actually has documents
         pipeline_stats = rag_pipeline.get_pipeline_stats()
         print(f"📈 Pipeline stats after ingestion: {pipeline_stats}")
+        
+        # Critical check: Verify vector store has documents
+        vector_store_stats = rag_pipeline.vector_store.get_storage_stats()
+        total_docs = vector_store_stats.get("total_documents", 0)
+        print(f"🗃️ Vector store contains {total_docs} documents")
+        
+        if total_docs == 0:
+            print("⚠️ WARNING: No documents found in vector store after ingestion!")
+            print("📊 This might explain why queries return no results")
 
         # Step 2: Process questions using retrieval orchestrator (CONTROLLED PARALLEL)
         print("\n🔍 Step 2: Processing questions with controlled concurrency...")
@@ -377,7 +386,8 @@ async def analyze_document(
                     # Detect query language for language-aware responses
                     detected_language = language_detector.detect_language(question)
                     query_language = detected_language.get("detected_language", "en")
-                    print(f"🔍 Detected language: {query_language}")
+                    confidence = detected_language.get("confidence", 0.0)
+                    print(f"🔍 Detected language: {query_language} (confidence: {confidence:.2f})")
 
                     # Use advanced retrieval orchestrator
                     query_start_time = time.time()
@@ -385,7 +395,7 @@ async def analyze_document(
                         query=question,
                         max_results=5,
                         context=QueryContext(
-                            preferred_language="auto-detect"
+                            preferred_language=query_language
                         )
                     )
                     query_duration = time.time() - query_start_time
@@ -418,12 +428,12 @@ async def analyze_document(
                         print("⚠️ No relevant chunks found - trying direct RAG pipeline query as fallback")
                         print(f"📊 Response metadata: {response.processing_metadata}")
                         
-                        # FALLBACK: Try direct RAG pipeline query with lower thresholds
+                        # FALLBACK 1: Try direct RAG pipeline query
                         try:
                             from src.core.integrated_rag_pipeline import RAGQuery
                             fallback_query = RAGQuery(
                                 query_text=question,
-                                max_results=5,
+                                max_results=10,  # Increase results
                                 retrieval_strategy="similarity"
                             )
                             fallback_result = await rag_pipeline.query(fallback_query)
@@ -451,7 +461,32 @@ async def analyze_document(
                                     )
                                     return answer
                         except Exception as fallback_error:
-                            print(f"⚠️ Fallback query also failed: {fallback_error}")
+                            print(f"⚠️ Fallback query failed: {fallback_error}")
+                        
+                        # FALLBACK 2: Try to get ANY documents from vector store
+                        try:
+                            vector_store = rag_pipeline.vector_store
+                            if hasattr(vector_store, 'documents') and vector_store.documents:
+                                print(f"🔄 Emergency fallback: Using first few documents from vector store")
+                                # Get first few documents regardless of similarity
+                                doc_items = list(vector_store.documents.items())[:3]
+                                emergency_chunks = []
+                                
+                                for doc_id, doc in doc_items:
+                                    emergency_chunks.append({
+                                        "text": doc.text_content[:1000],  # Limit length
+                                        "score": 0.1,  # Low score
+                                        "metadata": doc.metadata
+                                    })
+                                
+                                if emergency_chunks:
+                                    print(f"🚨 Using {len(emergency_chunks)} emergency chunks")
+                                    answer = await answer_generator.generate_answer(
+                                        question, emergency_chunks, "general", query_language
+                                    )
+                                    return answer
+                        except Exception as emergency_error:
+                            print(f"⚠️ Emergency fallback failed: {emergency_error}")
                         
                         answer = answer_generator._generate_no_info_response(question, query_language)
                         return answer
