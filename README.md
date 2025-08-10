@@ -9,7 +9,7 @@
 [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-RAG_Framework-purple)](https://llamaindex.ai)
 [![Performance](https://img.shields.io/badge/Performance-Optimized-brightgreen)](https://github.com)
 
-A **high-accuracy, enterprise-grade API** for deep analysis of business documents using a **Gemini-first** approach. The system leverages **Google's Gemini 2.5 Flash** for primary analysis of documents, ensuring the highest possible accuracy. For unsupported formats or in case of failures, it intelligently falls back to a **high-performance RAG pipeline** powered by **Qdrant** and **LlamaIndex**.
+A **high-accuracy, enterprise-grade API** for deep analysis of business documents using a **Gemini-first** approach. The system leverages **Google's Gemini 2.5 Flash** for primary analysis of documents, ensuring the highest possible accuracy. For unsupported formats or in case of failures, it intelligently falls back to a **high-performance RAG pipeline** powered by **Qdrant**, **LlamaIndex**, and **OpenAI's GPT-4o-mini**.
 
 ## 🚀 Key Features
 
@@ -52,18 +52,18 @@ graph TD
     D --> E[Return High-Accuracy Answer];
 
     B -->|No| F[Fallback to RAG];
-    F --> G[Multi-Format Processor<br/>(PDF, DOCX, Excel, OCR)];
-    G --> H[Advanced Chunk Extraction<br/>(LlamaIndex)];
+    F --> G[Multi-Format Processor<br/>&#40;PDF, DOCX, Excel, OCR&#41;];
+    G --> H[Advanced Chunk Extraction<br/>&#40;LlamaIndex&#41;];
     H --> I[Qdrant Vector Store];
     H --> J[BM25 Index];
 
     K[Question] --> L[Query Enhancement];
-    L --> M[Hybrid Retrieval<br/>(Dense + Sparse)];
+    L --> M[Hybrid Retrieval<br/>&#40;Dense + Sparse&#41;];
     M --> I;
     M --> J;
 
     M --> N[Re-ranking];
-    N --> O[Answer Generation<br/>(GPT-4o-mini)];
+    N --> O[Answer Generation<br/>&#40;GPT-4o-mini&#41;];
     O --> P[Return RAG-based Answer];
 ```
 
