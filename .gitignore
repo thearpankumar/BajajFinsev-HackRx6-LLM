@@ -258,7 +258,6 @@ log_*.txt
 # Performance monitoring
 performance_logs/
 metrics/
-monitoring/
 
 # Debug files
 debug/
