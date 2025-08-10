@@ -178,7 +178,7 @@ class AdvancedVectorOptimizer:
         self,
         sample_vectors: np.ndarray,
         query_vectors: np.ndarray,
-        current_index: Union[faiss.Index, None] = None
+        current_index: Union['faiss.Index', None] = None
     ) -> dict[str, Any]:
         """
         Optimize index parameters based on sample data
@@ -296,7 +296,7 @@ class AdvancedVectorOptimizer:
         sample_vectors: np.ndarray,
         query_vectors: np.ndarray,
         config_name: str,
-        existing_index: Union[faiss.Index, None] = None
+        existing_index: Union['faiss.Index', None] = None
     ) -> IndexPerformanceMetrics:
         """Benchmark a specific configuration"""
 
@@ -355,7 +355,7 @@ class AdvancedVectorOptimizer:
                 num_vectors=len(sample_vectors)
             )
 
-    async def _build_index_with_config(self, vectors: np.ndarray, config_data: dict[str, Any]) -> faiss.Index:
+    async def _build_index_with_config(self, vectors: np.ndarray, config_data: dict[str, Any]) -> 'faiss.Index':
         """Build FAISS index with specific configuration"""
         try:
             index_factory = config_data["index_factory"]

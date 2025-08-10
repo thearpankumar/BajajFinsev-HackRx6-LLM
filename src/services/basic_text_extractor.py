@@ -554,13 +554,8 @@ class BasicTextExtractor:
             return f"Sheet: {sheet_name}\nData extraction failed: {str(e)}"
 
     async def _extract_image_text(self, filepath: Path) -> dict[str, Any]:
-        """Extract text from images using OCR"""
-        if not HAS_IMAGE_PROCESSING:
-            return {
-                "status": "error",
-                "error": "Image processing libraries not available. Install with: pip install pillow opencv-python"
-            }
-
+        """Process image for direct LLM usage (no OCR - will be handled by LLM vision)"""
+        
         # Check file size
         file_size_mb = filepath.stat().st_size / (1024 * 1024)
         if file_size_mb > self.max_image_size_mb:
@@ -570,34 +565,56 @@ class BasicTextExtractor:
             }
 
         try:
-            # Load and preprocess image
-            image = Image.open(str(filepath))
+            # Get basic image information without OCR processing
+            import os
+            file_size = os.path.getsize(filepath)
+            
+            # Read image as base64 for LLM processing (if needed)
+            import base64
+            with open(filepath, 'rb') as image_file:
+                image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+            
+            # Get image dimensions if PIL is available
+            width, height = None, None
+            if HAS_IMAGE_PROCESSING:
+                try:
+                    from PIL import Image
+                    with Image.open(str(filepath)) as img:
+                        width, height = img.size
+                except:
+                    pass
 
-            if self.enable_ocr_preprocessing:
-                image = self._preprocess_image(image)
+            # Return image data for LLM processing
+            result = {
+                "status": "success",
+                "file_path": str(filepath),
+                "content": {
+                    "full_text": f"[IMAGE FILE: {filepath.name} - Ready for LLM vision processing]",
+                    "image_path": str(filepath),
+                    "image_base64": image_base64,
+                    "image_format": filepath.suffix.lower().lstrip('.'),
+                    "width": width,
+                    "height": height,
+                    "file_size_bytes": file_size,
+                    "file_size_mb": round(file_size_mb, 2),
+                    "char_count": len(f"[IMAGE FILE: {filepath.name}]"),
+                    "word_count": 3,  # "IMAGE FILE" + filename
+                    "processing_note": "Image ready for LLM vision processing - no OCR performed"
+                },
+                "extraction_method": "image_for_llm_vision",
+                "processor": "BasicTextExtractor"
+            }
 
-            # Perform OCR with Tesseract (Malayalam + English support)
-            if self.ocr_engine == "tesseract" and HAS_TESSERACT:
-                ocr_result = await self._ocr_with_tesseract(image)
-            elif HAS_EASYOCR and self.easyocr_reader:
-                # Fallback to EasyOCR if available (English only)
-                logger.warning("⚠️ Tesseract not available, falling back to EasyOCR (English only)")
-                ocr_result = await self._ocr_with_easyocr(image, filepath)
-            else:
-                return {
-                    "status": "error",
-                    "error": f"No OCR engine available. Please install Tesseract for Malayalam support."
-                }
-
-            return ocr_result
+            logger.info(f"✅ Image prepared for LLM processing: {filepath.name} ({file_size_mb:.2f}MB)")
+            return result
 
         except Exception as e:
             return {
                 "status": "error",
-                "error": f"Image OCR failed: {str(e)}"
+                "error": f"Image processing failed: {str(e)}"
             }
 
-    def _preprocess_image(self, image: Image.Image) -> Image.Image:
+    def _preprocess_image(self, image: 'Image.Image') -> 'Image.Image':
         """Preprocess image for better OCR results"""
         try:
             # Convert to RGB if needed
@@ -625,7 +642,7 @@ class BasicTextExtractor:
             logger.warning(f"Image preprocessing failed: {str(e)}, using original image")
             return image
 
-    async def _ocr_with_easyocr(self, image: Image.Image, filepath: Path) -> dict[str, Any]:
+    async def _ocr_with_easyocr(self, image: 'Image.Image', filepath: Path) -> dict[str, Any]:
         """Perform OCR using EasyOCR"""
         try:
             # Convert PIL Image to numpy array for EasyOCR
@@ -669,7 +686,7 @@ class BasicTextExtractor:
                 "error": f"EasyOCR failed: {str(e)}"
             }
 
-    async def _ocr_hybrid(self, image: Image.Image, filepath: Path) -> dict[str, Any]:
+    async def _ocr_hybrid(self, image: 'Image.Image', filepath: Path) -> dict[str, Any]:
         """Perform hybrid OCR: detect language first, then use appropriate engine"""
         try:
             # First, do a quick language detection with Tesseract
@@ -696,7 +713,7 @@ class BasicTextExtractor:
             logger.warning(f"Hybrid OCR detection failed: {str(e)}, falling back to Tesseract")
             return await self._ocr_with_tesseract(image, ["mal", "eng"])
 
-    async def _ocr_with_tesseract(self, image: Image.Image, languages: list[str] = None) -> dict[str, Any]:
+    async def _ocr_with_tesseract(self, image: 'Image.Image', languages: list[str] = None) -> dict[str, Any]:
         """Perform OCR using Tesseract"""
         try:
             # Configure Tesseract for specified languages or fallback to config

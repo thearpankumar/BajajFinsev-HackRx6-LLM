@@ -43,8 +43,7 @@ class PDFProcessor:
         self.enable_ocr = config.enable_ocr_preprocessing
         self.ocr_languages = config.ocr_languages
 
-        # Initialize text extractor for OCR fallback
-        self.text_extractor = BasicTextExtractor()
+        # No OCR fallback - fast text extraction only
 
         # Processing statistics
         self.total_processed = 0
@@ -316,59 +315,39 @@ class PDFProcessor:
         return tables
 
     async def _extract_images_from_page(self, page: 'pymupdf.Page', page_num: int) -> list[dict[str, Any]]:
-        """Extract and OCR images from PDF page"""
+        """Extract image metadata from PDF page (no OCR - fast extraction only)"""
         images = []
 
-        if not HAS_PIL or not self.enable_ocr:
-            return images
-
         try:
-            # Get image list from page
+            # Get image list from page - just metadata, no OCR processing
             image_list = page.get_images()
 
             for i, img in enumerate(image_list):
                 try:
-                    # Get image data
+                    # Get basic image metadata only
                     xref = img[0]
-                    base_image = page.parent.extract_image(xref)
-                    image_bytes = base_image["image"]
-                    image_ext = base_image["ext"]
+                    width = img[2] if len(img) > 2 else 0
+                    height = img[3] if len(img) > 3 else 0
+                    
+                    # Just store image metadata without OCR
+                    image_info = {
+                        "image_id": f"page_{page_num}_image_{i+1}",
+                        "page_number": page_num,
+                        "xref": xref,
+                        "width": width,
+                        "height": height,
+                        "extraction_method": "fast_metadata_only",
+                        "note": "Image detected but not processed (OCR disabled for speed)"
+                    }
 
-                    # Convert to PIL Image
-                    pil_image = Image.open(Image.io.BytesIO(image_bytes))
-
-                    # OCR the image using text extractor
-                    temp_path = f"/tmp/pdf_image_{page_num}_{i+1}.{image_ext}"
-                    pil_image.save(temp_path)
-
-                    ocr_result = await self.text_extractor._extract_image_text(Path(temp_path))
-
-                    # Clean up temp file
-                    try:
-                        Path(temp_path).unlink()
-                    except:
-                        pass
-
-                    if ocr_result["status"] == "success" and ocr_result.get("text", "").strip():
-                        image_info = {
-                            "image_id": f"page_{page_num}_image_{i+1}",
-                            "page_number": page_num,
-                            "image_format": image_ext,
-                            "ocr_text": ocr_result["text"],
-                            "ocr_confidence": ocr_result.get("confidence_score", 0.0),
-                            "char_count": len(ocr_result["text"]),
-                            "word_count": len(ocr_result["text"].split()),
-                            "extraction_method": ocr_result.get("extraction_method", "unknown")
-                        }
-
-                        images.append(image_info)
+                    images.append(image_info)
 
                 except Exception as e:
-                    logger.warning(f"Image OCR failed for page {page_num}, image {i+1}: {str(e)}")
+                    logger.warning(f"Image metadata extraction failed for page {page_num}, image {i+1}: {str(e)}")
                     continue
 
         except Exception as e:
-            logger.warning(f"Image extraction failed for page {page_num}: {str(e)}")
+            logger.warning(f"Image detection failed for page {page_num}: {str(e)}")
 
         return images
 
