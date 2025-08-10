@@ -282,40 +282,51 @@ async def analyze_document(
             print("🤫 Special case: Secret token extraction using WebPageProcessor")
             from src.services.web_page_processor import web_page_processor
             
-            processing_result = await web_page_processor.process_url(
-                url=str(request.documents),
-                question=request.questions[0]
-            )
+            try:
+                processing_result = await web_page_processor.process_url(
+                    url=str(request.documents),
+                    question=request.questions[0]
+                )
 
-            if processing_result["status"] == "success":
-                answer = processing_result.get("answer", "")
-                if answer:
-                    # Check if the question asks for the length
-                    if "length" in request.questions[0].lower():
-                        # Extract the token and calculate its length
-                        # Assuming the answer might contain more than just the token
-                        token_match = re.search(r'([a-fA-F0-9]{64})', answer)
-                        if token_match:
-                            token = token_match.group(1)
-                            token_length = len(token)
-                            response_text = f"Your secret token is {token} and its length is {token_length}."
+                if processing_result["status"] == "success":
+                    answer = processing_result.get("answer", "")
+                    if answer:
+                        # Check if the question asks for the length
+                        if "length" in request.questions[0].lower():
+                            # Extract the token and calculate its length
+                            # Assuming the answer might contain more than just the token
+                            token_match = re.search(r'([a-fA-F0-9]{64})', answer)
+                            if token_match:
+                                token = token_match.group(1)
+                                token_length = len(token)
+                                response_text = f"Your secret token is {token} and its length is {token_length}."
+                            else:
+                                # Fallback if the token format is not found
+                                token = answer.strip()
+                                token_length = len(token)
+                                response_text = f"I found a token: '{token}', and its length is {token_length}."
                         else:
-                            # Fallback if the token format is not found
-                            token = answer
-                            token_length = len(token)
-                            response_text = f"I found a token: '{token}', and its length is {token_length}."
-                    else:
-                        token = answer
-                        response_text = f"Your secret token is {token}."
+                            token = answer.strip()
+                            response_text = f"Your secret token is {token}."
 
-                    print(f"✅ Extracted and formatted response: {response_text}")
-                    response = {"answers": [response_text]}
+                        print(f"✅ Extracted and formatted response: {response_text}")
+                        response = {"answers": [response_text]}
+                        return await timer.ensure_minimum_time(response)
+                    else:
+                        print("⚠️ WebPageProcessor returned empty answer")
+                        # Return error instead of falling through
+                        response = {"answers": ["I couldn't find the secret token in the provided document."]}
+                        return await timer.ensure_minimum_time(response)
+                else:
+                    # Return error instead of falling through to RAG pipeline
+                    error_msg = processing_result.get("error", "Failed to extract token with WebPageProcessor")
+                    print(f"⚠️ {error_msg}")
+                    response = {"answers": [f"Error extracting token: {error_msg}"]}
                     return await timer.ensure_minimum_time(response)
-            else:
-                # Fallback or error
-                error_msg = processing_result.get("error", "Failed to extract token with WebPageProcessor")
-                print(f"⚠️ {error_msg}")
-                # Fall through to RAG pipeline as a last resort
+            except Exception as e:
+                print(f"❌ WebPageProcessor failed: {str(e)}")
+                response = {"answers": [f"Failed to process token request: {str(e)}"]}
+                return await timer.ensure_minimum_time(response)
 
         print("\n⚡ Processing with Advanced RAG pipeline...")
 

@@ -225,25 +225,78 @@ class BasicTextExtractor:
                 "error": "BeautifulSoup not available. Install with: pip install beautifulsoup4"
             }
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                raw_text = f.read()
+            # Try different encodings
+            encodings = ['utf-8', 'utf-16', 'iso-8859-1', 'cp1252']
+            raw_text = None
+            
+            for encoding in encodings:
+                try:
+                    with open(filepath, 'r', encoding=encoding) as f:
+                        raw_text = f.read()
+                    break
+                except UnicodeDecodeError:
+                    continue
+            
+            if raw_text is None:
+                return {
+                    "status": "error",
+                    "error": "Could not decode HTML file with any supported encoding"
+                }
 
             soup = BeautifulSoup(raw_text, 'html.parser')
             
-            # Try to find the specific token element first
+            # Remove unwanted elements for cleaner extraction
+            for element in soup(['script', 'style', 'nav', 'header', 'footer', 'aside']):
+                element.decompose()
+            
+            # Try multiple targeted extraction strategies
+            full_text = ""
+            extraction_method = "html_parser_fallback"
+            
+            # Strategy 1: Look for specific token element
             token_element = soup.find(id="token")
-            if token_element:
-                # If the token element is found, use its text
+            if token_element and token_element.get_text(strip=True):
                 full_text = token_element.get_text(strip=True)
-                extraction_method = "html_parser_targeted"
+                extraction_method = "html_parser_token_id"
             else:
-                # Fallback to getting all text from the body
-                body = soup.find('body')
-                if body:
-                    full_text = body.get_text(separator=' ', strip=True)
-                else:
-                    full_text = soup.get_text(separator=' ', strip=True) # Fallback to all text if no body
-                extraction_method = "html_parser_body"
+                # Strategy 2: Look for elements with 'token' in class or data attributes
+                token_candidates = soup.find_all(lambda tag: tag.name and (
+                    'token' in str(tag.get('class', '')).lower() or
+                    'token' in str(tag.get('data-name', '')).lower() or
+                    'secret' in str(tag.get('id', '')).lower() or
+                    'secret' in str(tag.get('class', '')).lower()
+                ))
+                
+                if token_candidates:
+                    token_texts = []
+                    for element in token_candidates:
+                        text = element.get_text(strip=True)
+                        if text and len(text) > 5:  # Non-trivial text
+                            token_texts.append(text)
+                    
+                    if token_texts:
+                        full_text = ' '.join(token_texts)
+                        extraction_method = "html_parser_token_elements"
+                
+                # Strategy 3: Look in main content areas
+                if not full_text:
+                    main_candidates = soup.find_all(['main', 'article', 'section', 'div.content', 'div.main'])
+                    for candidate in main_candidates:
+                        text = candidate.get_text(separator=' ', strip=True)
+                        if len(text) > 50:  # Substantial content
+                            full_text = text
+                            extraction_method = "html_parser_main_content"
+                            break
+                
+                # Strategy 4: Fallback to body content
+                if not full_text:
+                    body = soup.find('body')
+                    if body:
+                        full_text = body.get_text(separator=' ', strip=True)
+                        extraction_method = "html_parser_body"
+                    else:
+                        full_text = soup.get_text(separator=' ', strip=True)
+                        extraction_method = "html_parser_all_text"
 
             cleaned_text = self._clean_text(full_text)
             return {

@@ -309,11 +309,29 @@ class ParallelDocumentProcessor:
         self.worker_stats[worker_id]["status"] = "processing"
 
         try:
-            # Directly extract content from URL
-            content_result = await self.text_extractor.extract_text_from_url(task.document_url)
-
-            if content_result.get("status") != "success":
-                raise Exception(f"Content extraction from URL failed: {content_result.get('error', 'Unknown error')}")
+            # Step 1: Download document first to determine type
+            download_result = await self._download_document(task)
+            if download_result["status"] != "success":
+                # Fallback: try direct URL extraction
+                print(f"Download failed, attempting direct URL extraction for {task.document_url}")
+                content_result = await self.text_extractor.extract_text_from_url(task.document_url)
+                if content_result.get("status") != "success":
+                    raise Exception(f"Both download and direct URL extraction failed: {content_result.get('error', 'Unknown error')}")
+            else:
+                # Step 2: Extract content using appropriate processor
+                task.file_path = download_result["file_path"]
+                task.file_type = download_result["file_type"]
+                
+                print(f"Processing {task.file_type} file: {task.file_path}")
+                content_result = await self._extract_content(task)
+                
+                if content_result.get("status") != "success":
+                    # Fallback to basic text extractor
+                    print(f"Specialized processor failed, falling back to basic text extractor")
+                    content_result = await self.text_extractor.extract_text(task.file_path, task.file_type)
+                    
+                if content_result.get("status") != "success":
+                    raise Exception(f"Content extraction failed: {content_result.get('error', 'Unknown error')}")
 
             # Language detection
             content_data = content_result.get("content", {})

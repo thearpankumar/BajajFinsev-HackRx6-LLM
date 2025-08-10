@@ -119,7 +119,7 @@ class AnswerGenerator:
         
         for chunk in chunks:
             text = chunk.get('text', '')
-            if not text:
+            if not text or not isinstance(text, str):
                 continue
             
             # Remove technical markers and formatting
@@ -129,7 +129,17 @@ class AnswerGenerator:
             if len(text.strip()) > 20:
                 cleaned.append(text.strip())
         
-        return cleaned
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_cleaned = []
+        for text in cleaned:
+            # Use first 100 characters for duplicate detection
+            text_key = text[:100].lower().strip()
+            if text_key not in seen:
+                seen.add(text_key)
+                unique_cleaned.append(text)
+        
+        return unique_cleaned
     
     def _clean_text(self, text: str) -> str:
         """Clean text of technical formatting and markers"""
