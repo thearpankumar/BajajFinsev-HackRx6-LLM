@@ -16,15 +16,6 @@ class AnalysisRequest(BaseModel):
     )
 
 
-class AnalysisResponse(BaseModel):
-    """Response model for document analysis"""
-
-    answers: list[str] = Field(..., description="Answers to the questions")
-    processing_time: float = Field(..., description="Processing time in seconds")
-    document_metadata: dict[str, Any] = Field(
-        default_factory=dict, description="Document metadata"
-    )
-
 
 class StreamResponse(BaseModel):
     """Response model for streaming analysis"""

@@ -34,7 +34,6 @@ except:
 
 # Suppress stdout/stderr warnings from sentence transformers and torch
 import logging
-import sys
 logging.getLogger('sentence_transformers').setLevel(logging.ERROR)
 logging.getLogger('transformers').setLevel(logging.ERROR)
 logging.getLogger('torch').setLevel(logging.ERROR)
