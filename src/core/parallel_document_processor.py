@@ -310,28 +310,48 @@ class ParallelDocumentProcessor:
 
         try:
             # Step 1: Download document first to determine type
+            print(f"🔄 Starting document processing for: {task.document_url}")
             download_result = await self._download_document(task)
+            
             if download_result["status"] != "success":
                 # Fallback: try direct URL extraction
-                print(f"Download failed, attempting direct URL extraction for {task.document_url}")
+                print(f"⚠️ Download failed: {download_result.get('error', 'Unknown error')}")
+                print(f"🔄 Attempting direct URL extraction for {task.document_url}")
                 content_result = await self.text_extractor.extract_text_from_url(task.document_url)
                 if content_result.get("status") != "success":
-                    raise Exception(f"Both download and direct URL extraction failed: {content_result.get('error', 'Unknown error')}")
+                    error_msg = f"Both download and direct URL extraction failed. Download error: {download_result.get('error', 'Unknown')}. URL extraction error: {content_result.get('error', 'Unknown')}"
+                    print(f"❌ {error_msg}")
+                    raise Exception(error_msg)
+                else:
+                    print(f"✅ Direct URL extraction succeeded")
             else:
-                # Step 2: Extract content using appropriate processor
-                task.file_path = download_result["file_path"]
+                # Step 2: Extract content using appropriate processor  
+                task.file_path = download_result["filepath"]  # Fixed: was "file_path", should be "filepath"
                 task.file_type = download_result["file_type"]
                 
-                print(f"Processing {task.file_type} file: {task.file_path}")
+                print(f"✅ Download successful: {task.file_type} file at {task.file_path}")
+                print(f"🔄 Processing {task.file_type} file: {task.file_path}")
                 content_result = await self._extract_content(task)
                 
                 if content_result.get("status") != "success":
                     # Fallback to basic text extractor
-                    print(f"Specialized processor failed, falling back to basic text extractor")
+                    print(f"⚠️ Specialized processor failed: {content_result.get('error', 'Unknown error')}")
+                    print(f"🔄 Falling back to basic text extractor")
                     content_result = await self.text_extractor.extract_text(task.file_path, task.file_type)
                     
+                    if content_result.get("status") == "success":
+                        print(f"✅ Basic text extractor succeeded")
+                    else:
+                        print(f"❌ Basic text extractor also failed: {content_result.get('error', 'Unknown error')}")
+                    
                 if content_result.get("status") != "success":
-                    raise Exception(f"Content extraction failed: {content_result.get('error', 'Unknown error')}")
+                    error_msg = f"All content extraction methods failed for {task.file_path}. Final error: {content_result.get('error', 'Unknown error')}"
+                    print(f"❌ {error_msg}")
+                    raise Exception(error_msg)
+                else:
+                    content_data = content_result.get("content", {})
+                    text_length = len(content_data.get("full_text", ""))
+                    print(f"✅ Content extraction successful: {text_length} characters extracted")
 
             # Language detection
             content_data = content_result.get("content", {})
