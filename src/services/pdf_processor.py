@@ -452,23 +452,29 @@ class PDFProcessor:
         """Combine page text with extracted tables and images"""
         content_parts = []
 
+        if not pages_data:
+            return ""
+
         for page_data in pages_data:
             page_num = page_data["page_number"]
-            page_text = page_data["text"]
+            page_text = page_data.get("text", "").strip()
 
-            # Add page header
+            # Add page header, even if content is empty
             content_parts.append(f"\n=== PAGE {page_num} ===")
-            content_parts.append(page_text)
+            if page_text:
+                content_parts.append(page_text)
 
             # Add tables from this page
             page_tables = [table for table in tables_data if table["page_number"] == page_num]
             for table in page_tables:
                 content_parts.append(f"\n{table['formatted_text']}")
 
-            # Add image OCR text from this page (if any)
-            # Note: This would be handled by the images_data, but we're focusing on text here
+        # Ensure there's at least some content if pages were processed
+        combined_text = "\n".join(content_parts).strip()
+        if not combined_text and pages_data:
+            return " "  # Return a single space to indicate processing happened
 
-        return "\n".join(content_parts)
+        return combined_text
 
     def _clean_text(self, text: str) -> str:
         """Clean extracted text"""

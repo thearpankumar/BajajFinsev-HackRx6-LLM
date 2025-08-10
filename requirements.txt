@@ -77,8 +77,14 @@ python-dotenv
 # Development & Testing (removed from conda)
 pytest-asyncio
 pytest-cov
+
+# HackRx Challenge Solver Dependencies
+# httpx - already included above
+# fastapi - already included above  
+# uvicorn - already included above
 pytest-mock
 coverage
 mypy
 isort
 ipython
+httpx

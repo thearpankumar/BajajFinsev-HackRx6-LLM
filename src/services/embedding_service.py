@@ -158,10 +158,14 @@ class EmbeddingService:
                 # Strategy 1: Try silent subprocess loading first
                 try:
                     device_str = str(self.device) if self.device else 'cpu'
+                    
+                    # Ensure all arguments are hashable
+                    model_name_or_path = self.embedding_model_name
+                    
                     self.model = load_sentence_transformer_silently(
-                        model_name=self.embedding_model_name,
+                        model_name_or_path=model_name_or_path,
                         device=device_str,
-                        cache_dir=str(cache_dir)
+                        cache_folder=str(cache_dir)
                     )
                     logger.info(f"🔇 Model loaded silently on {device_str}")
                 except Exception as e:

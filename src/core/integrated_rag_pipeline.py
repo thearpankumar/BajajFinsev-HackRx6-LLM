@@ -692,18 +692,19 @@ class IntegratedRAGPipeline:
             if not hasattr(self, 'translation_service') or not self.translation_service:
                 logger.warning("⚠️ Translation service not available, using original chunks only")
                 return original_chunks
-            
-            # First, detect if any chunks contain Malayalam content
-            malayalam_chunks_found = False
-            for chunk in original_chunks[:5]:  # Sample first 5 chunks
+
+            # More robust language detection: check all chunks
+            malayalam_chunk_count = 0
+            for chunk in original_chunks:
                 detected_language = self.language_detector.detect_language(chunk.text[:200])
                 if detected_language.get("detected_language", "en") == "ml":
-                    malayalam_chunks_found = True
-                    break
+                    malayalam_chunk_count += 1
             
-            if not malayalam_chunks_found:
-                logger.info("📝 Document appears to be English-only, skipping translation")
-                print("Translation skipped: Document is English-only.")
+            # Consider it a Malayalam document if at least 30% of chunks are Malayalam
+            is_malayalam_document = (malayalam_chunk_count / len(original_chunks)) >= 0.3 if original_chunks else False
+
+            if not is_malayalam_document:
+                logger.info("📝 Document appears to be English-only or has insignificant Malayalam content, skipping translation.")
                 # Add language metadata to original chunks
                 for chunk in original_chunks:
                     if chunk.metadata:
@@ -767,7 +768,6 @@ class IntegratedRAGPipeline:
                                         "original_chunk_id": chunk.chunk_id
                                     }
                                 )
-                                
                                 bilingual_chunks.append(translated_chunk)
                                 logger.debug(f"🔤 Translated chunk {chunk.chunk_id}: {source_lang} -> {target_lang}")
                         

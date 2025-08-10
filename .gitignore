@@ -512,6 +512,7 @@ models_cache/
 vector_storage/
 test_data/
 optimization_cache/
+performance_profiles/
 # ==============================================================================
 # NOTES:
 # 

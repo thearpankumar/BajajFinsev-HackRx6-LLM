@@ -54,9 +54,10 @@ RUN mkdir -p \
 
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser mcp_servers/ ./mcp_servers/
 COPY --chown=appuser:appuser .env* ./
 COPY --chown=appuser:appuser payloads/ ./payloads/
-# CRITICAL: Copy question.json for hybrid document matching
+# CRITICAL: Copy question.json for hybrid document matching  
 COPY --chown=appuser:appuser question.json ./
 
 # Switch to non-root user
@@ -66,9 +67,6 @@ USER appuser
 ENV PYTHONPATH=/app \
     NLTK_DATA=/home/appuser/nltk_data \
     VECTOR_DB_PATH=/app/vector_db \
-    QDRANT_HOST=qdrant \
-    QDRANT_PORT=6333 \
-    QDRANT_COLLECTION_NAME=bajaj_documents \
     DOCUMENT_CACHE_PATH=/app/document_cache \
     CHECK_VECTOR_DB_BEFORE_DOWNLOAD=true 
     

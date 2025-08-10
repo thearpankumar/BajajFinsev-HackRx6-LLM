@@ -538,6 +538,270 @@ class OfficeProcessor:
                 "extraction_error": str(e)
             }
 
+    def _detect_column_types(self, df: 'pd.DataFrame') -> dict[int, str]:
+        """
+        Dynamically detect column types based on content patterns
+        Returns a mapping of column_index -> meaningful_name
+        """
+        detected_columns = {}
+        
+        # Sample some rows to analyze patterns
+        sample_size = min(10, len(df))
+        sample_df = df.head(sample_size)
+        
+        for col_idx, col_name in enumerate(df.columns):
+            # Get sample values for this column (non-null, non-empty)
+            sample_values = []
+            for val in sample_df.iloc[:, col_idx].dropna():
+                if str(val).strip() and str(val).strip() != '':
+                    sample_values.append(str(val).strip())
+            
+            if not sample_values:
+                detected_columns[col_idx] = f"Column{col_idx+1}"
+                continue
+            
+            # Detect patterns in the sample values
+            column_type = self._classify_column_content(sample_values, col_name)
+            detected_columns[col_idx] = column_type
+        
+        return detected_columns
+    
+    def _classify_column_content(self, sample_values: list[str], original_name: str) -> str:
+        """Classify column content based on patterns"""
+        import re
+        
+        # Clean original name first
+        clean_original = self._clean_column_name(original_name)
+        
+        # If original name is already meaningful, use it
+        meaningful_names = [
+            'name', 'firstname', 'lastname', 'fullname', 'person', 'customer',
+            'phone', 'mobile', 'telephone', 'contact', 'number', 
+            'pincode', 'zip', 'postal', 'code', 'pin',
+            'salary', 'amount', 'price', 'cost', 'value', 'income',
+            'email', 'address', 'location', 'city', 'state', 'country',
+            'id', 'identifier', 'reference', 'ref',
+            'date', 'time', 'timestamp', 'created', 'updated',
+            'status', 'type', 'category', 'group'
+        ]
+        
+        clean_lower = clean_original.lower()
+        for meaningful in meaningful_names:
+            if meaningful in clean_lower:
+                return clean_original
+        
+        # Pattern-based detection
+        numeric_count = 0
+        text_count = 0
+        phone_count = 0
+        pincode_count = 0
+        name_count = 0
+        
+        for value in sample_values:
+            # Check for phone numbers (10+ digits, may have spaces/dashes)
+            if re.match(r'^[\d\s\-\+\(\)]{10,}$', value):
+                phone_count += 1
+            
+            # Check for pincode/zip patterns (4-8 digits)
+            elif re.match(r'^\d{4,8}$', value):
+                pincode_count += 1
+            
+            # Check for pure numbers (salary, amounts, etc.)
+            elif re.match(r'^\d+(\.\d+)?$', value):
+                numeric_count += 1
+            
+            # Check for names (2+ words with letters)
+            elif re.match(r'^[a-zA-Z\s]{2,}$', value) and len(value.split()) >= 2:
+                name_count += 1
+            
+            # Everything else is text
+            else:
+                text_count += 1
+        
+        total_samples = len(sample_values)
+        if total_samples == 0:
+            return "Column"
+        
+        # Determine column type based on majority pattern
+        phone_ratio = phone_count / total_samples
+        pincode_ratio = pincode_count / total_samples
+        name_ratio = name_count / total_samples
+        numeric_ratio = numeric_count / total_samples
+        
+        # Use thresholds to classify (at least 70% of samples match pattern)
+        if phone_ratio >= 0.7:
+            return "Mobile_Number"
+        elif pincode_ratio >= 0.7:
+            return "Pincode"
+        elif name_ratio >= 0.7:
+            return "Name"
+        elif numeric_ratio >= 0.7:
+            return "Amount"
+        else:
+            # If no clear pattern, use cleaned original name
+            return clean_original if clean_original != "Column" else "Text_Data"
+    
+    def _clean_column_name(self, col_name: str) -> str:
+        """Clean and normalize column names"""
+        import re
+        
+        clean_name = str(col_name).strip()
+        
+        # Handle common problematic patterns
+        if clean_name.startswith('Unnamed:'):
+            return "Column"
+        
+        if clean_name.startswith('From: System Administrator'):
+            return "Column"
+        
+        if clean_name in ['', ' ', 'nan', 'NaN', 'None']:
+            return "Column"
+        
+        # Clean up the name - remove special characters, normalize spaces
+        clean_name = re.sub(r'[^\w\s]', ' ', clean_name)
+        clean_name = re.sub(r'\s+', '_', clean_name.strip())
+        
+        # Capitalize first letter of each word
+        clean_name = '_'.join(word.capitalize() for word in clean_name.split('_') if word)
+        
+        return clean_name if clean_name else "Column"
+
+    def _detect_table_column_types(self, headers: list[str], data_rows: list[list[str]]) -> dict[int, str]:
+        """Detect column types for table data"""
+        detected_columns = {}
+        
+        # Sample some rows for analysis
+        sample_size = min(10, len(data_rows))
+        sample_rows = data_rows[:sample_size]
+        
+        for col_idx, header in enumerate(headers):
+            # Get sample values for this column
+            sample_values = []
+            for row in sample_rows:
+                if col_idx < len(row) and str(row[col_idx]).strip():
+                    sample_values.append(str(row[col_idx]).strip())
+            
+            if not sample_values:
+                detected_columns[col_idx] = f"Column{col_idx+1}"
+                continue
+            
+            # Use the same classification logic
+            column_type = self._classify_column_content(sample_values, header)
+            detected_columns[col_idx] = column_type
+        
+        return detected_columns
+
+    def _find_actual_headers(self, df: 'pd.DataFrame') -> list[str]:
+        """Find actual column headers in the data by looking for header-like rows"""
+        # Look through more rows to find proper headers, but be more selective
+        header_candidates = []
+        
+        for idx in range(min(20, len(df))):  # Search more rows
+            row = df.iloc[idx]
+            row_values = [str(val).strip() for val in row if str(val).strip() and str(val).strip().lower() != 'nan']
+            
+            # Skip empty rows
+            if not row_values:
+                continue
+            
+            # Skip rows that are clearly not headers (too long text, sentences)
+            if any(len(str(val).strip()) > 50 for val in row_values):
+                continue
+            
+            # Check if this row looks like headers with exact keyword matching
+            header_score = 0
+            exact_header_words = ['name', 'mobile', 'phone', 'pincode', 'salary', 'amount', 'id', 'email', 'address']
+            
+            for val in row_values:
+                val_lower = str(val).strip().lower()
+                # Exact word matching or very close matches
+                if val_lower in exact_header_words:
+                    header_score += 2  # Higher score for exact matches
+                elif any(hw in val_lower and len(val_lower) <= 20 for hw in exact_header_words):
+                    header_score += 1  # Lower score for partial matches in short strings
+            
+            # Require a strong match - at least 3 columns that look like headers
+            if header_score >= 3 and len(row_values) >= 3:
+                # This row contains headers
+                clean_headers = []
+                for col_idx, val in enumerate(row):
+                    header_val = str(val).strip()
+                    if header_val and header_val.lower() != 'nan':
+                        clean_headers.append(self._clean_header_name(header_val))
+                    else:
+                        # Fallback for empty headers
+                        clean_headers.append(f"Column{col_idx+1}")
+                
+                if len(clean_headers) > 0:
+                    header_candidates.append((header_score, clean_headers, idx))
+        
+        # Return the best header candidate (highest score, preferring later rows if tied)
+        if header_candidates:
+            header_candidates.sort(key=lambda x: (x[0], x[2]), reverse=True)
+            return header_candidates[0][1]
+        
+        return None
+
+    def _clean_header_name(self, header: str) -> str:
+        """Clean header names for better readability"""
+        header = str(header).strip()
+        
+        if not header or header.lower() in ['nan', 'none', '']:
+            return 'Column'
+        
+        header = header.replace('_', ' ').replace('-', ' ')
+        
+        # Map common variations - be more specific
+        header_lower = header.lower()
+        if header_lower == 'name' or 'person' in header_lower:
+            return 'Name'
+        elif 'mobile' in header_lower or 'phone' in header_lower:
+            return 'Mobile_Number'
+        elif 'pincode' in header_lower or 'pin code' in header_lower:
+            return 'Pincode'  # This is the key mapping!
+        elif header_lower == 'salary' or 'amount' in header_lower or 'income' in header_lower:
+            return 'Salary'
+        elif 'email' in header_lower:
+            return 'Email'
+        elif 'address' in header_lower:
+            return 'Address'
+        elif 'id' in header_lower:
+            return 'ID'
+        else:
+            # Keep original format but clean it up
+            clean = '_'.join(word.capitalize() for word in header.split() if word)
+            return clean if clean else 'Column'
+
+    def _detect_column_type_by_content(self, sample_values, original_name: str) -> str:
+        """Detect column type by analyzing content patterns"""
+        import re
+        
+        sample_list = [str(val).strip() for val in sample_values if str(val).strip()]
+        if not sample_list:
+            return "Column"
+        
+        # Pattern matching
+        phone_count = sum(1 for val in sample_list if re.match(r'^\d{10,}$', val))
+        pincode_count = sum(1 for val in sample_list if re.match(r'^\d{4,8}$', val))
+        name_count = sum(1 for val in sample_list if re.match(r'^[a-zA-Z\s]{2,}$', val) and len(val.split()) >= 2)
+        numeric_count = sum(1 for val in sample_list if re.match(r'^\d+(\.\d+)?$', val))
+        
+        total = len(sample_list)
+        if total == 0:
+            return "Column"
+        
+        # Determine type (70% threshold)
+        if phone_count / total >= 0.7:
+            return "Mobile_Number"
+        elif pincode_count / total >= 0.7:
+            return "Pincode"
+        elif name_count / total >= 0.7:
+            return "Name"
+        elif numeric_count / total >= 0.7:
+            return "Amount"
+        else:
+            return self._clean_column_name(original_name)
+
     def _dataframe_to_text(self, df: 'pd.DataFrame', sheet_name: str) -> str:
         """Convert DataFrame to readable text"""
         try:
@@ -553,16 +817,44 @@ class OfficeProcessor:
                 ""
             ]
 
-            # Add sample of data (first few rows)
-            sample_size = min(20, len(df))  # Show up to 20 rows
-
-            for idx, row in df.head(sample_size).iterrows():
-                row_text = " | ".join(str(val) for val in row.values)
+            # Look for actual column headers in the data
+            actual_headers = self._find_actual_headers(df)
+            
+            # If no headers found, try to detect them from a specific row that looks like headers
+            if not actual_headers:
+                for idx in range(min(15, len(df))):
+                    row = df.iloc[idx]
+                    row_values = [str(val).strip().lower() for val in row if str(val).strip() and str(val).strip() != 'nan']
+                    
+                    # Check if this row has header-like content
+                    header_keywords = sum(1 for val in row_values if any(kw in val for kw in ['name', 'mobile', 'phone', 'pincode', 'salary']))
+                    
+                    if header_keywords >= 3:  # At least 3 header-like words
+                        # Use this row as headers
+                        actual_headers = []
+                        for col_idx, val in enumerate(row):
+                            header_val = str(val).strip()
+                            if header_val and header_val.lower() != 'nan':
+                                actual_headers.append(self._clean_header_name(header_val))
+                            else:
+                                actual_headers.append(f"Column{col_idx+1}")
+                        break
+            
+            # Add all data rows with proper column naming
+            for idx, row in df.iterrows():
+                # Create row with column_name=value format for better AI understanding
+                row_parts = []
+                for col_idx, (col, val) in enumerate(row.items()):
+                    # Use actual header names if found, otherwise detect dynamically
+                    if actual_headers and col_idx < len(actual_headers):
+                        clean_col = actual_headers[col_idx]
+                    else:
+                        clean_col = self._detect_column_type_by_content(df.iloc[:, col_idx].dropna().head(10), str(col))
+                    
+                    row_parts.append(f"{clean_col}={str(val).strip()}")
+                
+                row_text = " | ".join(row_parts)
                 text_parts.append(f"Row {idx + 1}: {row_text}")
-
-            # Add summary if there are more rows
-            if len(df) > sample_size:
-                text_parts.append(f"... and {len(df) - sample_size} more rows")
 
             return "\n".join(text_parts)
 
@@ -586,9 +878,18 @@ class OfficeProcessor:
                 ""
             ]
 
-            # Add data rows
+            # Detect column types dynamically from table data
+            detected_table_columns = self._detect_table_column_types(headers, data_rows)
+            
+            # Add data rows with intelligent column naming
             for i, row in enumerate(data_rows):
-                row_text = " | ".join(str(cell) for cell in row)
+                # Create row with column_name=value format for better AI understanding
+                row_parts = []
+                for j, cell in enumerate(row):
+                    col_name = detected_table_columns.get(j, f"Column{j+1}")
+                    row_parts.append(f"{col_name}={str(cell).strip()}")
+                
+                row_text = " | ".join(row_parts)
                 text_parts.append(f"Row {i + 1}: {row_text}")
 
             return "\n".join(text_parts)
