@@ -75,7 +75,7 @@ class RetrievalOrchestrator:
                 name="semantic_similarity",
                 weight=0.7,
                 enabled=True,
-                parameters={"similarity_threshold": 0.6}
+                parameters={"similarity_threshold": 0.3}
             ),
             "keyword_matching": RetrievalStrategy(
                 name="keyword_matching",
@@ -94,7 +94,7 @@ class RetrievalOrchestrator:
                 name="semantic_similarity_bilingual",
                 weight=0.5,  # Slightly lower weight for cross-language matches
                 enabled=True,
-                parameters={"similarity_threshold": 0.5, "cross_language_boost": 1.1}
+                parameters={"similarity_threshold": 0.25, "cross_language_boost": 1.1}
             ),
             "keyword_matching_bilingual": RetrievalStrategy(
                 name="keyword_matching_bilingual", 
@@ -317,6 +317,9 @@ class RetrievalOrchestrator:
             )
 
             if not retrieval_results:
+                logger.warning(f"⚠️ No retrieval results found for query: '{query[:100]}...'")
+                logger.warning(f"⚠️ Processed query was: '{processed_query.processed_query[:100]}...'") 
+                logger.warning(f"⚠️ Active strategies: {[name for name, strategy in self.strategies.items() if strategy.enabled]}")
                 return self._create_empty_response(query, processed_query, start_time)
 
             # Step 3: Rank and merge results
@@ -417,9 +420,9 @@ class RetrievalOrchestrator:
 
                 if retrieval_result.total_results > 0:
                     results.append((strategy_name, retrieval_result))
-                    logger.debug(f"✅ Strategy {strategy_name}: {retrieval_result.total_results} results")
+                    logger.info(f"✅ Strategy {strategy_name}: {retrieval_result.total_results} results")
                 else:
-                    logger.debug(f"⚠️ Strategy {strategy_name}: No results")
+                    logger.warning(f"⚠️ Strategy {strategy_name}: No results found")
 
                 # Enhanced Bilingual Cross-Language Search
                 # If we have bilingual processing capability and the original query had translation data

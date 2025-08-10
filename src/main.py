@@ -353,6 +353,11 @@ async def analyze_document(
         print(f"✅ Ingested: {ingestion_result.documents_processed} docs, "
               f"{ingestion_result.chunks_created} chunks, "
               f"{ingestion_result.embeddings_generated} embeddings")
+        print(f"📊 Ingestion metadata: {ingestion_result.pipeline_metadata}")
+        
+        # Check if vector store actually has documents
+        pipeline_stats = rag_pipeline.get_pipeline_stats()
+        print(f"📈 Pipeline stats after ingestion: {pipeline_stats}")
 
         # Step 2: Process questions using retrieval orchestrator (CONTROLLED PARALLEL)
         print("\n🔍 Step 2: Processing questions with controlled concurrency...")
@@ -386,6 +391,8 @@ async def analyze_document(
                     query_duration = time.time() - query_start_time
                     rag_metrics.record_query_duration(query_duration)
 
+                    print(f"🔍 Retrieval response: total_results={response.total_results}, ranked_results={len(response.ranked_results)}")
+                    
                     if response.total_results > 0:
                         # Generate human-like answer from top retrieved chunks
                         top_chunks = response.ranked_results[:3]
@@ -400,14 +407,53 @@ async def analyze_document(
 
                         # Get detected domain from orchestrator response
                         detected_domain = response.processing_metadata.get("detected_domain", "general")
+                        
+                        print(f"📄 Found {len(chunk_data)} chunks for question. First chunk preview: {chunk_data[0]['text'][:100] if chunk_data else 'No chunks'}...")
 
                         # Use answer generator for human-like responses with language awareness
                         answer = await answer_generator.generate_answer(question, chunk_data, detected_domain, query_language)
                         print(f"✅ Generated human-like answer from {len(top_chunks)} relevant chunks (domain: {detected_domain})")
                         return answer
                     else:
+                        print("⚠️ No relevant chunks found - trying direct RAG pipeline query as fallback")
+                        print(f"📊 Response metadata: {response.processing_metadata}")
+                        
+                        # FALLBACK: Try direct RAG pipeline query with lower thresholds
+                        try:
+                            from src.core.integrated_rag_pipeline import RAGQuery
+                            fallback_query = RAGQuery(
+                                query_text=question,
+                                max_results=5,
+                                retrieval_strategy="similarity"
+                            )
+                            fallback_result = await rag_pipeline.query(fallback_query)
+                            
+                            print(f"🔄 Fallback retrieval: {fallback_result.total_results} results found")
+                            
+                            if fallback_result.total_results > 0:
+                                # Process fallback results
+                                fallback_chunks = [
+                                    {
+                                        "text": chunk.get("text_content", chunk.get("text", "")),
+                                        "score": chunk.get("score", 0.0),
+                                        "metadata": chunk.get("metadata", {})
+                                    }
+                                    for chunk in fallback_result.retrieved_chunks[:3]
+                                    if chunk.get("text_content") or chunk.get("text")
+                                ]
+                                
+                                if fallback_chunks:
+                                    print(f"📄 Using {len(fallback_chunks)} fallback chunks")
+                                    print(f"📝 First fallback chunk: {fallback_chunks[0]['text'][:100]}...")
+                                    
+                                    answer = await answer_generator.generate_answer(
+                                        question, fallback_chunks, "general", query_language
+                                    )
+                                    return answer
+                        except Exception as fallback_error:
+                            print(f"⚠️ Fallback query also failed: {fallback_error}")
+                        
                         answer = answer_generator._generate_no_info_response(question, query_language)
-                        print("⚠️ No relevant chunks found")
                         return answer
                         
                 except Exception as e:
