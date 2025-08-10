@@ -1,10 +1,12 @@
 """
 Integrated RAG Pipeline
 Comprehensive pipeline integrating all components for end-to-end document processing and retrieval
+Enhanced with performance profiling and advanced monitoring
 """
 
 import logging
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Union
 
@@ -14,7 +16,10 @@ from src.core.hierarchical_chunker import HierarchicalChunker
 from src.core.parallel_document_processor import ParallelDocumentProcessor
 from src.core.parallel_vector_store import ParallelVectorStore, VectorDocument
 from src.core.parallel_chunking_service import parallel_chunking_service
+from src.core.performance_profiler import PerformanceProfiler
 from src.services.embedding_service import EmbeddingService
+from src.services.translation_service import TranslationService
+from src.services.language_detector import LanguageDetector
 from src.services.redis_cache import redis_manager
 
 logger = logging.getLogger(__name__)
@@ -68,6 +73,13 @@ class IntegratedRAGPipeline:
         self.hierarchical_chunker = HierarchicalChunker()
         self.vector_store = ParallelVectorStore(self.embedding_service, self.gpu_service)
 
+        # Performance monitoring
+        self.performance_profiler = PerformanceProfiler()
+
+        # Translation and language services for bilingual support
+        self.translation_service = TranslationService()
+        self.language_detector = LanguageDetector()
+
         # Redis cache manager
         self.redis_manager = redis_manager
 
@@ -91,6 +103,21 @@ class IntegratedRAGPipeline:
         self.chunking_strategy = config.chunking_strategy if hasattr(config, 'chunking_strategy') else 'hierarchical'
 
         logger.info("IntegratedRAGPipeline created with all components")
+
+    @contextmanager
+    def performance_monitor(self, operation_name: str):
+        """Context manager for performance monitoring with GPU profiling"""
+        start_time = time.time()
+        
+        # Start profiling
+        with self.performance_profiler.profile_operation(operation_name):
+            # Also monitor GPU memory if available
+            with self.gpu_service.memory_profiler(operation_name):
+                try:
+                    yield
+                finally:
+                    duration = time.time() - start_time
+                    logger.info(f"🔬 Operation [{operation_name}] completed in {duration:.2f}s")
 
     async def initialize(self) -> dict[str, Any]:
         """Initialize the complete RAG pipeline"""
@@ -140,6 +167,15 @@ class IntegratedRAGPipeline:
                     "error": "Vector store initialization failed",
                     "details": vector_result
                 }
+
+            # Initialize translation service for bilingual support
+            logger.info("🌐 Initializing Translation Service...")
+            translation_result = await self.translation_service.initialize()
+            initialization_results["translation_service"] = translation_result
+            
+            if translation_result["status"] != "success":
+                logger.warning(f"⚠️ Translation service initialization failed: {translation_result.get('error')}")
+                logger.info("📋 Continuing without bilingual translation support")
 
             # Initialize cache if enabled
             if self.enable_cache:
@@ -315,13 +351,18 @@ class IntegratedRAGPipeline:
 
             logger.info(f"⚡ PARALLEL CHUNKING: {len(all_chunks)} chunks from {len(successful_results)} documents in {parallel_chunking_result['processing_time']:.2f}s")
 
+            # Step 2.5: Create Bilingual Chunks (Original + Translated)
+            logger.info("🌐 Step 2.5: Creating bilingual chunks...")
+            bilingual_chunks = await self._create_bilingual_chunks(all_chunks)
+            logger.info(f"🔤 Created {len(bilingual_chunks)} bilingual chunks (original + translations)")
+
             # Step 3: Generate Embeddings
             logger.info("🔢 Step 3: Generating embeddings...")
 
             if progress_callback:
                 await progress_callback("Generating embeddings for chunks", 70)
 
-            chunk_texts = [chunk.text for chunk in all_chunks]
+            chunk_texts = [chunk.text for chunk in bilingual_chunks]
 
             # Optimize batch size for large chunk sets
             optimized_batch_size = self.batch_size
@@ -339,7 +380,7 @@ class IntegratedRAGPipeline:
                 return DocumentIngestionResult(
                     status="error",
                     documents_processed=len(successful_results),
-                    chunks_created=len(all_chunks),
+                    chunks_created=len(bilingual_chunks),
                     embeddings_generated=0,
                     processing_time=time.time() - start_time,
                     pipeline_metadata={
@@ -357,7 +398,7 @@ class IntegratedRAGPipeline:
             logger.info("📦 Step 4: Creating vector documents...")
 
             vector_documents = []
-            for i, (chunk, embedding) in enumerate(zip(all_chunks, embeddings, strict=False)):
+            for i, (chunk, embedding) in enumerate(zip(bilingual_chunks, embeddings, strict=False)):
                 vector_doc = VectorDocument(
                     doc_id=chunk.chunk_id,
                     embedding=embedding,
@@ -393,7 +434,7 @@ class IntegratedRAGPipeline:
                 return DocumentIngestionResult(
                     status="error",
                     documents_processed=len(successful_results),
-                    chunks_created=len(all_chunks),
+                    chunks_created=len(bilingual_chunks),
                     embeddings_generated=len(embeddings),
                     processing_time=time.time() - start_time,
                     pipeline_metadata={
@@ -408,7 +449,7 @@ class IntegratedRAGPipeline:
             # Update pipeline statistics
             total_time = time.time() - start_time
             self.total_documents_ingested += len(successful_results)
-            self.total_chunks_created += len(all_chunks)
+            self.total_chunks_created += len(bilingual_chunks)
             self.total_embeddings_generated += len(embeddings)
             self.total_ingestion_time += total_time
 
@@ -419,7 +460,7 @@ class IntegratedRAGPipeline:
             result = DocumentIngestionResult(
                 status="success",
                 documents_processed=len(successful_results),
-                chunks_created=len(all_chunks),
+                chunks_created=len(bilingual_chunks),
                 embeddings_generated=len(embeddings),
                 processing_time=round(total_time, 2),
                 pipeline_metadata={
@@ -430,9 +471,9 @@ class IntegratedRAGPipeline:
                         "success_rate": processing_result["processing_summary"]["success_rate"]
                     },
                     "chunking": {
-                        "total_chunks": len(all_chunks),
+                        "total_chunks": len(bilingual_chunks),
                         "chunking_strategy": chunking_strategy or self.chunking_strategy,
-                        "average_chunk_size": sum(c.token_count for c in all_chunks) / len(all_chunks) if all_chunks else 0
+                        "average_chunk_size": sum(c.token_count for c in bilingual_chunks) / len(bilingual_chunks) if bilingual_chunks else 0
                     },
                     "embedding": {
                         "model_name": embedding_result["model_name"],
@@ -451,7 +492,7 @@ class IntegratedRAGPipeline:
 
             logger.info("✅ Document ingestion completed successfully!")
             logger.info(f"📊 Processed: {len(successful_results)} docs, "
-                       f"Created: {len(all_chunks)} chunks, "
+                       f"Created: {len(bilingual_chunks)} chunks, "
                        f"Generated: {len(embeddings)} embeddings in {total_time:.2f}s")
 
             return result
@@ -644,3 +685,116 @@ class IntegratedRAGPipeline:
                 "status": "error",
                 "error": f"Pipeline clearing failed: {str(e)}"
             }
+
+    async def _create_bilingual_chunks(self, original_chunks):
+        """Create bilingual versions of chunks only when needed (Malayalam content)"""
+        try:
+            if not hasattr(self, 'translation_service') or not self.translation_service:
+                logger.warning("⚠️ Translation service not available, using original chunks only")
+                return original_chunks
+            
+            # First, detect if any chunks contain Malayalam content
+            malayalam_chunks_found = False
+            for chunk in original_chunks[:5]:  # Sample first 5 chunks
+                detected_language = self.language_detector.detect_language(chunk.text[:200])
+                if detected_language.get("detected_language", "en") == "ml":
+                    malayalam_chunks_found = True
+                    break
+            
+            if not malayalam_chunks_found:
+                logger.info("📝 Document appears to be English-only, skipping translation")
+                # Add language metadata to original chunks
+                for chunk in original_chunks:
+                    if chunk.metadata:
+                        chunk.metadata["language"] = "en"
+                        chunk.metadata["is_translated"] = False
+                    else:
+                        chunk.metadata = {"language": "en", "is_translated": False}
+                return original_chunks
+            
+            logger.info("🌐 Malayalam content detected, creating bilingual chunks...")
+            bilingual_chunks = []
+            translation_batch_size = 10  # Process translations in smaller batches
+            
+            # Process chunks in batches for translation
+            for i in range(0, len(original_chunks), translation_batch_size):
+                batch = original_chunks[i:i + translation_batch_size]
+                
+                for chunk in batch:
+                    try:
+                        # Add original chunk
+                        bilingual_chunks.append(chunk)
+                        
+                        # Detect language of the chunk
+                        detected_language = self.language_detector.detect_language(chunk.text[:500])
+                        source_lang = detected_language.get("detected_language", "en")
+                        
+                        # Only translate Malayalam content
+                        if source_lang == "ml" and len(chunk.text.strip()) > 10:
+                            target_lang = "en"
+                            
+                            # Translate the chunk
+                            translation_result = await self.translation_service.translate(
+                                text=chunk.text,
+                                target_language=target_lang,
+                                source_language=source_lang,
+                                quality_assessment=False
+                            )
+                            
+                            if (translation_result and 
+                                translation_result.translated_text and 
+                                translation_result.confidence_score > 0.3):
+                                
+                                # Create translated chunk with all required parameters
+                                translated_chunk = type(chunk)(
+                                    chunk_id=f"{chunk.chunk_id}_translated_{target_lang}",
+                                    text=translation_result.translated_text,
+                                    chunk_type=chunk.chunk_type,
+                                    hierarchy_level=chunk.hierarchy_level,
+                                    start_pos=getattr(chunk, 'start_pos', 0),  # Use original or default
+                                    end_pos=getattr(chunk, 'end_pos', len(translation_result.translated_text)),
+                                    token_count=len(translation_result.translated_text.split()),
+                                    char_count=len(translation_result.translated_text),
+                                    source_info=chunk.source_info.copy() if chunk.source_info else {},
+                                    metadata={
+                                        **(chunk.metadata or {}),
+                                        "language": target_lang,
+                                        "original_language": source_lang,
+                                        "translation_confidence": translation_result.confidence_score,
+                                        "translation_method": translation_result.translation_method,
+                                        "is_translated": True,
+                                        "original_chunk_id": chunk.chunk_id
+                                    }
+                                )
+                                
+                                bilingual_chunks.append(translated_chunk)
+                                logger.debug(f"🔤 Translated chunk {chunk.chunk_id}: {source_lang} -> {target_lang}")
+                        
+                        # Add language metadata to original chunk
+                        if chunk.metadata:
+                            chunk.metadata["language"] = source_lang
+                            chunk.metadata["is_translated"] = False
+                        else:
+                            chunk.metadata = {"language": source_lang, "is_translated": False}
+                                
+                    except Exception as e:
+                        logger.warning(f"Translation failed for chunk {chunk.chunk_id}: {str(e)}")
+                        continue
+                        
+                # Progress logging
+                if i % (translation_batch_size * 10) == 0:
+                    progress = (i / len(original_chunks)) * 100
+                    logger.info(f"🌐 Bilingual processing: {progress:.1f}% complete")
+            
+            original_count = len(original_chunks)
+            bilingual_count = len(bilingual_chunks)
+            translated_count = bilingual_count - original_count
+            
+            logger.info(f"✅ Bilingual chunk creation complete: {original_count} original + {translated_count} translated = {bilingual_count} total")
+            
+            return bilingual_chunks
+            
+        except Exception as e:
+            logger.error(f"❌ Bilingual chunk creation failed: {str(e)}")
+            logger.info("📋 Falling back to original chunks only")
+            return original_chunks

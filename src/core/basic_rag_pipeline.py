@@ -69,7 +69,7 @@ class BasicRAGPipeline:
             # Day 2: Document downloader and text extraction services
             # Day 2-3: GPU service and embedding service
             # Day 4: Vector store (FAISS GPU/CPU)
-            # Day 11-12: LLM services (Gemini, Groq Llama)
+            # Day 11-12: LLM services (Gemini, OpenAI GPT-4o mini)
 
             # For now, simulate component initialization
             await asyncio.sleep(0.1)
@@ -150,7 +150,7 @@ class BasicRAGPipeline:
                     f"2. Malayalam-English cross-lingual support\n"
                     f"3. GPU-accelerated embedding generation\n"
                     f"4. FAISS vector similarity search\n"
-                    f"5. Human-like response generation with Groq Llama\n"
+                    f"5. Human-like response generation with OpenAI GPT-4o mini\n"
                     f"6. Intelligent web processing for linked resources"
                 )
                 enhanced_answers.append(enhanced_answer)
@@ -270,7 +270,7 @@ class BasicRAGPipeline:
                 "translation_service": "planned_day_7",
                 "vector_store": "planned_day_8",
                 "gemini_service": "planned_day_11",
-                "groq_llama_service": "planned_day_12",
+                "openai_service": "planned_day_12",
                 "mcp_integration": "planned_day_13"
             },
 
@@ -289,7 +289,7 @@ class BasicRAGPipeline:
                 "GPU-accelerated embeddings (RTX 3050 optimized)",
                 "Parallel document processing (8 workers)",
                 "FAISS vector similarity search",
-                "Human-like response generation (Groq Llama)",
+                "Human-like response generation (OpenAI GPT-4o mini)",
                 "Intelligent web processing and MCP integration",
                 "Hierarchical chunking with semantic boundaries"
             ],

@@ -254,7 +254,8 @@ class ParallelDocumentProcessor:
                     await progress_callback(progress, completed_count, len(tasks))
 
             except TimeoutError:
-                logger.warning("⏰ Timeout waiting for worker results")
+                logger.error(f"⏰ Timeout waiting for worker results after 120s. Completed: {completed_count}/{len(tasks)}")
+                # Try to get partial results from successful workers
                 break
 
         # Cancel remaining worker tasks
@@ -308,27 +309,22 @@ class ParallelDocumentProcessor:
         self.worker_stats[worker_id]["status"] = "processing"
 
         try:
-            # Step 1: Download document
-            download_result = await self._download_document(task)
-            if download_result["status"] != "success":
-                raise Exception(f"Download failed: {download_result['error']}")
+            # Directly extract content from URL
+            content_result = await self.text_extractor.extract_text_from_url(task.document_url)
 
-            task.file_path = download_result["filepath"]
-            task.file_type = download_result["file_type"]
+            if content_result.get("status") != "success":
+                raise Exception(f"Content extraction from URL failed: {content_result.get('error', 'Unknown error')}")
 
-            # Step 2: Process document based on type
-            content_result = await self._extract_content(task)
-            if content_result["status"] != "success":
-                raise Exception(f"Content extraction failed: {content_result['error']}")
+            # Language detection
+            content_data = content_result.get("content", {})
+            full_text = content_data.get("full_text", "")
+            language_result = await self._detect_language(full_text)
 
-            # Step 3: Language detection
-            language_result = await self._detect_language(content_result["content"]["full_text"])
-
-            # Step 4: Combine results
+            # Combine results
             final_content = {
-                **content_result["content"],
+                **content_data,
                 "language_detection": language_result,
-                "file_info": download_result
+                "file_info": {"url": task.document_url} 
             }
 
             processing_time = time.time() - start_time
@@ -347,7 +343,7 @@ class ParallelDocumentProcessor:
                 task_id=task.task_id,
                 status="success",
                 document_url=task.document_url,
-                file_path=task.file_path,
+                file_path=task.document_url,  # Use URL as file path
                 processing_time=processing_time,
                 content=final_content,
                 worker_id=worker_id
@@ -370,7 +366,7 @@ class ParallelDocumentProcessor:
                 task_id=task.task_id,
                 status="error",
                 document_url=task.document_url,
-                file_path=task.file_path,
+                file_path=task.document_url,
                 processing_time=processing_time,
                 error=str(e),
                 worker_id=worker_id
@@ -403,7 +399,10 @@ class ParallelDocumentProcessor:
                 return await self.office_processor.process_document(task.file_path, file_type)
             elif file_type in ['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'tif', 'webp']:
                 return await self.text_extractor.extract_text(task.file_path, file_type)
+            elif file_type in ['html', 'txt', 'json']:
+                return await self.text_extractor.extract_text(task.file_path, file_type)
             else:
+                # Fallback to basic text extractor for unknown types
                 return await self.text_extractor.extract_text(task.file_path, file_type)
 
         except Exception as e:

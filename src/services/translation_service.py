@@ -30,6 +30,7 @@ except ImportError:
 from src.core.config import config
 from src.services.language_detector import LanguageDetector
 from src.services.redis_cache import redis_manager
+from src.services.gemini_service import gemini_service
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +70,9 @@ class TranslationService:
     def __init__(self):
         # Configuration from centralized config (with proper defaults)
         self.enable_cache = config.enable_embedding_cache
-        # Use proper defaults instead of getattr fallbacks
-        self.primary_method = config.translation_primary_method if hasattr(config, 'translation_primary_method') else 'transformers'
-        self.fallback_methods = config.translation_fallback_methods if hasattr(config, 'translation_fallback_methods') else ['google', 'rule_based']
+        # Use Gemini as primary method for translation
+        self.primary_method = 'gemini'
+        self.fallback_methods = ['rule_based', 'transformers', 'google']
         self.quality_threshold = config.translation_quality_threshold if hasattr(config, 'translation_quality_threshold') else 0.7
 
         # Model configurations
@@ -108,6 +109,7 @@ class TranslationService:
         self.cache_hits = 0
         self.cache_misses = 0
         self.method_usage = {
+            'gemini': 0,
             'transformers': 0,
             'google': 0,
             'rule_based': 0
@@ -150,12 +152,20 @@ class TranslationService:
 
             initialization_results = {}
 
-            # Check dependencies
+            # Initialize Gemini service (primary method)
+            logger.info("🔄 Initializing Gemini service for translation...")
+            gemini_result = await gemini_service.initialize()
+            initialization_results["gemini"] = gemini_result.get("status", "unknown")
+            
+            if gemini_result.get("status") != "success":
+                logger.warning(f"⚠️ Gemini service initialization failed: {gemini_result.get('error')}")
+
+            # Check dependencies for fallback methods
             if not HAS_TRANSFORMERS:
                 logger.warning("⚠️ Transformers not available. Install with: pip install transformers")
                 initialization_results["transformers"] = "unavailable"
             else:
-                # Initialize transformer models
+                # Initialize transformer models (fallback)
                 await self._initialize_transformer_models()
                 initialization_results["transformers"] = "initialized"
 
@@ -374,17 +384,23 @@ class TranslationService:
     ) -> TranslationResult:
         """Perform actual translation using available methods"""
 
-        # Try primary method first
-        if self.primary_method == "transformers" and HAS_TRANSFORMERS:
-            result = await self._translate_with_transformers(text, source_language, target_language)
+        # Try primary method first (Gemini)
+        if self.primary_method == "gemini":
+            result = await self._translate_with_gemini(text, source_language, target_language)
             if result and result.confidence_score > 0.3:
-                self.method_usage['transformers'] += 1
+                self.method_usage['gemini'] += 1
                 return result
 
         # Try fallback methods
         for method in self.fallback_methods:
             try:
-                if method == "google" and HAS_GOOGLETRANS and self.google_translator:
+                if method == "transformers" and HAS_TRANSFORMERS:
+                    result = await self._translate_with_transformers(text, source_language, target_language)
+                    if result and result.confidence_score > 0.3:
+                        self.method_usage['transformers'] += 1
+                        return result
+                
+                elif method == "google" and HAS_GOOGLETRANS and self.google_translator:
                     result = await self._translate_with_google(text, source_language, target_language)
                     if result and result.confidence_score > 0.3:
                         self.method_usage['google'] += 1
@@ -410,6 +426,131 @@ class TranslationService:
             translation_method="failed",
             processing_time=0.0
         )
+
+    async def _translate_with_gemini(
+        self,
+        text: str,
+        source_language: str,
+        target_language: str
+    ) -> Union[TranslationResult, None]:
+        """Translate using Gemini API"""
+        try:
+            logger.info(f"🤖 Translating with Gemini: {source_language} -> {target_language}")
+            
+            # Create translation prompt
+            if source_language == 'ml' and target_language == 'en':
+                prompt = f"""Translate the following Malayalam text to English. Provide only the translation, no explanations or additional text.
+
+Malayalam text: {text}
+
+English translation:"""
+            elif source_language == 'en' and target_language == 'ml':
+                prompt = f"""Translate the following English text to Malayalam. Provide only the translation, no explanations or additional text.
+
+English text: {text}
+
+Malayalam translation:"""
+            else:
+                # Auto-detect case
+                prompt = f"""Detect the language and translate this text to {"English" if target_language == "en" else "Malayalam"}. Provide only the translation, no explanations or additional text.
+
+Text: {text}
+
+Translation:"""
+            
+            # Call Gemini service
+            gemini_response = await gemini_service.generate_response(
+                query=prompt,
+                response_type="general"
+            )
+            
+            if gemini_response and gemini_response.confidence_score > 0.3:
+                translated_text = gemini_response.response_text.strip()
+                
+                # Clean up the response (remove any prefixes like "Translation:" etc.)
+                translated_text = self._clean_gemini_translation(translated_text)
+                
+                if translated_text:
+                    confidence_score = self._calculate_gemini_confidence(
+                        text, translated_text, gemini_response
+                    )
+                    
+                    return TranslationResult(
+                        original_text=text,
+                        translated_text=translated_text,
+                        source_language=source_language,
+                        target_language=target_language,
+                        confidence_score=confidence_score,
+                        translation_method="gemini",
+                        processing_time=gemini_response.get("processing_time", 0.0)
+                    )
+            
+            logger.warning("Gemini translation failed or returned empty result")
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Gemini translation failed: {str(e)}")
+            return None
+
+    def _clean_gemini_translation(self, text: str) -> str:
+        """Clean up Gemini translation response"""
+        try:
+            # Remove common prefixes that Gemini might add
+            prefixes_to_remove = [
+                "Translation:",
+                "English translation:",
+                "Malayalam translation:",
+                "The translation is:",
+                "Here is the translation:",
+            ]
+            
+            cleaned_text = text.strip()
+            for prefix in prefixes_to_remove:
+                if cleaned_text.lower().startswith(prefix.lower()):
+                    cleaned_text = cleaned_text[len(prefix):].strip()
+                    break
+            
+            # Remove quotes if the entire text is quoted
+            if cleaned_text.startswith('"') and cleaned_text.endswith('"'):
+                cleaned_text = cleaned_text[1:-1]
+            
+            return cleaned_text
+            
+        except Exception as e:
+            logger.warning(f"Translation cleanup failed: {str(e)}")
+            return text
+
+    def _calculate_gemini_confidence(
+        self, 
+        original: str, 
+        translated: str, 
+        gemini_response: dict
+    ) -> float:
+        """Calculate confidence score for Gemini translation"""
+        try:
+            base_confidence = 0.8  # High base confidence for Gemini
+            
+            # Adjust based on Gemini response confidence if available
+            if "confidence_score" in gemini_response:
+                base_confidence = min(0.9, gemini_response["confidence_score"])
+            
+            # Length ratio check
+            length_ratio = len(translated) / max(1, len(original))
+            if 0.3 <= length_ratio <= 3.0:
+                base_confidence += 0.1
+            else:
+                base_confidence -= 0.2
+            
+            # Check for obvious issues
+            if not translated.strip():
+                return 0.0
+            elif translated.lower() == original.lower():
+                return 0.3  # Might be untranslated
+            
+            return max(0.0, min(1.0, base_confidence))
+            
+        except Exception:
+            return 0.7  # Default confidence for Gemini
 
     async def _translate_with_transformers(
         self,
@@ -470,11 +611,19 @@ class TranslationService:
             google_target = 'ml' if target_language == 'ml' else 'en'
 
             # Perform translation
-            result = self.google_translator.translate(
-                text,
-                src=google_source,
-                dest=google_target
-            )
+            try:
+                result = await self.google_translator.translate(
+                    text,
+                    src=google_source,
+                    dest=google_target
+                )
+            except TypeError:
+                # Handle case where translate is not async
+                result = self.google_translator.translate(
+                    text,
+                    src=google_source,
+                    dest=google_target
+                )
 
             translated_text = result.text
             confidence = result.confidence if hasattr(result, 'confidence') and result.confidence else 0.8
@@ -789,7 +938,14 @@ class TranslationService:
             cached_data = await self.redis_manager.get_json(cache_key)
 
             if cached_data:
-                return TranslationResult(**cached_data)
+                # Remove cached_at field that's not part of TranslationResult constructor
+                valid_fields = {
+                    'original_text', 'translated_text', 'source_language', 
+                    'target_language', 'confidence_score', 'translation_method',
+                    'processing_time', 'quality_metrics'
+                }
+                filtered_data = {k: v for k, v in cached_data.items() if k in valid_fields}
+                return TranslationResult(**filtered_data)
 
         except Exception as e:
             logger.warning(f"Translation cache retrieval failed: {str(e)}")

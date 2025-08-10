@@ -23,8 +23,6 @@ class LLMConfigManager:
     def _build_model_mappings(self) -> Dict[str, str]:
         """Build mapping from LLMProvider enum to actual model names"""
         return {
-            LLMProvider.GROQ_LLAMA: "llama-3.3-70b-versatile",
-            LLMProvider.GROQ_GPT_OSS: "openai/gpt-oss-120b", 
             LLMProvider.GEMINI: "gemini-2.5-flash-lite",
             LLMProvider.OPENAI: "gpt-4o-mini"
         }
@@ -32,7 +30,6 @@ class LLMConfigManager:
     def _build_api_key_mappings(self) -> Dict[str, str]:
         """Build mapping from provider to API key config field"""
         return {
-            "groq": "groq_api_key",
             "gemini": "gemini_api_key", 
             "openai": "openai_api_key"
         }
@@ -52,9 +49,7 @@ class LLMConfigManager:
                 return "unknown", "unknown", None
             
             # Extract provider name
-            if llm_provider.startswith("groq/"):
-                provider = "groq"
-            elif llm_provider.startswith("gemini"):
+            if llm_provider.startswith("gemini"):
                 provider = "gemini"
             elif llm_provider.startswith("gpt") or "openai" in llm_provider.lower():
                 provider = "openai"

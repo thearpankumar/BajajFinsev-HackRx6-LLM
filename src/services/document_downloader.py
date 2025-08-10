@@ -66,22 +66,22 @@ class DocumentDownloader:
         except Exception as e:
             return False, f"URL validation error: {str(e)}"
 
-    def _extract_filename_from_url(self, url: str) -> str:
-        """Extract filename from URL"""
+    def _extract_filename_from_url(self, url: str, file_type: str = 'txt') -> str:
+        """Extract filename from URL, using file_type to generate a better default."""
         try:
             parsed = urlparse(url)
             filename = unquote(Path(parsed.path).name)
 
             if not filename or '.' not in filename:
-                # Generate filename from URL hash
+                # Generate filename from URL hash with the correct extension
                 url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-                filename = f"document_{url_hash}.pdf"  # Default to PDF
+                filename = f"document_{url_hash}.{file_type}"
 
             return filename
         except Exception:
             # Fallback filename
             url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-            return f"document_{url_hash}.pdf"
+            return f"document_{url_hash}.{file_type}"
 
     def _detect_file_type(self, url: str, headers: dict[str, str]) -> Union[str, None]:
         """Detect file type from URL and headers"""
@@ -102,12 +102,21 @@ class DocumentDownloader:
                     'image/png': 'png',
                     'image/bmp': 'bmp',
                     'image/tiff': 'tiff',
-                    'image/webp': 'webp'
+                    'image/webp': 'webp',
+                    'text/plain': 'txt',
+                    'application/json': 'json',
+                    'text/html': 'html'  # Added HTML detection
                 }
 
                 for mime_type, ext in mime_map.items():
                     if mime_type in content_type:
                         return ext
+                
+                # Flexible checks for text-based content
+                if 'text' in content_type:
+                    return 'txt'
+                if 'json' in content_type:
+                    return 'json'
 
             # Fall back to URL extension
             parsed = urlparse(url)
@@ -117,10 +126,11 @@ class DocumentDownloader:
                 if ext in self.supported_formats:
                     return ext
 
-            return None
+            # If no extension and no content type, default to text
+            return 'txt'
         except Exception as e:
             logger.warning(f"File type detection failed: {str(e)}")
-            return None
+            return 'txt'
 
     def _validate_file_type(self, file_type: Union[str, None]) -> tuple[bool, str]:
         """Validate if file type is supported"""
@@ -172,7 +182,7 @@ class DocumentDownloader:
                 return {
                     "status": "success",
                     "url": url,
-                    "filename": self._extract_filename_from_url(url),
+                    "filename": self._extract_filename_from_url(url, file_type),
                     "file_type": file_type,
                     "file_size_bytes": file_size_bytes,
                     "file_size_mb": round(file_size_mb, 2) if file_size_mb else None,
@@ -220,35 +230,41 @@ class DocumentDownloader:
         """
         logger.info(f"🔄 Starting document download from: {url}")
 
-        # First get file info for validation
-        file_info = await self.get_file_info(url)
-
-        if file_info["status"] == "error":
-            logger.error(f"❌ File info check failed: {file_info['error']}")
-            return file_info
-
-        if not file_info["validation"]["overall_valid"]:
-            error_msg = f"Validation failed: {file_info['validation']}"
-            logger.error(f"❌ {error_msg}")
-            return {
-                "status": "error",
-                "error": error_msg,
-                "file_info": file_info
-            }
-
-        # Determine filename
-        filename = custom_filename or file_info["filename"]
-        filepath = self.downloads_dir / filename
-
         try:
             if not self.session:
                 raise RuntimeError("Session not initialized. Use async context manager.")
 
-            logger.info(f"🔄 Downloading to: {filepath}")
-
-            # Download with progress tracking
+            # Download with progress tracking using GET request
             async with self.session.get(url) as response:
                 response.raise_for_status()
+                
+                # Get headers from the actual download response
+                headers = dict(response.headers)
+                
+                # Now detect file type and validate
+                file_type = self._detect_file_type(url, headers)
+                type_valid, type_message = self._validate_file_type(file_type)
+                
+                content_length = headers.get('content-length')
+                file_size_bytes = int(content_length) if content_length else None
+                file_size_mb = file_size_bytes / (1024 * 1024) if file_size_bytes else None
+                
+                size_valid = True
+                size_message = "File size OK"
+                if file_size_mb and file_size_mb > self.max_file_size_mb:
+                    size_valid = False
+                    size_message = f"File too large: {file_size_mb:.1f}MB > {self.max_file_size_mb}MB"
+
+                if not (type_valid and size_valid):
+                    error_msg = f"Validation failed: {type_message}, {size_message}"
+                    logger.error(f"❌ {error_msg}")
+                    return {"status": "error", "error": error_msg, "url": url}
+
+                # Determine filename
+                filename = custom_filename or self._extract_filename_from_url(url, file_type)
+                filepath = self.downloads_dir / filename
+                
+                logger.info(f"🔄 Downloading to: {filepath}")
 
                 total_size = int(response.headers.get('content-length', 0))
                 downloaded_size = 0
@@ -278,11 +294,14 @@ class DocumentDownloader:
                 "url": url,
                 "filepath": str(filepath),
                 "filename": filename,
-                "file_type": file_info["file_type"],
+                "file_type": file_type,
                 "file_size_bytes": actual_size,
                 "file_size_mb": round(actual_size / (1024 * 1024), 2),
                 "file_hash": file_hash.hexdigest(),
-                "download_info": file_info
+                "download_info": {
+                    "content_type": headers.get('content-type'),
+                    "last_modified": headers.get('last-modified'),
+                }
             }
 
             logger.info(f"✅ Document downloaded successfully: {filename} ({result['file_size_mb']}MB)")
@@ -301,7 +320,7 @@ class DocumentDownloader:
             logger.error(f"❌ {error_msg}")
 
             # Clean up partial download
-            if filepath.exists():
+            if 'filepath' in locals() and filepath.exists():
                 try:
                     filepath.unlink()
                 except Exception as cleanup_error:

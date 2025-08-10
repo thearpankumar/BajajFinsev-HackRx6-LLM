@@ -1,12 +1,15 @@
 """
-GPU Service with Centralized Configuration
-Handles GPU detection, memory management, and RTX 3050 optimization
+GPU Service with Advanced Memory Management
+Enhanced GPU detection, memory management, and RTX 3050 optimization with profiling
+Integrates advanced GPU management capabilities
 """
 
 import gc
 import logging
 import time
+from contextlib import contextmanager
 from typing import Any, Union
+from dataclasses import dataclass
 
 try:
     import torch
@@ -20,7 +23,30 @@ try:
 except ImportError:
     HAS_PYNVML = False
 
+try:
+    import nvidia_ml_py3 as nvml
+    HAS_NVML = True
+except ImportError:
+    HAS_NVML = False
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+
 from src.core.config import config
+
+@dataclass
+class GPUMemorySnapshot:
+    """GPU memory snapshot for monitoring"""
+    timestamp: float
+    gpu_memory_used: int
+    gpu_memory_total: int
+    gpu_memory_cached: int
+    gpu_utilization: float
+    cpu_memory_percent: float
+    memory_efficiency: float
 
 logger = logging.getLogger(__name__)
 
@@ -449,3 +475,164 @@ class GPUService:
                     "concurrent_operations": "full"
                 }
             }
+
+    # ========== ADVANCED GPU MANAGEMENT METHODS ==========
+    
+    def take_memory_snapshot(self) -> GPUMemorySnapshot:
+        """Take a comprehensive memory snapshot"""
+        try:
+            timestamp = time.time()
+            
+            # GPU memory info
+            gpu_memory_used = 0
+            gpu_memory_total = 0
+            gpu_memory_cached = 0
+            gpu_utilization = 0.0
+            
+            if self.is_gpu_available and HAS_TORCH:
+                if self.gpu_provider == "cuda":
+                    gpu_memory_used = torch.cuda.memory_allocated()
+                    gpu_memory_cached = torch.cuda.memory_reserved()
+                    gpu_memory_total = torch.cuda.get_device_properties(self.device).total_memory
+                    
+                    # Get GPU utilization if available
+                    if HAS_NVML:
+                        try:
+                            nvml.nvmlInit()
+                            handle = nvml.nvmlDeviceGetHandleByIndex(0)
+                            util = nvml.nvmlDeviceGetUtilizationRates(handle)
+                            gpu_utilization = float(util.gpu)
+                        except:
+                            pass
+            
+            # CPU memory info
+            cpu_memory_percent = 0.0
+            if HAS_PSUTIL:
+                cpu_memory_percent = psutil.virtual_memory().percent
+            
+            # Calculate memory efficiency
+            memory_efficiency = 0.0
+            if gpu_memory_total > 0:
+                memory_efficiency = (gpu_memory_used / gpu_memory_total) * 100
+            
+            return GPUMemorySnapshot(
+                timestamp=timestamp,
+                gpu_memory_used=gpu_memory_used,
+                gpu_memory_total=gpu_memory_total,
+                gpu_memory_cached=gpu_memory_cached,
+                gpu_utilization=gpu_utilization,
+                cpu_memory_percent=cpu_memory_percent,
+                memory_efficiency=memory_efficiency
+            )
+            
+        except Exception as e:
+            logger.warning(f"Memory snapshot failed: {str(e)}")
+            return GPUMemorySnapshot(
+                timestamp=time.time(),
+                gpu_memory_used=0,
+                gpu_memory_total=0,
+                gpu_memory_cached=0,
+                gpu_utilization=0.0,
+                cpu_memory_percent=0.0,
+                memory_efficiency=0.0
+            )
+    
+    @contextmanager
+    def memory_profiler(self, operation_name: str):
+        """Context manager for profiling memory usage during operations"""
+        if not self.is_gpu_available:
+            yield
+            return
+            
+        start_snapshot = self.take_memory_snapshot()
+        start_time = time.time()
+        
+        try:
+            yield
+        finally:
+            end_time = time.time()
+            end_snapshot = self.take_memory_snapshot()
+            
+            duration = end_time - start_time
+            memory_growth = end_snapshot.gpu_memory_used - start_snapshot.gpu_memory_used
+            peak_memory = max(start_snapshot.gpu_memory_used, end_snapshot.gpu_memory_used)
+            
+            logger.info(f"🔬 Memory Profile [{operation_name}]: "
+                       f"Duration: {duration:.2f}s, "
+                       f"Memory Growth: {memory_growth / (1024**2):.1f}MB, "
+                       f"Peak: {peak_memory / (1024**2):.1f}MB")
+    
+    def optimize_memory_settings(self) -> dict[str, Any]:
+        """Dynamically optimize memory settings based on current usage"""
+        if not self.is_gpu_available:
+            return {"status": "gpu_not_available"}
+            
+        try:
+            snapshot = self.take_memory_snapshot()
+            
+            # Calculate memory pressure
+            memory_pressure = snapshot.memory_efficiency
+            
+            recommendations = {
+                "current_memory_usage": f"{snapshot.gpu_memory_used / (1024**2):.1f}MB",
+                "memory_efficiency": f"{snapshot.memory_efficiency:.1f}%",
+                "gpu_utilization": f"{snapshot.gpu_utilization:.1f}%",
+            }
+            
+            # Provide recommendations based on memory pressure
+            if memory_pressure > 85:
+                recommendations.update({
+                    "status": "high_memory_pressure",
+                    "recommended_batch_size": max(self.batch_size // 2, 8),
+                    "suggestion": "Reduce batch size, enable aggressive cleanup"
+                })
+            elif memory_pressure > 70:
+                recommendations.update({
+                    "status": "moderate_memory_pressure", 
+                    "recommended_batch_size": max(self.batch_size * 3 // 4, 16),
+                    "suggestion": "Slightly reduce batch size"
+                })
+            else:
+                recommendations.update({
+                    "status": "optimal_memory_usage",
+                    "recommended_batch_size": min(self.batch_size * 2, self.max_batch_size),
+                    "suggestion": "Can increase batch size for better performance"
+                })
+                
+            return recommendations
+            
+        except Exception as e:
+            logger.error(f"Memory optimization failed: {str(e)}")
+            return {"status": "error", "error": str(e)}
+    
+    def force_memory_cleanup(self) -> dict[str, Any]:
+        """Force aggressive memory cleanup"""
+        try:
+            before_snapshot = self.take_memory_snapshot()
+            
+            # Standard cleanup
+            self.cleanup_memory()
+            
+            # Aggressive cleanup
+            if HAS_TORCH and self.gpu_provider == "cuda":
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                
+            # Python garbage collection
+            gc.collect()
+            
+            after_snapshot = self.take_memory_snapshot()
+            
+            memory_freed = before_snapshot.gpu_memory_used - after_snapshot.gpu_memory_used
+            
+            return {
+                "status": "success",
+                "memory_freed_mb": memory_freed / (1024**2),
+                "before_usage_mb": before_snapshot.gpu_memory_used / (1024**2),
+                "after_usage_mb": after_snapshot.gpu_memory_used / (1024**2),
+                "efficiency_improvement": before_snapshot.memory_efficiency - after_snapshot.memory_efficiency
+            }
+            
+        except Exception as e:
+            logger.error(f"Force cleanup failed: {str(e)}")
+            return {"status": "error", "error": str(e)}

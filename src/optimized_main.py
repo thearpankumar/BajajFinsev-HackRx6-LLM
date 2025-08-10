@@ -155,13 +155,7 @@ async def _register_all_services():
         lazy_load=True  # Only if Gemini API key available
     )
     
-    from src.services.groq_service import GroqService  
-    smart_service_manager.register_service(
-        'groq_service',
-        GroqService,
-        is_heavy=False,
-        is_essential=True  # Needed for answers
-    )
+      
     
     # Orchestration services
     from src.services.retrieval_orchestrator import RetrievalOrchestrator
@@ -178,7 +172,7 @@ async def _register_all_services():
     smart_service_manager.register_service(
         'answer_generator',
         AnswerGenerator,
-        dependencies=['groq_service'],
+        dependencies=[],
         is_heavy=False,
         is_essential=True
     )
@@ -294,11 +288,10 @@ async def optimized_analyze_document(
                     for chunk in top_chunks
                 ]
                 
-                detected_domain = "general"
-                if hasattr(response, 'processing_metadata') and response.processing_metadata:
-                    detected_domain = response.processing_metadata.get('detected_domain', 'general')
+                # Use fixed legal domain (skip unreliable domain detection)
+                fixed_domain = "legal"
                 
-                answer = await answer_generator.generate_answer(question, chunk_data, detected_domain)
+                answer = await answer_generator.generate_answer(question, chunk_data, fixed_domain)
                 print(f"✅ Generated answer for question {index + 1}")
                 return answer
             else:

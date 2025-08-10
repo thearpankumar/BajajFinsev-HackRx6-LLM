@@ -198,12 +198,13 @@ class GeminiQueryEnhancer:
     ) -> str:
         """Create domain-specific enhancement prompt for Gemini"""
         
-        # Get domain-specific context
-        domain_context = self._get_domain_context(domain)
+        # Always use "legal" domain since domain detection is unreliable
+        fixed_domain = "legal"
+        domain_context = self._get_domain_context(fixed_domain)
         
-        prompt = f"""You are a query enhancement expert specializing in {domain or 'general'} domain queries. Your task is to enhance the user's query by adding relevant domain-specific keywords and expanding concepts for better document retrieval.
+        prompt = f"""You are a query enhancement expert specializing in {fixed_domain} domain queries. Your task is to enhance the user's query by adding relevant domain-specific keywords and expanding concepts for better document retrieval.
 
-DOMAIN: {domain or 'general'}
+DOMAIN: {fixed_domain}
 
 DOMAIN-SPECIFIC KEYWORDS AND CONCEPTS:
 {domain_context}

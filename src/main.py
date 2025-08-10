@@ -4,6 +4,7 @@ Document analysis using RAG (Retrieval Augmented Generation)
 Supports multiple file formats with fast OCR processing
 """
 
+import asyncio
 import json
 import os
 import time
@@ -36,6 +37,9 @@ import sys
 logging.getLogger('sentence_transformers').setLevel(logging.ERROR)
 logging.getLogger('transformers').setLevel(logging.ERROR)
 logging.getLogger('torch').setLevel(logging.ERROR)
+
+# Create logger for this module
+logger = logging.getLogger(__name__)
 
 # Set multiprocessing start method to reduce semaphore leaks
 import multiprocessing
@@ -70,6 +74,7 @@ from src.monitoring.prometheus_metrics import (
 )
 from src.services.retrieval_orchestrator import QueryContext, RetrievalOrchestrator
 from src.services.answer_generator import AnswerGenerator
+from src.services.language_detector import LanguageDetector
 from src.testing.pipeline_validator import PipelineValidator
 
 # Global instances
@@ -77,13 +82,14 @@ rag_pipeline: Union[IntegratedRAGPipeline, None] = None
 retrieval_orchestrator: Union[RetrievalOrchestrator, None] = None
 pipeline_validator: Union[PipelineValidator, None] = None
 answer_generator: Union[AnswerGenerator, None] = None
+language_detector: Union[LanguageDetector, None] = None
 security = HTTPBearer()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup application resources"""
-    global rag_pipeline, retrieval_orchestrator, pipeline_validator, answer_generator
+    global rag_pipeline, retrieval_orchestrator, pipeline_validator, answer_generator, language_detector
 
     # Startup
     print("🚀 Initializing BajajFinsev Advanced RAG System...")
@@ -124,6 +130,7 @@ async def lifespan(app: FastAPI):
             # Initialize Answer Generator
             print("🔄 Initializing Answer Generator...")
             answer_generator = AnswerGenerator()
+            language_detector = LanguageDetector()
             print("✅ Answer Generator initialized")
 
         else:
@@ -296,53 +303,79 @@ async def analyze_document(
               f"{ingestion_result.chunks_created} chunks, "
               f"{ingestion_result.embeddings_generated} embeddings")
 
-        # Step 2: Process questions using retrieval orchestrator
-        print("\n🔍 Step 2: Processing questions...")
-        answers = []
+        # Step 2: Process questions using retrieval orchestrator (CONTROLLED PARALLEL)
+        print("\n🔍 Step 2: Processing questions with controlled concurrency...")
+        
+        # Create semaphore to limit concurrent operations (max 5 at a time)
+        semaphore = asyncio.Semaphore(5)
+        
+        async def process_single_question(question, index):
+            """Process a single question and return the answer with concurrency control"""
+            async with semaphore:  # Limit concurrent operations
+                print(f"\n🤔 Question {index}: {question}")
 
-        for i, question in enumerate(request.questions, 1):
-            print(f"\n🤔 Question {i}: {question}")
+                try:
+                    # Record question processing
+                    rag_metrics.record_question_processed()
 
-            # Record question processing
-            rag_metrics.record_question_processed()
+                    # Detect query language for language-aware responses
+                    detected_language = language_detector.detect_language(question)
+                    query_language = detected_language.get("detected_language", "en")
+                    print(f"🔍 Detected language: {query_language}")
 
-            # Use advanced retrieval orchestrator
-            query_start_time = time.time()
-            response = await retrieval_orchestrator.retrieve_and_rank(
-                query=question,
-                max_results=5,
-                context=QueryContext(
-                    preferred_language="auto-detect"
-                )
-            )
-            query_duration = time.time() - query_start_time
-            rag_metrics.record_query_duration(query_duration)
+                    # Use advanced retrieval orchestrator
+                    query_start_time = time.time()
+                    response = await retrieval_orchestrator.retrieve_and_rank(
+                        query=question,
+                        max_results=5,
+                        context=QueryContext(
+                            preferred_language="auto-detect"
+                        )
+                    )
+                    query_duration = time.time() - query_start_time
+                    rag_metrics.record_query_duration(query_duration)
 
-            if response.total_results > 0:
-                # Generate human-like answer from top retrieved chunks
-                top_chunks = response.ranked_results[:3]
-                chunk_data = [
-                    {
-                        "text": chunk.text,
-                        "score": chunk.score,
-                        "metadata": chunk.metadata
-                    }
-                    for chunk in top_chunks
-                ]
+                    if response.total_results > 0:
+                        # Generate human-like answer from top retrieved chunks
+                        top_chunks = response.ranked_results[:3]
+                        chunk_data = [
+                            {
+                                "text": chunk.text,
+                                "score": chunk.score,
+                                "metadata": chunk.metadata
+                            }
+                            for chunk in top_chunks
+                        ]
 
-                # Get detected domain from processed query
-                detected_domain = "general"
-                if hasattr(response, 'processing_metadata') and response.processing_metadata:
-                    detected_domain = response.processing_metadata.get('detected_domain', 'general')
+                        # Get detected domain from orchestrator response
+                        detected_domain = response.processing_metadata.get("detected_domain", "general")
 
-                # Use answer generator for human-like responses
-                answer = await answer_generator.generate_answer(question, chunk_data, detected_domain)
-                print(f"✅ Generated human-like answer from {len(top_chunks)} relevant chunks (domain: {detected_domain})")
-            else:
-                answer = answer_generator._generate_no_info_response(question)
-                print("⚠️ No relevant chunks found")
+                        # Use answer generator for human-like responses with language awareness
+                        answer = await answer_generator.generate_answer(question, chunk_data, detected_domain, query_language)
+                        print(f"✅ Generated human-like answer from {len(top_chunks)} relevant chunks (domain: {detected_domain})")
+                        return answer
+                    else:
+                        answer = answer_generator._generate_no_info_response(question, query_language)
+                        print("⚠️ No relevant chunks found")
+                        return answer
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error processing question {index}: {str(e)}")
+                    return f"I apologize, but I encountered an error while processing this question: {str(e)}"
 
-            answers.append(answer)
+        # Process all questions in parallel with concurrency control
+        tasks = [
+            process_single_question(question, i+1) 
+            for i, question in enumerate(request.questions)
+        ]
+        
+        # Execute all tasks concurrently with timeout protection
+        try:
+            answers = await asyncio.wait_for(asyncio.gather(*tasks), timeout=300.0)  # 5 minute timeout
+        except asyncio.TimeoutError:
+            logger.error("❌ Question processing timed out after 5 minutes")
+            # Return partial answers if some completed
+            answers = ["Processing timed out for this question."] * len(request.questions)
 
         elapsed_time = timer.get_elapsed_time()
         print(f"\n✅ Advanced RAG analysis completed in {elapsed_time:.2f} seconds")

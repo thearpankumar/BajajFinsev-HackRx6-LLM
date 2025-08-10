@@ -18,7 +18,7 @@ try:
 except ImportError:
     HAS_FAISS = False
 
-from src.core.advanced_gpu_manager import AdvancedGPUManager
+from src.core.gpu_service import GPUService
 from src.core.config import config
 
 logger = logging.getLogger(__name__)
@@ -53,8 +53,8 @@ class AdvancedVectorOptimizer:
     Specifically optimized for RTX 3050 and high-performance retrieval
     """
 
-    def __init__(self, gpu_manager: Union[AdvancedGPUManager, None] = None):
-        self.gpu_manager = gpu_manager or AdvancedGPUManager()
+    def __init__(self, gpu_service: Union[GPUService, None] = None):
+        self.gpu_service = gpu_service or GPUService()
 
         # Configuration
         self.dimension = config.embedding_dimension
@@ -109,9 +109,11 @@ class AdvancedVectorOptimizer:
                     "error": "FAISS not available for vector optimization"
                 }
 
-            # Initialize GPU manager
-            if not self.gpu_manager.is_initialized:
-                await self.gpu_manager.initialize()
+            # Initialize GPU service
+            if not hasattr(self.gpu_service, 'is_gpu_available') or not self.gpu_service.is_gpu_available:
+                gpu_result = self.gpu_service.initialize()
+                if gpu_result.get('status') != 'success':
+                    logger.warning("GPU initialization failed, using CPU fallback")
 
             # Load optimization history if available
             await self._load_optimization_cache()
@@ -146,11 +148,11 @@ class AdvancedVectorOptimizer:
         """Detect optimal configuration based on hardware and usage patterns"""
         try:
             # Check GPU memory availability
-            memory_stats = self.gpu_manager.get_memory_stats()
-            available_memory = memory_stats.get("memory_limit_mb", 4000)
+            device_info = self.gpu_service.get_device_info()
+            available_memory = device_info.get("total_memory_mb", 4000)
 
-            # Detect hardware type from GPU manager
-            gpu_name = str(self.gpu_manager.device)
+            # Detect hardware type from GPU service
+            gpu_name = device_info.get("device_name", "unknown")
 
             if available_memory < 2000:  # Less than 2GB
                 self.current_config = "memory_optimized"
@@ -300,7 +302,7 @@ class AdvancedVectorOptimizer:
 
         config_data = self.index_configurations[config_name]
 
-        with self.gpu_manager.profile_operation(f"benchmark_{config_name}", len(sample_vectors)):
+        with self.gpu_service.memory_profiler(f"benchmark_{config_name}"):
             # Build index
             build_start = time.time()
 
@@ -312,7 +314,7 @@ class AdvancedVectorOptimizer:
                 build_time = time.time() - build_start
 
             # Measure memory usage
-            memory_before = self.gpu_manager._get_gpu_memory_usage()
+            memory_before = self._get_current_memory_usage()
 
             # Benchmark search performance
             search_times = []
@@ -332,7 +334,7 @@ class AdvancedVectorOptimizer:
                 all_distances.append(distances)
                 all_indices.append(indices)
 
-            memory_after = self.gpu_manager._get_gpu_memory_usage()
+            memory_after = self._get_current_memory_usage()
 
             # Calculate metrics
             avg_search_time = sum(search_times) / len(search_times)
@@ -700,3 +702,16 @@ class AdvancedVectorOptimizer:
         except Exception as e:
             logger.warning(f"Optimization stats collection failed: {str(e)}")
             return {"error": str(e)}
+
+    def _get_current_memory_usage(self) -> int:
+        """Get current memory usage in MB"""
+        try:
+            if self.gpu_service.is_gpu_available:
+                usage_info = self.gpu_service.monitor_gpu_usage()
+                if "torch_memory" in usage_info:
+                    return usage_info["torch_memory"].get("allocated_memory_mb", 0)
+                elif "system_memory" in usage_info:
+                    return usage_info["system_memory"].get("used_memory_mb", 0)
+            return 0
+        except Exception:
+            return 0

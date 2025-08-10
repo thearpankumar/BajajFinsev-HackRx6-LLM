@@ -13,6 +13,8 @@ from src.core.integrated_rag_pipeline import IntegratedRAGPipeline, RAGQuery, RA
 from src.services.query_processor import ProcessedQuery, QueryContext, QueryProcessor
 from src.services.legal_query_processor import DomainQueryProcessor
 from src.services.gemini_query_enhancer import gemini_query_enhancer, EnhancedQuery
+from src.services.bilingual_query_processor import BilingualQueryProcessor
+from src.services.translation_service import TranslationService
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +64,12 @@ class RetrievalOrchestrator:
         self.rag_pipeline = rag_pipeline
         self.query_processor = QueryProcessor()
         self.domain_processor = DomainQueryProcessor()
+        
+        # Multilingual support components
+        self.bilingual_processor = BilingualQueryProcessor()
+        self.translation_service = TranslationService()
 
-        # Retrieval strategies configuration
+        # Retrieval strategies configuration with bilingual support
         self.strategies = {
             "semantic_similarity": RetrievalStrategy(
                 name="semantic_similarity",
@@ -82,6 +88,25 @@ class RetrievalOrchestrator:
                 weight=0.1,
                 enabled=True,
                 parameters={"filter_boost": 1.2}
+            ),
+            # Bilingual strategy variants (dynamically added)
+            "semantic_similarity_bilingual": RetrievalStrategy(
+                name="semantic_similarity_bilingual",
+                weight=0.5,  # Slightly lower weight for cross-language matches
+                enabled=True,
+                parameters={"similarity_threshold": 0.5, "cross_language_boost": 1.1}
+            ),
+            "keyword_matching_bilingual": RetrievalStrategy(
+                name="keyword_matching_bilingual", 
+                weight=0.15,  # Lower weight for cross-language keyword matches
+                enabled=True,
+                parameters={"keyword_boost": 1.3, "cross_language_boost": 1.0}
+            ),
+            "semantic_similarity_secondary": RetrievalStrategy(
+                name="semantic_similarity_secondary",
+                weight=0.3,  # Lower weight for secondary language matches
+                enabled=True,
+                parameters={"similarity_threshold": 0.4, "secondary_language_boost": 0.9}
             )
         }
 
@@ -103,6 +128,19 @@ class RetrievalOrchestrator:
             logger.info("🔄 Initializing Retrieval Orchestrator...")
             start_time = time.time()
             
+            # Initialize multilingual components
+            logger.info("🌐 Initializing translation service...")
+            translation_result = await self.translation_service.initialize()
+            
+            logger.info("🔄 Initializing bilingual query processor...")
+            bilingual_result = await self.bilingual_processor.initialize()
+            
+            if translation_result.get("status") != "success":
+                logger.warning(f"⚠️ Translation service initialization failed: {translation_result.get('error')}")
+            
+            if bilingual_result.get("status") != "success":
+                logger.warning(f"⚠️ Bilingual processor initialization failed: {bilingual_result.get('error')}")
+            
             # Initialize Gemini query enhancer
             gemini_result = await gemini_query_enhancer.initialize()
             
@@ -118,10 +156,17 @@ class RetrievalOrchestrator:
                 "components": {
                     "query_processor": "initialized",
                     "domain_processor": "initialized", 
+                    "translation_service": translation_result.get("status", "unknown"),
+                    "bilingual_processor": bilingual_result.get("status", "unknown"),
                     "gemini_enhancer": gemini_result["status"],
                     "rag_pipeline": "external"
                 },
                 "retrieval_strategies": list(self.strategies.keys()),
+                "multilingual_support": {
+                    "translation_enabled": translation_result.get("status") == "success",
+                    "bilingual_processing": bilingual_result.get("status") == "success",
+                    "supported_languages": ["en", "ml"] if translation_result.get("status") == "success" else ["en"]
+                },
                 "gemini_enhancement": gemini_result if gemini_result["status"] == "success" else None,
                 "initialization_time": initialization_time
             }
@@ -161,7 +206,51 @@ class RetrievalOrchestrator:
             logger.info("🔄 Step 1: Processing query with domain awareness...")
             processed_query = await self.query_processor.process_query(query, context)
             
-            # Enhanced domain-specific processing
+            # Step 1.2: Bilingual query processing (Malayalam-English support)
+            logger.info("🌐 Step 1.2: Processing bilingual query...")
+            try:
+                bilingual_result = await self.bilingual_processor.process_bilingual_query(
+                    query=query,
+                    target_language="en",  # Always translate to English for processing
+                    strategy="auto",
+                    context=context
+                )
+                
+                # If bilingual processing was successful and produced a translation
+                if (bilingual_result and 
+                    bilingual_result.confidence_score > 0.3 and
+                    bilingual_result.query_info.primary_query != query):
+                    
+                    logger.info(f"🔤 Using bilingual query: '{query[:50]}...' -> '{bilingual_result.query_info.primary_query[:50]}...'")
+                    
+                    # Update processed query with the bilingual result
+                    processed_query.processed_query = bilingual_result.query_info.primary_query
+                    processed_query.metadata = processed_query.metadata or {}
+                    processed_query.metadata.update({
+                        "original_query": query,
+                        "bilingual_processing": {
+                            "source_language": bilingual_result.translation_metadata.get("source_language"),
+                            "target_language": bilingual_result.translation_metadata.get("target_language"),
+                            "translation_confidence": bilingual_result.translation_metadata.get("translation_confidence"),
+                            "strategy_used": bilingual_result.translation_metadata.get("strategy_used"),
+                            "processing_time": bilingual_result.processing_time,
+                            "confidence_score": bilingual_result.confidence_score
+                        }
+                    })
+                    
+                    # If there's a secondary query, add it to keywords for expanded search
+                    if bilingual_result.query_info.secondary_query:
+                        secondary_keywords = bilingual_result.query_info.secondary_query.split()[:3]  # Take first 3 words
+                        processed_query.keywords = list(processed_query.keywords) + secondary_keywords
+                        
+                else:
+                    logger.info("🌐 Bilingual processing completed - using original query")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Bilingual processing failed: {str(e)} - continuing with original query")
+            
+            # Step 1.3: Detect query domain for context-aware enhancement
+            logger.info("🧠 Step 1.3: Enhancing query with domain-specific context...")
             domain_enhancement = self.domain_processor.enhance_domain_query(query)
             detected_domain = domain_enhancement["detected_domain"]
             
@@ -305,7 +394,7 @@ class RetrievalOrchestrator:
         max_results: int,
         strategies: list[str] | None
     ) -> list[tuple[str, RAGResult]]:
-        """Execute enabled retrieval strategies"""
+        """Execute enabled retrieval strategies with bilingual search support"""
         results = []
 
         # Filter strategies to use
@@ -323,7 +412,7 @@ class RetrievalOrchestrator:
                     processed_query, strategy, max_results
                 )
 
-                # Execute retrieval
+                # Execute primary retrieval
                 retrieval_result = await self.rag_pipeline.query(rag_query)
 
                 if retrieval_result.total_results > 0:
@@ -331,6 +420,67 @@ class RetrievalOrchestrator:
                     logger.debug(f"✅ Strategy {strategy_name}: {retrieval_result.total_results} results")
                 else:
                     logger.debug(f"⚠️ Strategy {strategy_name}: No results")
+
+                # Enhanced Bilingual Cross-Language Search
+                # If we have bilingual processing capability and the original query had translation data
+                if (hasattr(processed_query, 'metadata') and 
+                    processed_query.metadata and 
+                    processed_query.metadata.get("bilingual_processing") and
+                    self.translation_service):
+                    
+                    try:
+                        bilingual_data = processed_query.metadata["bilingual_processing"]
+                        original_query = processed_query.metadata.get("original_query", "")
+                        
+                        # If query was translated, also search with original language version
+                        if (original_query and 
+                            original_query != processed_query.processed_query and
+                            bilingual_data.get("translation_confidence", 0) > 0.3):
+                            
+                            logger.debug(f"🌐 Executing bilingual search for strategy: {strategy_name}")
+                            
+                            # Create bilingual RAG query using original language
+                            bilingual_rag_query = self._create_rag_query_for_strategy(
+                                processed_query, strategy, max_results // 2  # Limit results to avoid duplication
+                            )
+                            # Use original query for bilingual search
+                            bilingual_rag_query.query_text = original_query
+                            
+                            # Execute bilingual retrieval
+                            bilingual_result = await self.rag_pipeline.query(bilingual_rag_query)
+                            
+                            if bilingual_result.total_results > 0:
+                                # Add bilingual results as a separate strategy variant
+                                bilingual_strategy_name = f"{strategy_name}_bilingual"
+                                results.append((bilingual_strategy_name, bilingual_result))
+                                logger.debug(f"🔤 Bilingual strategy {bilingual_strategy_name}: {bilingual_result.total_results} results")
+                                
+                        # Additional cross-language keyword search if we have secondary queries
+                        secondary_query = ""
+                        if hasattr(processed_query, 'metadata') and processed_query.metadata:
+                            secondary_query = processed_query.metadata.get("secondary_query", "")
+                        
+                        if secondary_query and secondary_query != processed_query.processed_query:
+                            logger.debug(f"🔍 Executing secondary language search for strategy: {strategy_name}")
+                            
+                            # Create secondary language RAG query
+                            secondary_rag_query = self._create_rag_query_for_strategy(
+                                processed_query, strategy, max_results // 3
+                            )
+                            secondary_rag_query.query_text = secondary_query
+                            
+                            # Execute secondary language retrieval
+                            secondary_result = await self.rag_pipeline.query(secondary_rag_query)
+                            
+                            if secondary_result.total_results > 0:
+                                # Add secondary results as a separate strategy variant
+                                secondary_strategy_name = f"{strategy_name}_secondary"
+                                results.append((secondary_strategy_name, secondary_result))
+                                logger.debug(f"🔎 Secondary strategy {secondary_strategy_name}: {secondary_result.total_results} results")
+                                
+                    except Exception as e:
+                        logger.warning(f"Bilingual search for strategy {strategy_name} failed: {str(e)}")
+                        continue
 
             except Exception as e:
                 logger.warning(f"Strategy {strategy_name} failed: {str(e)}")
@@ -486,7 +636,7 @@ class RetrievalOrchestrator:
         processed_query: ProcessedQuery,
         base_score: float
     ) -> float:
-        """Calculate final ranking score with various factors"""
+        """Calculate final ranking score with various factors including bilingual support"""
         ranking_score = base_score
 
         # Chunk type preference based on query intent
@@ -496,10 +646,60 @@ class RetrievalOrchestrator:
         elif processed_query.intent == "list" and "table" in chunk_type.lower():
             ranking_score *= 1.3  # Boost tables for lists
 
-        # Language matching
+        # Enhanced Language matching and cross-language support
         chunk_language = chunk_data["metadata"].get("language", "unknown")
-        if chunk_language == processed_query.language:
-            ranking_score *= 1.1  # Boost for language match
+        original_language = chunk_data["metadata"].get("original_language")
+        is_translated = chunk_data["metadata"].get("is_translated", False)
+        
+        # Handle bilingual processing context
+        bilingual_context = None
+        if hasattr(processed_query, 'metadata') and processed_query.metadata:
+            bilingual_context = processed_query.metadata.get("bilingual_processing")
+        
+        if bilingual_context:
+            query_source_lang = bilingual_context.get("source_language", processed_query.language)
+            query_target_lang = bilingual_context.get("target_language", "en")
+            
+            # Prioritize chunks in the original query language
+            if chunk_language == query_source_lang:
+                ranking_score *= 1.3  # Strong boost for original language match
+            elif chunk_language == query_target_lang:
+                ranking_score *= 1.15  # Moderate boost for translated language match
+            elif is_translated and original_language == query_source_lang:
+                ranking_score *= 1.2  # Good boost for translated content from original language
+            elif chunk_language in ["ml", "en"]:  # Both supported languages
+                ranking_score *= 1.1  # Small boost for supported languages
+        else:
+            # Standard language matching
+            if chunk_language == processed_query.language:
+                ranking_score *= 1.1  # Boost for language match
+
+        # Translation quality scoring for bilingual chunks
+        if is_translated:
+            translation_confidence = chunk_data["metadata"].get("translation_confidence", 0.5)
+            if translation_confidence > 0.7:
+                ranking_score *= 1.05  # Boost for high-quality translations
+            elif translation_confidence < 0.4:
+                ranking_score *= 0.9   # Slight penalty for low-quality translations
+            
+            # Boost for chunks that have both original and translated versions available
+            original_chunk_id = chunk_data["metadata"].get("original_chunk_id")
+            if original_chunk_id:
+                ranking_score *= 1.08  # Small boost for having bilingual pair
+
+        # Cross-language strategy scoring
+        strategies_used = list(chunk_data["strategies"].keys())
+        bilingual_strategies = [s for s in strategies_used if "bilingual" in s or "secondary" in s]
+        
+        if bilingual_strategies:
+            # Apply cross-language boost for bilingual retrieval results
+            for strategy_name in bilingual_strategies:
+                if "bilingual" in strategy_name:
+                    cross_lang_boost = self.strategies[strategy_name].parameters.get("cross_language_boost", 1.0)
+                    ranking_score *= cross_lang_boost
+                elif "secondary" in strategy_name:
+                    secondary_boost = self.strategies[strategy_name].parameters.get("secondary_language_boost", 0.9)
+                    ranking_score *= secondary_boost
 
         # Content length consideration
         token_count = chunk_data["metadata"].get("token_count", 0)
@@ -524,7 +724,7 @@ class RetrievalOrchestrator:
         chunk_data: dict[str, Any],
         processed_query: ProcessedQuery
     ) -> str:
-        """Generate explanation of why result is relevant"""
+        """Generate explanation of why result is relevant including bilingual context"""
         explanations = []
 
         # Strategy-based explanations
@@ -535,6 +735,12 @@ class RetrievalOrchestrator:
             explanations.append("contains relevant keywords")
         if "metadata_filtering" in strategies_used:
             explanations.append("matches contextual filters")
+        
+        # Bilingual strategy explanations
+        if any("bilingual" in s for s in strategies_used):
+            explanations.append("cross-language semantic match")
+        if any("secondary" in s for s in strategies_used):
+            explanations.append("secondary language search result")
 
         # Content type explanation
         chunk_type = chunk_data["metadata"].get("chunk_type", "content")
@@ -543,10 +749,32 @@ class RetrievalOrchestrator:
         elif "table" in chunk_type.lower():
             explanations.append("structured data table")
 
-        # Language match
+        # Enhanced language and translation explanations
         chunk_language = chunk_data["metadata"].get("language", "unknown")
-        if chunk_language == processed_query.language:
-            explanations.append(f"matches query language ({chunk_language})")
+        is_translated = chunk_data["metadata"].get("is_translated", False)
+        original_language = chunk_data["metadata"].get("original_language")
+        
+        # Handle bilingual context
+        bilingual_context = None
+        if hasattr(processed_query, 'metadata') and processed_query.metadata:
+            bilingual_context = processed_query.metadata.get("bilingual_processing")
+        
+        if bilingual_context:
+            query_source_lang = bilingual_context.get("source_language", processed_query.language)
+            
+            if chunk_language == query_source_lang:
+                explanations.append(f"matches original query language ({chunk_language})")
+            elif is_translated and original_language == query_source_lang:
+                explanations.append(f"translated from query language ({original_language} → {chunk_language})")
+            elif is_translated:
+                translation_confidence = chunk_data["metadata"].get("translation_confidence", 0.5)
+                explanations.append(f"high-quality translation (confidence: {translation_confidence:.1f})")
+        else:
+            # Standard language matching
+            if chunk_language == processed_query.language:
+                explanations.append(f"matches query language ({chunk_language})")
+            elif is_translated:
+                explanations.append(f"translated content ({original_language} → {chunk_language})")
 
         if explanations:
             return "Relevant because: " + ", ".join(explanations)

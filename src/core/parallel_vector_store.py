@@ -22,6 +22,7 @@ except (ImportError, AttributeError, Exception) as e:
 
 from src.core.config import config
 from src.core.gpu_service import GPUService
+from src.core.advanced_vector_optimizer import AdvancedVectorOptimizer
 from src.services.embedding_service import EmbeddingService
 from src.services.redis_cache import redis_manager
 
@@ -72,6 +73,7 @@ class ParallelVectorStore:
         self.embedding_service = embedding_service
         self.gpu_service = gpu_service or GPUService()
         self.redis_manager = redis_manager
+        self.vector_optimizer = AdvancedVectorOptimizer(self.gpu_service)
 
         # FAISS index
         self.index: Union[faiss.Index, None] = None
@@ -152,6 +154,14 @@ class ParallelVectorStore:
             # Try to load existing index
             await self._load_existing_index()
 
+            # Initialize vector optimizer
+            logger.info("🔧 Initializing Advanced Vector Optimizer...")
+            optimizer_result = await self.vector_optimizer.initialize()
+            if optimizer_result.get("status") == "success":
+                logger.info(f"✅ Vector optimizer ready with {optimizer_result.get('current_config')} configuration")
+            else:
+                logger.warning(f"⚠️ Vector optimizer initialization failed: {optimizer_result.get('error')}")
+
             self.index_initialized = True
             initialization_time = time.time() - start_time
 
@@ -163,6 +173,8 @@ class ParallelVectorStore:
                 "gpu_enabled": self.use_gpu,
                 "documents_loaded": self.total_documents,
                 "cache_enabled": self.enable_cache,
+                "vector_optimizer": optimizer_result.get("status") == "success",
+                "optimizer_config": optimizer_result.get("current_config", "unknown"),
                 "initialization_time": initialization_time,
                 "faiss_version": faiss.__version__ if hasattr(faiss, '__version__') else "unknown"
             }
@@ -328,6 +340,10 @@ class ParallelVectorStore:
             # Train index if needed (for IVF indexes)
             if hasattr(self.index, 'is_trained') and not self.index.is_trained and self.index.ntotal > 0:
                 await self._train_index()
+
+            # Check if optimization is needed after adding documents
+            if added_count > 0 and self.vector_optimizer:
+                await self._check_and_optimize_index()
 
             processing_time = time.time() - start_time
             self.total_indexing_time += processing_time
@@ -777,3 +793,68 @@ class ParallelVectorStore:
                 "status": "error",
                 "error": f"Failed to clear vector store: {str(e)}"
             }
+
+    async def _check_and_optimize_index(self):
+        """Check if index optimization is needed and apply if necessary"""
+        try:
+            if not self.vector_optimizer or not self.index or self.total_documents < 100:
+                return  # Skip optimization for small datasets
+
+            # Get current performance metrics
+            current_performance = {
+                "total_documents": self.total_documents,
+                "index_size": self.index.ntotal,
+                "batch_operations": self.batch_operations
+            }
+
+            # Check if auto-optimization is needed
+            should_optimize = await self.vector_optimizer.auto_optimize_if_needed(current_performance)
+            
+            if should_optimize:
+                logger.info("🚀 Starting automatic index optimization...")
+                
+                # Prepare sample data for optimization
+                if self.documents:
+                    # Get a sample of embeddings for testing
+                    doc_list = list(self.documents.values())
+                    sample_size = min(200, len(doc_list))  # Use up to 200 samples
+                    sample_docs = doc_list[:sample_size]
+                    
+                    sample_vectors = np.array([doc.embedding for doc in sample_docs])
+                    query_vectors = sample_vectors[:min(20, len(sample_vectors))]  # Use first 20 as queries
+                    
+                    # Run optimization
+                    optimization_result = await self.vector_optimizer.optimize_index_parameters(
+                        sample_vectors=sample_vectors,
+                        query_vectors=query_vectors,
+                        current_index=self.index
+                    )
+                    
+                    if optimization_result.get("status") == "success":
+                        improvement = optimization_result.get("improvement_percentage", 0)
+                        if improvement > 5:  # Significant improvement
+                            logger.info(f"✅ Index optimization completed: {improvement:.1f}% improvement")
+                            
+                            # Optionally rebuild index with new parameters
+                            # This would require more complex logic to preserve data
+                            # For now, just log the recommendation
+                            new_config = optimization_result.get("new_configuration")
+                            logger.info(f"💡 Recommended configuration: {new_config}")
+                        else:
+                            logger.info("📊 Index is already optimally configured")
+                    else:
+                        logger.warning(f"⚠️ Index optimization failed: {optimization_result.get('error')}")
+                        
+        except Exception as e:
+            logger.warning(f"Index optimization check failed: {str(e)}")
+
+    def get_optimization_stats(self) -> dict[str, Any]:
+        """Get vector optimization statistics"""
+        try:
+            if not self.vector_optimizer:
+                return {"status": "optimizer_not_available"}
+            
+            return self.vector_optimizer.get_optimization_stats()
+        except Exception as e:
+            logger.warning(f"Failed to get optimization stats: {str(e)}")
+            return {"error": str(e)}

@@ -452,10 +452,25 @@ class GeminiService:
             cached_data = await self.redis_manager.get_json(cache_key)
 
             if cached_data:
-                return GeminiResponse(**cached_data)
+                try:
+                    # Remove cached_at and any other non-constructor params before creating GeminiResponse
+                    valid_params = {'response_text', 'response_type', 'confidence_score', 'processing_time', 'model_used', 'token_count', 'safety_ratings', 'metadata'}
+                    response_data = {k: v for k, v in cached_data.items() if k in valid_params}
+                    return GeminiResponse(**response_data)
+                except Exception as cache_error:
+                    logger.warning(f"Invalid cached data format, skipping cache: {str(cache_error)}")
+                    return None
 
         except Exception as e:
-            logger.warning(f"Gemini cache retrieval failed: {str(e)}")
+            # If cache retrieval fails due to format issues, clear the problematic cache entry
+            try:
+                if 'cached_at' in str(e):
+                    logger.warning(f"Clearing corrupted cache entry due to format error: {str(e)}")
+                    await self.redis_manager.delete(cache_key)
+                else:
+                    logger.warning(f"Gemini cache retrieval failed: {str(e)}")
+            except:
+                logger.warning(f"Gemini cache retrieval failed: {str(e)}")
 
         return None
 
@@ -569,3 +584,7 @@ class GeminiService:
         except Exception as e:
             logger.warning(f"Gemini service stats collection failed: {str(e)}")
             return {"error": str(e)}
+
+
+# Global instance for easy import
+gemini_service = GeminiService()

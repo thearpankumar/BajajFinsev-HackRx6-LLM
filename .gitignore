@@ -511,6 +511,7 @@ cache
 models_cache/
 vector_storage/
 test_data/
+optimization_cache/
 # ==============================================================================
 # NOTES:
 # 

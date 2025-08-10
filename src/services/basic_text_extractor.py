@@ -45,11 +45,20 @@ except (ImportError, ValueError, Exception) as e:
     easyocr = None
 
 try:
+    from bs4 import BeautifulSoup
+    HAS_BEAUTIFULSOUP = True
+except ImportError:
+    HAS_BEAUTIFULSOUP = False
+
+try:
     import pytesseract
     HAS_TESSERACT = True
 except ImportError:
     HAS_TESSERACT = False
 
+import aiohttp
+import tempfile
+import os
 from src.core.config import config
 
 logger = logging.getLogger(__name__)
@@ -75,6 +84,38 @@ class BasicTextExtractor:
         self._check_dependencies()
 
         logger.info(f"BasicTextExtractor initialized with OCR engine: {self.ocr_engine}")
+
+    async def extract_text_from_url(self, url: str) -> dict[str, Any]:
+        """
+        Extract text from a URL by downloading it and processing it.
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    headers = dict(response.headers)
+                    content_type = headers.get('content-type', '').lower()
+                    
+                    file_type = 'txt'
+                    if 'html' in content_type:
+                        file_type = 'html'
+                    elif 'pdf' in content_type:
+                        file_type = 'pdf'
+                    elif 'json' in content_type:
+                        file_type = 'json'
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_type}") as tmp_file:
+                        tmp_file.write(await response.read())
+                        tmp_file_path = tmp_file.name
+
+                    return await self.extract_text(tmp_file_path, file_type)
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": f"URL extraction failed: {str(e)}",
+                "url": url
+            }
 
     def _check_dependencies(self):
         """Check and log available dependencies"""
@@ -146,6 +187,12 @@ class BasicTextExtractor:
                 return await self._extract_spreadsheet_text(filepath)
             elif file_type in ['jpg', 'jpeg', 'png', 'bmp', 'tiff', 'tif', 'webp']:
                 return await self._extract_image_text(filepath)
+            elif file_type == 'txt':
+                return await self._extract_plain_text(filepath)
+            elif file_type == 'json':
+                return await self._extract_json_text(filepath)
+            elif file_type == 'html':
+                return await self._extract_html_text(filepath)
             else:
                 return {
                     "status": "error",
@@ -161,6 +208,101 @@ class BasicTextExtractor:
                 "file_path": file_path,
                 "file_type": file_type
             }
+
+    async def _extract_html_text(self, filepath: Path) -> dict[str, Any]:
+        """Extract text from an HTML file, targeting specific elements."""
+        if not HAS_BEAUTIFULSOUP:
+            return {
+                "status": "error",
+                "error": "BeautifulSoup not available. Install with: pip install beautifulsoup4"
+            }
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                raw_text = f.read()
+
+            soup = BeautifulSoup(raw_text, 'html.parser')
+            
+            # Try to find the specific token element first
+            token_element = soup.find(id="token")
+            if token_element:
+                # If the token element is found, use its text
+                full_text = token_element.get_text(strip=True)
+                extraction_method = "html_parser_targeted"
+            else:
+                # Fallback to getting all text from the body
+                body = soup.find('body')
+                if body:
+                    full_text = body.get_text(separator=' ', strip=True)
+                else:
+                    full_text = soup.get_text(separator=' ', strip=True) # Fallback to all text if no body
+                extraction_method = "html_parser_body"
+
+            cleaned_text = self._clean_text(full_text)
+            return {
+                "status": "success",
+                "content": {
+                    "full_text": cleaned_text,
+                    "char_count": len(cleaned_text),
+                    "word_count": len(cleaned_text.split())
+                },
+                "extraction_method": extraction_method,
+                "metadata": {
+                    "file_type": "html",
+                    "extractor": "BasicTextExtractor"
+                }
+            }
+        except Exception as e:
+            return {"status": "error", "error": f"HTML extraction failed: {str(e)}"}
+
+    async def _extract_plain_text(self, filepath: Path) -> dict[str, Any]:
+        """Extract text from a plain text file."""
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                full_text = f.read()
+            
+            cleaned_text = self._clean_text(full_text)
+            return {
+                "status": "success",
+                "content": {
+                    "full_text": cleaned_text,
+                    "char_count": len(cleaned_text),
+                    "word_count": len(cleaned_text.split())
+                },
+                "extraction_method": "plain_text_reader",
+                "metadata": {
+                    "file_type": "txt",
+                    "extractor": "BasicTextExtractor"
+                }
+            }
+        except Exception as e:
+            return {"status": "error", "error": f"Plain text extraction failed: {str(e)}"}
+
+    async def _extract_json_text(self, filepath: Path) -> dict[str, Any]:
+        """Extract text from a JSON file by serializing it."""
+        try:
+            import json
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Serialize the JSON data to a string
+            full_text = json.dumps(data, indent=2, ensure_ascii=False)
+            
+            cleaned_text = self._clean_text(full_text)
+            return {
+                "status": "success",
+                "content": {
+                    "full_text": cleaned_text,
+                    "char_count": len(cleaned_text),
+                    "word_count": len(cleaned_text.split())
+                },
+                "extraction_method": "json_serializer",
+                "metadata": {
+                    "file_type": "json",
+                    "extractor": "BasicTextExtractor"
+                }
+            }
+        except Exception as e:
+            return {"status": "error", "error": f"JSON extraction failed: {str(e)}"}
 
     async def _extract_pdf_text(self, filepath: Path) -> dict[str, Any]:
         """Extract text from PDF using PyMuPDF"""
@@ -196,11 +338,13 @@ class BasicTextExtractor:
 
             return {
                 "status": "success",
-                "text": full_text,
-                "page_count": len(pages_text),
-                "pages": pages_text,
-                "char_count": total_chars,
-                "word_count": len(full_text.split()),
+                "content": {
+                    "full_text": full_text,
+                    "page_count": len(pages_text),
+                    "pages": pages_text,
+                    "char_count": total_chars,
+                    "word_count": len(full_text.split())
+                },
                 "extraction_method": "pymupdf",
                 "metadata": {
                     "file_type": "pdf",
@@ -243,11 +387,13 @@ class BasicTextExtractor:
 
             return {
                 "status": "success",
-                "text": full_text,
-                "paragraph_count": len(paragraphs_text),
-                "paragraphs": paragraphs_text,
-                "char_count": total_chars,
-                "word_count": len(full_text.split()),
+                "content": {
+                    "full_text": full_text,
+                    "paragraph_count": len(paragraphs_text),
+                    "paragraphs": paragraphs_text,
+                    "char_count": total_chars,
+                    "word_count": len(full_text.split())
+                },
                 "extraction_method": "python-docx",
                 "metadata": {
                     "file_type": "docx",
@@ -308,11 +454,13 @@ class BasicTextExtractor:
 
             return {
                 "status": "success",
-                "text": full_text,
-                "sheet_count": len(sheets_data),
-                "sheets": sheets_data,
-                "char_count": total_chars,
-                "word_count": len(full_text.split()),
+                "content": {
+                    "full_text": full_text,
+                    "sheet_count": len(sheets_data),
+                    "sheets": sheets_data,
+                    "char_count": total_chars,
+                    "word_count": len(full_text.split())
+                },
                 "extraction_method": "pandas",
                 "metadata": {
                     "file_type": file_ext.lstrip('.'),
@@ -438,9 +586,11 @@ class BasicTextExtractor:
 
             return {
                 "status": "success",
-                "text": self._clean_text(full_text),
-                "char_count": len(full_text),
-                "word_count": len(full_text.split()),
+                "content": {
+                    "full_text": self._clean_text(full_text),
+                    "char_count": len(full_text),
+                    "word_count": len(full_text.split())
+                },
                 "extraction_method": "easyocr",
                 "confidence_score": round(avg_confidence, 3),
                 "detected_texts_count": len(text_parts),
@@ -518,9 +668,11 @@ class BasicTextExtractor:
 
             return {
                 "status": "success",
-                "text": cleaned_text,
-                "char_count": len(cleaned_text),
-                "word_count": len(cleaned_text.split()),
+                "content": {
+                    "full_text": cleaned_text,
+                    "char_count": len(cleaned_text),
+                    "word_count": len(cleaned_text.split())
+                },
                 "extraction_method": "tesseract",
                 "confidence_score": round(avg_confidence / 100, 3),  # Convert to 0-1 scale
                 "metadata": {

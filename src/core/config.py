@@ -27,8 +27,6 @@ class EmbeddingModel(str, Enum):
 
 class LLMProvider(str, Enum):
     """Available LLM providers"""
-    GROQ_LLAMA = "groq/llama-3.3-70b-versatile"
-    GROQ_GPT_OSS = "groq/openai/gpt-oss-120b"
     GEMINI = "gemini-2.5-flash-lite"
     OPENAI = "gpt-4o-mini"
 
@@ -64,10 +62,9 @@ class SystemConfig(BaseSettings):
 
     # ========== LLM Configuration ==========
     query_llm: LLMProvider = Field(LLMProvider.GEMINI, description="LLM for query understanding")
-    response_llm: LLMProvider = Field(LLMProvider.GROQ_GPT_OSS, description="LLM for response generation")
+    response_llm: LLMProvider = Field(LLMProvider.OPENAI, description="LLM for response generation")
 
     # ========== API Keys ==========
-    groq_api_key: Union[str, None] = Field(None, env="GROQ_API_KEY", description="Groq API key")
     gemini_api_key: Union[str, None] = Field(None, env="GEMINI_API_KEY", description="Google Gemini API key")
     openai_api_key: Union[str, None] = Field(None, env="OPENAI_API_KEY", description="OpenAI API key")
     google_translate_key: Union[str, None] = Field(None, env="GOOGLE_TRANSLATE_KEY", description="Google Translate API key")
@@ -118,14 +115,14 @@ class SystemConfig(BaseSettings):
 
     # ========== Document Processing Settings ==========
     supported_formats: list[str] = Field(
-        ["pdf", "docx", "doc", "xlsx", "xls", "csv", "jpg", "jpeg", "png", "bmp", "tiff", "tif", "webp"],
+        ["pdf", "docx", "doc", "xlsx", "xls", "csv", "jpg", "jpeg", "png", "bmp", "tiff", "tif", "webp", "txt", "json", "html"],
         description="Supported document formats"
     )
 
     # OCR Settings - Tesseract with Malayalam support
     ocr_engine: str = Field("tesseract", description="OCR engine (tesseract)")
     ocr_languages: list[str] = Field(["en", "ml"], description="OCR supported languages (Malayalam + English)")
-    enable_ocr_preprocessing: bool = Field(True, description="Enable image preprocessing for OCR")
+    enable_ocr_preprocessing: bool = Field(False, description="Enable image preprocessing for OCR")
     max_image_size_mb: int = Field(10, description="Maximum image size for OCR")
 
     # ========== Human Response Settings ==========

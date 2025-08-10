@@ -40,6 +40,7 @@ dependencies:
   # Text processing
   - nltk
   - spacy
+  - beautifulsoup4
   
   # System utilities
   - psutil
