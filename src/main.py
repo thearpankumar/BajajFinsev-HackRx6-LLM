@@ -360,7 +360,7 @@ async def analyze_document(
         print(f"📈 Pipeline stats after ingestion: {pipeline_stats}")
         
         # Critical check: Verify vector store has documents
-        vector_store_stats = rag_pipeline.vector_store.get_storage_stats()
+        vector_store_stats = rag_pipeline.vector_store.get_store_stats()
         total_docs = vector_store_stats.get("total_documents", 0)
         print(f"🗃️ Vector store contains {total_docs} documents")
         
