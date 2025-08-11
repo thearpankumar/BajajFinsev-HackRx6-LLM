@@ -12,6 +12,8 @@
 .env.test
 .env.production
 .env.staging
+# Prevent any .env copy files
+.env copy
 
 # API keys and secrets
 secrets/
