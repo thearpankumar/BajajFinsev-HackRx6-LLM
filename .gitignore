@@ -7,11 +7,16 @@
 # ==============================================================================
 # Environment files with sensitive data
 .env
+.env*
 .env.local
 .env.development
 .env.test
 .env.production
 .env.staging
+# Prevent any .env copy files
+*.env*
+.env copy
+.env copy*
 
 # API keys and secrets
 secrets/
