@@ -1,4 +1,4 @@
-# 🚀 BajajFinsev Advanced RAG System
+# 🚀 Advanced RAG System
 
 A high-performance, GPU-accelerated Retrieval Augmented Generation (RAG) system designed for comprehensive document analysis and intelligent question answering. Built with enterprise-grade architecture featuring parallel processing, multi-language support, and advanced AI capabilities.
 
