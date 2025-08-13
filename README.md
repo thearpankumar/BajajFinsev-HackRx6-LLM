@@ -1,4 +1,4 @@
-# BajajFinsev Gemini-First Document Analysis API
+# Gemini-First Document Analysis API
 
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://hub.docker.com/r/arpankumar1119/hackrx-bajaj)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.116+-green?logo=fastapi)](https://fastapi.tiangolo.com/)
